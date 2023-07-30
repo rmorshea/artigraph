@@ -3,15 +3,14 @@
 import hashlib
 from contextvars import ContextVar
 from email import contentmanager
-from functools import partial
-from typing import Callable, TypeVar, cast
+from typing import TypeVar, cast
 
 import boto3
-from anyio import from_thread
 from botocore.exceptions import ClientError
 from typing_extensions import ParamSpec
 
 from artigraph.storage._core import register_storage
+from artigraph.utils import run_in_thread
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -54,30 +53,26 @@ class S3Storage:
 
         # Only create the object if it doesn't already exist.
         try:
-            await _run_in_thread(client.head_object, Bucket=self.bucket, Key=key)
+            await run_in_thread(client.head_object, Bucket=self.bucket, Key=key)
         except ClientError as error:
             if error.response["Error"]["Code"] != "NoSuchKey":
                 raise
-            await _run_in_thread(client.put_object, Bucket=self.bucket, Key=key, Body=value)
+            await run_in_thread(client.put_object, Bucket=self.bucket, Key=key, Body=value)
 
         return key
 
     async def read(self, key: str) -> bytes:
         """Read an S3 object."""
         client = _S3_CLIENT.get()
-        response = await _run_in_thread(client.get_object, Bucket=self.bucket, Key=key)
+        response = await run_in_thread(client.get_object, Bucket=self.bucket, Key=key)
         return cast(bytes, response["Body"].read())
 
     async def update(self, key: str, value: bytes) -> None:
         """Update an S3 object."""
         client = _S3_CLIENT.get()
-        await _run_in_thread(client.put_object, Bucket=self.bucket, Key=key, Body=value)
+        await run_in_thread(client.put_object, Bucket=self.bucket, Key=key, Body=value)
 
     async def delete(self, key: str) -> None:
         """Delete an S3 object."""
         client = _S3_CLIENT.get()
-        await _run_in_thread(client.delete_object, Bucket=self.bucket, Key=key)
-
-
-async def _run_in_thread(func: Callable[P, R], /, *args: P.args, **kwargs: P.kwargs) -> R:
-    return await from_thread.run(partial(func, *args, **kwargs))
+        await run_in_thread(client.delete_object, Bucket=self.bucket, Key=key)

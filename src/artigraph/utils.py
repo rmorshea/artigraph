@@ -18,6 +18,11 @@ def syncable(async_function: F) -> "Syncable[F]":
     return async_function  # type: ignore  (we know it's Syncable)
 
 
+async def run_in_thread(func: Callable[P, R], /, *args: P.args, **kwargs: P.kwargs) -> R:
+    """Run a sync function in a thread."""
+    return await from_thread.run(partial(func, *args, **kwargs))
+
+
 class Syncable(Protocol[F]):
     """A callable that can be called synchronously or asynchronously."""
 

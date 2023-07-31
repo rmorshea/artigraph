@@ -46,6 +46,8 @@ dependencies = [
   "black>=23.1.0",
   "pyright>=1",
   "ruff>=0.0.243",
+  "aiosqlite>=0.19,<1",
+  "greenlet>=2,<3",
 ]
 
 [tool.hatch.envs.default.scripts]
@@ -59,6 +61,11 @@ cov = ["test-cov", "cov-report"]
 
 lint-typing = "pyright {args:src}"
 lint-style = ["ruff {args:.}", "black --check --diff {args:.}"]
+
+# --- Pytest ---------------------------------------------------------------------------------------
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
 
 # --- Black ----------------------------------------------------------------------------------------
 

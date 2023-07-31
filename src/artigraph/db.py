@@ -1,102 +1,44 @@
 from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from typing import (
+    Any,
     AsyncContextManager,
     AsyncIterator,
     Callable,
     ContextManager,
     Iterator,
     Literal,
+    TypeVar,
     overload,
 )
 
-from sqlalchemy import Engine
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-)
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
-_CURRENT_SYNC_ENGINE: ContextVar[Engine] = ContextVar("CURRENT_SYNC_ENGINE")
+E = TypeVar("E", bound=AsyncEngine)
+
 _CURRENT_ASYNC_ENGINE: ContextVar[AsyncEngine] = ContextVar("CURRENT_ASYNC_ENGINE")
-_CURRENT_SYNC_SESSION: ContextVar[Session] = ContextVar("CURRENT_SYNC_SESSION")
 _CURRENT_ASYNC_SESSION: ContextVar[AsyncSession] = ContextVar("CURRENT_ASYNC_SESSION")
 
 
 @contextmanager
-def engine_context(engine: Engine | AsyncEngine) -> Iterator[None]:
+def engine_context(engine: E) -> Iterator[E]:
     """Define which engine to use in the context."""
     reset = set_engine(engine)
     try:
-        yield
+        yield engine
     finally:
         reset()
 
 
-def set_engine(engine: Engine | AsyncEngine) -> Callable[[], None]:
+def set_engine(engine: AsyncEngine) -> Callable[[], None]:
     """Set the current engine."""
-    if isinstance(engine, Engine):
-        var = _CURRENT_SYNC_ENGINE
-        token = var.set(engine)
-        return lambda: var.reset(token)
-    elif isinstance(engine, AsyncEngine):
-        var = _CURRENT_ASYNC_ENGINE
-        token = var.set(engine)
-        return lambda: var.reset(token)
-    else:
-        msg = f"Unsupported engine type: {type(engine)}"
-        raise TypeError(msg)
-
-
-@overload
-def current_session(*, sync: Literal[True]) -> ContextManager[Session]:
-    ...
-
-
-@overload
-def current_session(*, sync: Literal[False] = ...) -> AsyncContextManager[AsyncSession]:
-    ...
-
-
-def current_session(
-    *, sync: bool = False
-) -> ContextManager[Session] | AsyncContextManager[AsyncSession]:
-    """A context manager for a database session."""
-    if sync:
-        return _sync_session_context()
-    else:
-        return _async_session_context()
-
-
-@contextmanager
-def _sync_session_context() -> Iterator[Session]:
-    """A context manager for a synchronous database session."""
-    try:
-        session = _CURRENT_SYNC_SESSION.get()
-    except LookupError:
-        pass
-    else:
-        yield session
-        return
-
-    try:
-        engine = _CURRENT_SYNC_ENGINE.get()
-    except LookupError:
-        msg = "No current synchronous engine"
-        raise LookupError(msg) from None
-
-    with Session(engine) as session:
-        try:
-            yield session
-        except Exception:
-            session.rollback()
-            raise
-        finally:
-            session.close()
+    var = _CURRENT_ASYNC_ENGINE
+    token = var.set(engine)
+    return lambda: var.reset(token)
 
 
 @asynccontextmanager
-async def _async_session_context() -> AsyncIterator[AsyncSession]:
+async def current_session(**kwargs: Any) -> AsyncIterator[AsyncSession]:
     """A context manager for an asynchronous database session."""
     try:
         session = _CURRENT_ASYNC_SESSION.get()
@@ -112,7 +54,7 @@ async def _async_session_context() -> AsyncIterator[AsyncSession]:
         msg = "No current asynchronous engine"
         raise LookupError(msg) from None
 
-    async with AsyncSession(engine) as session:
+    async with AsyncSession(engine, **kwargs) as session:
         try:
             yield session
         except Exception:

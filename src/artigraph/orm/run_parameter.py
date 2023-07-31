@@ -2,6 +2,7 @@ from sqlalchemy import JSON, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
 from artigraph.orm.base import Base
+from artigraph.orm.run import Run
 
 
 class RunParameter(Base):
@@ -12,7 +13,7 @@ class RunParameter(Base):
     id: Mapped[int] = mapped_column(primary_key=True, init=False)  # noqa: A003
     """The unique ID of this parameter."""
 
-    run_id: Mapped[int] = mapped_column(ForeignKey("run.id"))
+    run_id: Mapped[int] = mapped_column(ForeignKey(Run.id))
     """The ID of the run that produced this parameter."""
 
     key: Mapped[str] = mapped_column(nullable=False)

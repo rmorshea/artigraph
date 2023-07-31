@@ -9,15 +9,15 @@ class Base(DeclarativeBase, MappedAsDataclass):
 
     created_at: Mapped[datetime] = mapped_column(
         nullable=False,
-        default=func.now,
+        default_factory=func.now,
         init=False,
     )
     """The time that this node link was created."""
 
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False,
-        default=func.now,
-        onupdate=func.now,
+        default_factory=func.now,
+        onupdate=func.now(),
         init=False,
     )
     """The time that this node link was last updated."""

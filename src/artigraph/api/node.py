@@ -20,6 +20,22 @@ def group_nodes_by_parent_id(nodes: Sequence[N]) -> dict[int | None, list[N]]:
 
 
 @syncable
+async def create_metadata(node: Node, metadata: dict[str, str]) -> None:
+    """Create metadata for a node."""
+    metadata = [
+        NodeMetadata(
+            node_id=node.id,
+            key=key,
+            value=value,
+        )
+        for key, value in metadata.items()
+    ]
+    async with current_session() as session:
+        session.add_all(metadata)
+        await session.commit()
+
+
+@syncable
 async def read_metadata(node: Node) -> dict[str, str]:
     """Read the metadata for a node."""
     stmt = select(NodeMetadata).where(NodeMetadata.node_id == node.id)
@@ -38,7 +54,7 @@ async def read_direct_children(
     stmt = select(Node).where(Node.parent_id == root_node.id)
     for nt in node_types:
         node_type_name = nt.__mapper_args__["polymorphic_identity"]
-        stmt = stmt.where(Node.node_type == node_type_name)
+        stmt = stmt.where(Node.type == node_type_name)
     async with current_session() as session:
         result = await session.execute(stmt)
         children = result.scalars().all()

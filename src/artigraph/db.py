@@ -1,7 +1,6 @@
 from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from typing import (
-    Any,
     AsyncContextManager,
     AsyncIterator,
     Callable,

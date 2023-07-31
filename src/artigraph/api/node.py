@@ -1,6 +1,6 @@
 from typing import Sequence, TypeVar
 
-from sqlalchemy import alias, join, select
+from sqlalchemy import alias, select
 from sqlalchemy.orm import aliased
 
 from artigraph.db import current_session

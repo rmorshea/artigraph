@@ -1,7 +1,7 @@
 import logging
 import warnings
 from abc import ABC, abstractmethod
-from typing import Protocol, TypeVar, runtime_checkable
+from typing import TypeVar
 
 B = TypeVar("B", bound=str | bytes)
 S = TypeVar("S", bound="Storage")

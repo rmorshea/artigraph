@@ -9,7 +9,7 @@ from artigraph.orm.base import Base
 class Node(Base):
     """A base class for describing a node in a graph."""
 
-    __tablename__ = "node"
+    __tablename__ = "artigraph_node"
     __mapper_args__: ClassVar[dict[str, Any]] = {
         "polymorphic_identity": "node",
         "polymorphic_on": "type",

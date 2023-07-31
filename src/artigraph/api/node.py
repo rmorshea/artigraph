@@ -1,6 +1,6 @@
 from typing import Sequence, TypeVar
 
-from sqlalchemy import alias, select
+from sqlalchemy import and_, literal, or_, select, union_all
 from sqlalchemy.orm import aliased
 
 from artigraph.db import current_session
@@ -36,6 +36,18 @@ async def create_metadata(node: Node, metadata: dict[str, str]) -> None:
 
 
 @syncable
+async def create_parent_child_relationships(
+    parent_child_pairs: Sequence[tuple[Node, Node]]
+) -> None:
+    """Create parent-to-child links between nodes."""
+    async with current_session() as session:
+        for parent, child in parent_child_pairs:
+            child.parent_id = parent.id
+            session.add(child)
+        await session.commit()
+
+
+@syncable
 async def read_metadata(node: Node) -> dict[str, str]:
     """Read the metadata for a node."""
     stmt = select(NodeMetadata).where(NodeMetadata.node_id == node.id)
@@ -48,13 +60,16 @@ async def read_metadata(node: Node) -> dict[str, str]:
 @syncable
 async def read_direct_children(
     root_node: Node,
-    node_types: Sequence[type[N]] = (),
+    node_types: Sequence[type[N] | str] = (),
 ) -> Sequence[N]:
     """Read the direct children of a node."""
     stmt = select(Node).where(Node.parent_id == root_node.id)
-    for nt in node_types:
-        node_type_name = nt.__mapper_args__["polymorphic_identity"]
-        stmt = stmt.where(Node.type == node_type_name)
+    node_type_names = [
+        nt if isinstance(nt, str) else nt.__mapper_args__["polymorphic_identity"]
+        for nt in node_types
+    ]
+    if node_type_names:
+        stmt = stmt.where(Node.type.in_(node_type_names))
     async with current_session() as session:
         result = await session.execute(stmt)
         children = result.scalars().all()
@@ -66,36 +81,35 @@ async def read_direct_children(
 @syncable
 async def read_recursive_children(
     root_node: Node,
-    node_types: Sequence[type[N]] = (),
-) -> Sequence[N]:
+    node_types: Sequence[type[Node]] = (),
+) -> Sequence[Node]:
     """Use a recursive query to read the children of a node."""
+    # Convert node_types to their respective polymorphic_identity strings
+    node_type_names = [
+        nt if isinstance(nt, str) else nt.__mapper_args__["polymorphic_identity"]
+        for nt in node_types
+    ]
 
-    # Create an alias for the node table to use in the recursive query.
-    node = alias(Node.__table__)
-    node_alias = aliased(Node, node)
+    # Define the CTE for recursive traversal
+    node_cte = aliased(Node)
+    recursive_cte = select(Node).where(Node.parent_id == node_cte.id).cte(name="recursive_cte")
 
-    # Create a recursive query to select the children of the root node.
-    stmt = (
-        select(node)
-        .where(node.c.parent_id == root_node.id)
+    # Union the root node and its recursive children
+    recursive_query = union_all(
+        select(Node).where(Node.id == root_node.id),
+        select(Node)
+        .select_from(Node, recursive_cte)
         .where(
-            node.c.node_type.in_([nt.__mapper_args__["polymorphic_identity"] for nt in node_types])
-        )
-        .cte(recursive=True)
-        .union_all(
-            select(node)
-            .join(node_alias, node_alias.c.parent_id == node.c.id)  # type: ignore
-            .where(
-                node.c.node_type.in_(
-                    [nt.__mapper_args__["polymorphic_identity"] for nt in node_types]
-                )
+            and_(
+                Node.parent_id == recursive_cte.c.id,
+                or_(Node.type.in_(node_type_names), literal(False)),
             )
-        )
+        ),
     )
 
-    # Execute the query.
     async with current_session() as session:
-        result = await session.execute(stmt)  # type: ignore
-        children = result.scalars().all()
+        # Execute the recursive query
+        result = await session.execute(recursive_query)
 
-    return children
+        # Return the list of children nodes
+        return result.scalars().all()

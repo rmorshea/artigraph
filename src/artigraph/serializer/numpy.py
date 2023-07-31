@@ -1,17 +1,17 @@
 import numpy as np
 import pandas as pd
 
-from artigraph.serializer._core import register_serializer
+from artigraph.serializer._core import Serializer, register_serializer
 from artigraph.serializer.pandas import pandas_serializer
 
 NP_1D_SHAPE_LEN = 1
 NP_2D_SHAPE_LEN = 2
 
 
-class NumpySerializer:
+class NumpySerializer(Serializer[np.ndarray]):
     """A serializer for numpy arrays."""
 
-    types = np.ndarray
+    types = (np.ndarray,)
     name = "artigraph.numpy"
 
     @staticmethod

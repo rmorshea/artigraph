@@ -22,11 +22,11 @@ class Node(Base):
         "polymorphic_on": "node_type",
     }
 
+    parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("node.id"))
+    """The ID of the parent node."""
+
     id: Mapped[int] = mapped_column(primary_key=True, init=False)  # noqa: A003
     """The unique ID of this node"""
-
-    parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("node.id"), default=None)
-    """The ID of the parent node."""
 
     node_type: Mapped[str] = mapped_column(nullable=False, init=False)
     """The type of the node link."""

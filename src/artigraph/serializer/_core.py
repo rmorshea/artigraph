@@ -1,6 +1,8 @@
 import logging
 import warnings
-from typing import Any, Protocol, TypedDict, TypeVar, runtime_checkable
+from abc import ABC, abstractmethod
+from inspect import isclass
+from typing import Any, Generic, Sequence, TypedDict, TypeVar
 
 T = TypeVar("T")
 S = TypeVar("S", bound="Serializer[Any]")
@@ -22,14 +24,14 @@ def get_serialize_by_name(name: str) -> "Serializer[Any]":
 
 def get_serializer_by_type(value: type[T] | T) -> "Serializer[T]":
     """Get a serializer for a value."""
-    for cls in (value if isinstance(value, type) else value).mro():
+    for cls in (value if isclass(value) else type(value)).mro():
         if cls in SERIALIZERS_BY_TYPE:
             return SERIALIZERS_BY_TYPE[cls]
     msg = f"No serializer exists for {value!r}"
     raise ValueError(msg)
 
 
-def register_serializer(serializer: "Serializer") -> None:
+def register_serializer(serializer: "Serializer[Any]") -> None:
     """Register a serializer.
 
     It's recommended that each serializer be defined and registerd in a separate module
@@ -58,14 +60,13 @@ def register_serializer(serializer: "Serializer") -> None:
         raise ValueError(msg)
     SERIALIZERS_BY_NAME[serializer.name] = serializer
 
-    for st in serializer.types if isinstance(serializer.types, tuple) else (serializer.types,):
-        if st in SERIALIZERS_BY_TYPE:
-            logger.debug("Overriding serializer for type %s with %s", st, serializer)
-        SERIALIZERS_BY_TYPE[st] = serializer
+    for serializable_type in serializer.types:
+        if serializable_type in SERIALIZERS_BY_TYPE:
+            logger.debug("Overriding serializer for type %s with %s", serializable_type, serializer)
+        SERIALIZERS_BY_TYPE[serializable_type] = serializer
 
 
-@runtime_checkable
-class Serializer(Protocol[T]):
+class Serializer(ABC, Generic[T]):
     """A type of artifact that can be serialized to a string or bytes."""
 
     name: str
@@ -81,17 +82,18 @@ class Serializer(Protocol[T]):
     deprecate the old one.
     """
 
-    types: type[T] | tuple[type[T], ...]
+    types: Sequence[type[T]]
     """The type or types of values that can be serialized."""
 
-    def __init__(self) -> None:
-        """Initialize the serializer."""
-
+    @abstractmethod
     def serialize(self, value: T, /) -> bytes:
         """Serialize a value to a string or bytes."""
+        raise NotImplementedError()
 
+    @abstractmethod
     def deserialize(self, value: bytes, /) -> T:
         """Deserialize a string or bytes to a value."""
+        raise NotImplementedError()
 
 
 class DataWrapper(TypedDict):

@@ -1,31 +1,31 @@
 """S3 storage backend for Artigraph."""
 
 import hashlib
+from contextlib import contextmanager
 from contextvars import ContextVar
-from email import contentmanager
-from typing import TypeVar, cast
+from typing import Callable, Iterator, TypeVar, cast
 
-import boto3
+from botocore.client import BaseClient
 from botocore.exceptions import ClientError
 from typing_extensions import ParamSpec
 
-from artigraph.storage._core import register_storage
+from artigraph.storage._core import Storage, register_storage
 from artigraph.utils import run_in_thread
 
 P = ParamSpec("P")
 R = TypeVar("R")
 
-_S3_CLIENT: ContextVar[boto3.client] = ContextVar("S3_CLIENT")
+_S3_CLIENT: ContextVar[BaseClient] = ContextVar("S3_CLIENT")
 
 
-def set_s3_client(client: boto3.client) -> None:
+def set_s3_client(client: BaseClient) -> Callable[[], None]:
     """Set the current S3 client."""
     token = _S3_CLIENT.set(client)
     return lambda: _S3_CLIENT.reset(token)
 
 
-@contentmanager
-def s3_context(client: boto3.client) -> ContextVar[boto3.client]:
+@contextmanager
+def s3_client_context(client: BaseClient) -> Iterator[None]:
     """Set the current S3 client."""
     reset = set_s3_client(client)
     try:
@@ -34,7 +34,7 @@ def s3_context(client: boto3.client) -> ContextVar[boto3.client]:
         reset()
 
 
-class S3Storage:
+class S3Storage(Storage):
     """S3 storage backend for Artigraph."""
 
     def __init__(self, bucket: str, prefix: str) -> None:

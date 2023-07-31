@@ -53,7 +53,7 @@ class ArtifactGroup:
         ARTIFACT_GROUP_TYPES_BY_NAME[cls.__name__] = cls
 
     @syncable
-    async def create(self, run: Run) -> None:
+    async def save(self, run: Run) -> None:
         """Save the artifacts to the database."""
         for group in await read_direct_children(run, [DatabaseArtifact]):
             if group.label == "__group_type__":
@@ -63,13 +63,13 @@ class ArtifactGroup:
 
     @classmethod
     @syncable
-    async def read(cls, run: Run) -> "ArtifactGroup[T]":
+    async def load(cls, run: Run) -> Self:
         """Load the artifacts from the database."""
         artifacts = await read_artifacts(run)
         artifacts_by_parent_id = group_artifacts_by_parent_id(artifacts)
 
         for group, _ in artifacts_by_parent_id[run.id]:
-            if group.label == "__group_type__":
+            if isinstance(group, DatabaseArtifact) and group.label == "__group_type__":
                 break
         else:
             msg = f"Run {run.id} does not have an artifact group."
@@ -106,31 +106,30 @@ class ArtifactGroup:
                     if isinstance(value.storage, str)
                     else value.storage
                 )
-                artifact = StorageArtifact(
+                st_artifact = StorageArtifact(
                     parent_id=group.id,
                     label=f.name,
                     storage=storage.name,
                     serializer=serializer.name,
                 )
-                records.append((artifact, value.value))
+                records.append((st_artifact, value.value))
             elif isinstance(value, ArtifactGroup):
                 records.extend(value._collect_qualified_artifacts(group))
             else:
-                artifact = DatabaseArtifact(
+                db_artifact = DatabaseArtifact(
                     parent_id=group.id,
                     label=f.name,
                     value=value,
                 )
-                records.append(artifact)
+                records.append((db_artifact, value))
 
         return records
 
     @classmethod
-    @syncable
     async def _from_artifacts(
         cls,
         group: DatabaseArtifact,
-        artifacts_by_parent_id: dict[int, Sequence[QualifiedArtifact]],
+        artifacts_by_parent_id: dict[int | None, list[QualifiedArtifact]],
     ) -> Self:
         """Load the artifacts from the database."""
         kwargs: dict[str, Any] = {}

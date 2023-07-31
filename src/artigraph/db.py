@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from typing import (
+    Any,
     AsyncContextManager,
     AsyncIterator,
     Callable,
@@ -37,26 +38,28 @@ def set_engine(engine: Engine | AsyncEngine) -> Callable[[], None]:
     """Set the current engine."""
     if isinstance(engine, Engine):
         var = _CURRENT_SYNC_ENGINE
+        token = var.set(engine)
+        return lambda: var.reset(token)
     elif isinstance(engine, AsyncEngine):
         var = _CURRENT_ASYNC_ENGINE
+        token = var.set(engine)
+        return lambda: var.reset(token)
     else:
         msg = f"Unsupported engine type: {type(engine)}"
         raise TypeError(msg)
-    token = var.set(engine)
-    return lambda: var.reset(token)
 
 
 @overload
-def enter_session(*, sync: Literal[True]) -> ContextManager[Session]:
+def current_session(*, sync: Literal[True]) -> ContextManager[Session]:
     ...
 
 
 @overload
-def enter_session(*, sync: Literal[False] = ...) -> AsyncContextManager[AsyncSession]:
+def current_session(*, sync: Literal[False] = ...) -> AsyncContextManager[AsyncSession]:
     ...
 
 
-def enter_session(
+def current_session(
     *, sync: bool = False
 ) -> ContextManager[Session] | AsyncContextManager[AsyncSession]:
     """A context manager for a database session."""

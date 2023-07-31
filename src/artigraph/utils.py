@@ -4,7 +4,7 @@ from typing import Any, Callable, Coroutine, Protocol, TypeVar, cast
 from anyio import from_thread
 from typing_extensions import ParamSpec
 
-F = TypeVar("F", bound=Callable)
+F = TypeVar("F", bound=Callable[..., Any])
 P = ParamSpec("P")
 R = TypeVar("R")
 
@@ -14,13 +14,14 @@ UNDEFINED = cast(Any, type("UNDEFINED", (), {"__repr__": lambda: "UNDEFINED"}))
 
 
 def syncable(async_function: F) -> "Syncable[F]":
-    async_function.sync = _syncify(async_function)
-    return async_function  # type: ignore  (we know it's Syncable)
+    """Make an async function callable synchronously via an added 'sync' attribute."""
+    async_function.sync = _syncify(async_function)  # type: ignore[attr-defined]
+    return async_function  # type: ignore[return-value]
 
 
 async def run_in_thread(func: Callable[P, R], /, *args: P.args, **kwargs: P.kwargs) -> R:
     """Run a sync function in a thread."""
-    return await from_thread.run(partial(func, *args, **kwargs))
+    return await from_thread.run(partial(func, *args, **kwargs))  # type: ignore
 
 
 class Syncable(Protocol[F]):

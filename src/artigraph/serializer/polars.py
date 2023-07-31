@@ -1,14 +1,15 @@
 import polars as pl
 import pyarrow as pa
 
-from artigraph.serializer._core import register_serializer
+from artigraph.serializer._core import Serializer, register_serializer
 
 
-class PolarsSerializer:
+class PolarsSerializer(Serializer[pl.DataFrame | pl.Series]):
     """A serializer for Polars dataframes."""
 
-    types = (pl.DataFrame, pl.Series)
-    name = "artigraph.polars"
+    def __init__(self) -> None:
+        self.types = (pl.DataFrame, pl.Series)
+        self.name = "artigraph.polars"
 
     @staticmethod
     def serialize(value: pl.DataFrame | pl.Series) -> bytes:

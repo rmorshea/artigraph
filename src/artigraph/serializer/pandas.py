@@ -1,9 +1,11 @@
+from io import BytesIO
+
 import pandas as pd
 
-from artigraph.serializer import register_serializer
+from artigraph.serializer import Serializer, register_serializer
 
 
-class PandasSerializer:
+class PandasSerializer(Serializer[pd.DataFrame | pd.Series]):
     """A serializer for Pandas dataframes."""
 
     types = (pd.DataFrame, pd.Series)
@@ -17,7 +19,7 @@ class PandasSerializer:
     @staticmethod
     def deserialize(value: bytes) -> pd.DataFrame | pd.Series:
         """Deserialize a Pandas dataframe."""
-        return pd.read_parquet(value)
+        return pd.read_parquet(BytesIO(value))
 
 
 pandas_serializer = PandasSerializer()

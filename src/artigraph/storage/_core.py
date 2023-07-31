@@ -1,12 +1,13 @@
 import logging
 import warnings
-from typing import Any, Protocol, TypeVar, runtime_checkable
+from abc import ABC, abstractmethod
+from typing import Protocol, TypeVar, runtime_checkable
 
 B = TypeVar("B", bound=str | bytes)
 S = TypeVar("S", bound="Storage")
 
 WRAPPER_VERSION = 1
-STORAGE_BY_NAME: dict[str, "type[STORAGE_BY_NAME[Any]]"] = {}
+STORAGE_BY_NAME: dict[str, "Storage"] = {}
 
 logger = logging.getLogger(__name__)
 
@@ -26,10 +27,6 @@ def register_storage(storage: "Storage") -> None:
     Thus, if a user does not import a storage backend it will not be registered. This is
     important because some storage backends may have dependencies that are not installed.
     """
-    if not isinstance(storage, Storage):
-        msg = f"{storage} is not a Storage backend"
-        raise ValueError(msg)
-
     if type(storage).__module__ in storage.name:
         warnings.warn(
             "Storage name contains 'module.__name__' which may change between "
@@ -48,8 +45,7 @@ def register_storage(storage: "Storage") -> None:
     STORAGE_BY_NAME[storage.name] = storage
 
 
-@runtime_checkable
-class Storage(Protocol):
+class Storage(ABC):
     """A storage backend for artifacts."""
 
     name: str
@@ -65,14 +61,22 @@ class Storage(Protocol):
     one.
     """
 
+    @abstractmethod
     async def create(self, data: bytes, /) -> str:
         """Create the artifact data and return its location."""
+        ...
 
+    @abstractmethod
     async def read(self, location: str, /) -> bytes:
         """Read artifact data from the given location."""
+        ...
 
+    @abstractmethod
     async def update(self, location: str, data: bytes, /) -> None:
         """Update artifact data at the given location."""
+        ...
 
+    @abstractmethod
     async def delete(self, location: str, /) -> None:
         """Delete artifact data at the given location."""
+        ...

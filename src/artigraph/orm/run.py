@@ -18,5 +18,5 @@ class Run(Node):
     description: Mapped[str] = mapped_column(nullable=False)
     """A description of this run, providing more context about its purpose."""
 
-    finished_at: Mapped[Optional[datetime]] = mapped_column()
+    finished_at: Mapped[Optional[datetime]] = mapped_column(default=None)
     """The time that this run finished."""

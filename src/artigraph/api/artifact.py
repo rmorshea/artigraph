@@ -4,7 +4,7 @@ from typing import Any, Coroutine, Sequence, TypeVar
 from typing_extensions import TypeAlias
 
 from artigraph.api.node import read_recursive_children
-from artigraph.db import enter_session
+from artigraph.db import current_session
 from artigraph.orm.artifact import DatabaseArtifact, StorageArtifact
 from artigraph.orm.node import Node
 from artigraph.serializer._core import get_serialize_by_name
@@ -20,9 +20,9 @@ QualifiedArtifact: TypeAlias = tuple[StorageArtifact | DatabaseArtifact, Any]
 
 def group_artifacts_by_parent_id(
     qualified_artifacts: Sequence[QualifiedArtifact],
-) -> dict[int, Sequence[QualifiedArtifact]]:
+) -> dict[int | None, list[QualifiedArtifact]]:
     """Group artifacts by their parent id."""
-    artifacts_by_parent_id: dict[int, list[QualifiedArtifact]] = {}
+    artifacts_by_parent_id: dict[int | None, list[QualifiedArtifact]] = {}
     for artifact, value in qualified_artifacts:
         artifacts_by_parent_id.setdefault(artifact.parent_id, []).append((artifact, value))
     return artifacts_by_parent_id
@@ -55,7 +55,7 @@ async def create_artifacts(qualified_artifacts: Sequence[QualifiedArtifact]) -> 
         artifact.location = location
 
     # Save records in the database
-    async with enter_session() as session:
+    async with current_session() as session:
         session.add_all(database_artifacts)
         session.add_all(storage_artifacts)
         await session.commit()

@@ -9,7 +9,7 @@ from artigraph.api.artifact import (
     group_artifacts_by_parent_id,
     read_artifacts,
 )
-from artigraph.api.node import read_direct_children
+from artigraph.api.node import read_children
 from artigraph.orm.artifact import DatabaseArtifact, StorageArtifact
 from artigraph.orm.node import Node
 from artigraph.orm.run import Run
@@ -55,7 +55,7 @@ class ArtifactGroup:
     @syncable
     async def save(self, run: Run) -> None:
         """Save the artifacts to the database."""
-        for group in await read_direct_children(run, [DatabaseArtifact]):
+        for group in await read_children(run, [DatabaseArtifact]):
             if group.label == "__group_type__":
                 msg = f"Run {run.id} already has an artifact group."
                 raise ValueError(msg)

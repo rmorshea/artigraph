@@ -1,6 +1,6 @@
 from typing import Sequence, TypeVar
 
-from sqlalchemy import and_, literal, or_, select, union_all
+from sqlalchemy import join, select
 from sqlalchemy.orm import aliased
 
 from artigraph.db import current_session
@@ -58,7 +58,7 @@ async def read_metadata(node: Node) -> dict[str, str]:
 
 
 @syncable
-async def read_direct_children(
+async def read_children(
     root_node: Node,
     node_types: Sequence[type[N] | str] = (),
 ) -> Sequence[N]:
@@ -69,7 +69,7 @@ async def read_direct_children(
         for nt in node_types
     ]
     if node_type_names:
-        stmt = stmt.where(Node.type.in_(node_type_names))
+        stmt = stmt.where(Node.type.in_(_get_node_type_names(node_types)))
     async with current_session() as session:
         result = await session.execute(stmt)
         children = result.scalars().all()
@@ -79,37 +79,49 @@ async def read_direct_children(
 
 
 @syncable
-async def read_recursive_children(
+async def read_descendants(
     root_node: Node,
-    node_types: Sequence[type[Node]] = (),
+    node_types: Sequence[type[Node] | str] = (),
 ) -> Sequence[Node]:
-    """Use a recursive query to read the children of a node."""
-    # Convert node_types to their respective polymorphic_identity strings
-    node_type_names = [
+    """Read all descendants of this node."""
+    node_id = root_node.id
+
+    # Create a CTE to get the descendants recursively
+    node_cte = (
+        select(Node.id.label("descendant_id"), Node.parent_id)
+        .where(Node.id == node_id)
+        .cte(name="descendants", recursive=True)
+    )
+
+    # Recursive case: select the children of the current nodes
+    parent_node = aliased(Node)
+    node_cte = node_cte.union_all(
+        select(parent_node.id, parent_node.parent_id).where(
+            parent_node.parent_id == node_cte.c.descendant_id
+        )
+    )
+
+    # Join the CTE with the actual Node table to get the descendants
+    descendants_query = (
+        select(Node)
+        .select_from(join(Node, node_cte, Node.id == node_cte.c.descendant_id))
+        .where(node_cte.c.descendant_id != node_id)  # Exclude the root node itself
+        .order_by(Node.id)
+    )
+
+    if node_types:
+        descendants_query = descendants_query.where(Node.type.in_(_get_node_type_names(node_types)))
+
+    async with current_session() as session:
+        result = await session.execute(descendants_query)
+        descendants = result.scalars().all()
+
+    return descendants
+
+
+def _get_node_type_names(node_types: Sequence[type[Node] | str]) -> list[str]:
+    """Get the node types as strings."""
+    return [
         nt if isinstance(nt, str) else nt.__mapper_args__["polymorphic_identity"]
         for nt in node_types
     ]
-
-    # Define the CTE for recursive traversal
-    node_cte = aliased(Node)
-    recursive_cte = select(Node).where(Node.parent_id == node_cte.id).cte(name="recursive_cte")
-
-    # Union the root node and its recursive children
-    recursive_query = union_all(
-        select(Node).where(Node.id == root_node.id),
-        select(Node)
-        .select_from(Node, recursive_cte)
-        .where(
-            and_(
-                Node.parent_id == recursive_cte.c.id,
-                or_(Node.type.in_(node_type_names), literal(False)),
-            )
-        ),
-    )
-
-    async with current_session() as session:
-        # Execute the recursive query
-        result = await session.execute(recursive_query)
-
-        # Return the list of children nodes
-        return result.scalars().all()

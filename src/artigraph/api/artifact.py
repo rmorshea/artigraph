@@ -3,7 +3,7 @@ from typing import Any, Coroutine, Sequence, TypeVar
 
 from typing_extensions import TypeAlias
 
-from artigraph.api.node import read_recursive_children
+from artigraph.api.node import read_descendants
 from artigraph.db import current_session
 from artigraph.orm.artifact import DatabaseArtifact, StorageArtifact
 from artigraph.orm.node import Node
@@ -64,7 +64,7 @@ async def create_artifacts(qualified_artifacts: Sequence[QualifiedArtifact]) -> 
 @syncable
 async def read_artifacts(root_node: Node) -> Sequence[QualifiedArtifact]:
     """Load the artifacts from the database."""
-    artifacts = await read_recursive_children(root_node, [DatabaseArtifact, StorageArtifact])
+    artifacts = await read_descendants(root_node, [DatabaseArtifact, StorageArtifact])
 
     storage_artifacts: list[StorageArtifact] = []
     qualified_artifacts: list[QualifiedArtifact] = []

@@ -1,11 +1,9 @@
-import asyncio
-
 from artigraph.api.node import (
     create_metadata,
     group_nodes_by_parent_id,
-    read_direct_children,
+    read_children,
+    read_descendants,
     read_metadata,
-    read_recursive_children,
 )
 from artigraph.db import current_session
 from artigraph.orm.node import Node
@@ -23,7 +21,7 @@ async def test_read_direct_children():
     """Test reading the direct children of a node."""
     graph = await create_graph()
     root = graph.get_root()
-    children = await read_direct_children(root)
+    children = await read_children(root)
     assert {n.id for n in children} == {n.id for n in graph.get_children(root.id)}
 
 
@@ -31,7 +29,7 @@ async def test_read_direct_children_with_node_types():
     """Test reading the direct children of a node with node types."""
     graph = await create_graph()
     root = graph.get_root()
-    children = await read_direct_children(root, node_types=["first"])
+    children = await read_children(root, node_types=["first"])
     assert {n.id for n in children} == {
         n.id for n in graph.get_children(root.id) if n.type == "first"
     }
@@ -41,8 +39,18 @@ async def test_read_recursive_children():
     """Test reading the recursive children of a node."""
     graph = await create_graph()
     root = graph.get_root()
-    children = await read_recursive_children(root)
-    assert {n.id for n in children} == {n.id for n in graph.get_all_nodes()}
+    children = await read_descendants(root)
+    expected_descendant_ids = {n.id for n in graph.get_all_nodes()} - {root.id}
+    assert {n.id for n in children} == expected_descendant_ids
+
+
+async def test_read_recursive_children_with_node_types():
+    """Test reading the recursive children of a node with node types."""
+    graph = await create_graph()
+    root = graph.get_root()
+    children = await read_descendants(root, node_types=["first"])
+    expected_descendant_ids = {n.id for n in graph.get_all_nodes() if n.type == "first"} - {root.id}
+    assert {n.id for n in children} == expected_descendant_ids
 
 
 async def create_node(parent=None):

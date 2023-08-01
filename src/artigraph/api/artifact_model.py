@@ -24,14 +24,14 @@ _ARTIFACT_MODEL_LABEL = "__artifact_model__"
 ARTIFACT_MODEL_TYPES_BY_NAME: dict[str, type["ArtifactModel"]] = {}
 
 
-@dataclass
-class Stored(Generic[T]):
-    """A value within an ArtifactGroup that is saved in a storage backend."""
+@dataclass(frozen=True)
+class RemoteModel(Generic[T]):
+    """A value within an ArtifactModel that is saved in a storage backend."""
 
     value: T
     """The value of the artifact."""
 
-    storage: Storage | str
+    storage: Storage
     """The storage method for the artifact."""
 
     serializer: Serializer = UNDEFINED
@@ -72,13 +72,14 @@ class ArtifactModel:
         ARTIFACT_MODEL_TYPES_BY_NAME[cls.__name__] = cls
 
     @syncable
-    async def save(self, run: Run) -> None:
+    async def save(self, node: Node | None) -> int:
         """Save the artifacts to the database."""
-        for node in await read_children(run, DatabaseArtifact):
-            if _is_artifact_model_node(node):
-                msg = f"Run {run.node_id} already has an artifact group."
-                raise ValueError(msg)
-        await create_artifacts(self._collect_qualified_artifacts(run))
+        if node is None:
+            for child in await read_children(node, DatabaseArtifact):
+                if _is_artifact_model_node(node):
+                    msg = f"Run {child.node_id} already has an artifact group."
+                    raise ValueError(msg)
+        return await create_artifacts(self._collect_qualified_artifacts(child))[0]
 
     @classmethod
     @syncable
@@ -97,7 +98,7 @@ class ArtifactModel:
 
         return await cls._load_from_artifacts(model_node, artifacts_by_parent_id)
 
-    def _collect_qualified_artifacts(self, parent: Node) -> Sequence[QualifiedArtifact]:
+    def _collect_qualified_artifacts(self, parent: Node | None) -> Sequence[QualifiedArtifact]:
         """Collect the records to be saved."""
 
         # creata a node for the model
@@ -111,7 +112,7 @@ class ArtifactModel:
 
             value = getattr(self, f.name)
 
-            if isinstance(value, Stored):
+            if isinstance(value, RemoteModel):
                 serializer = (
                     get_serializer_by_type(value.value)
                     if value.serializer is None

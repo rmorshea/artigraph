@@ -7,7 +7,7 @@ from artigraph.api.node import (
     read_children,
     read_descendants,
     read_metadata,
-    read_node_by_id,
+    read_node,
 )
 from artigraph.db import current_session, get_engine, session_context
 from artigraph.orm.node import Node
@@ -34,14 +34,14 @@ async def test_create_and_read_metadata():
     node = await create_node()
     metadata = {"foo": "bar", "baz": "qux"}
     await create_metadata(node, metadata)
-    assert await read_metadata(node) == metadata
+    assert await read_metadata(node.node_id) == metadata
 
 
 async def test_read_direct_children():
     """Test reading the direct children of a node."""
     graph = await create_graph()
     root = graph.get_root()
-    children = await read_children(root)
+    children = await read_children(root.node_id)
     assert {n.node_id for n in children} == {n.node_id for n in graph.get_children(root.node_id)}
 
 
@@ -49,7 +49,7 @@ async def test_read_direct_children_with_node_types():
     """Test reading the direct children of a node with node types."""
     graph = await create_graph()
     root = graph.get_root()
-    children = await read_children(root, ThingOne)
+    children = await read_children(root.node_id, ThingOne)
     expected_ids = {n.node_id for n in graph.get_children(root.node_id) if isinstance(n, ThingOne)}
     assert {n.node_id for n in children} == expected_ids
 
@@ -58,7 +58,7 @@ async def test_read_recursive_children():
     """Test reading the recursive children of a node."""
     graph = await create_graph()
     root = graph.get_root()
-    children = await read_descendants(root)
+    children = await read_descendants(root.node_id)
     expected_descendant_ids = {n.node_id for n in graph.get_all_nodes()} - {root.node_id}
     assert {n.node_id for n in children} == expected_descendant_ids
 
@@ -67,7 +67,7 @@ async def test_read_recursive_children_with_node_type():
     """Test reading the recursive children of a node with node types."""
     graph = await create_graph()
     root = graph.get_root()
-    children = await read_descendants(root, ThingOne)
+    children = await read_descendants(root.node_id, ThingOne)
     all_run_ids = {n.node_id for n in graph.get_all_nodes() if isinstance(n, ThingOne)}
     expected_descendant_ids = all_run_ids - {root.node_id}
     assert {n.node_id for n in children} == expected_descendant_ids
@@ -81,8 +81,8 @@ async def test_create_parent_child_relationships():
         child = await create_node(parent)
         await create_parent_child_relationships([(grandparent, parent), (parent, child)])
 
-        db_parent = await read_node_by_id(parent.node_id)
-        db_child = await read_node_by_id(child.node_id)
+        db_parent = await read_node(parent.node_id)
+        db_child = await read_node(child.node_id)
 
         assert db_parent.node_parent_id == grandparent.node_id
         assert db_child.node_parent_id == parent.node_id

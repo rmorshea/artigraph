@@ -19,7 +19,7 @@ def group_nodes_by_parent_id(nodes: Sequence[N]) -> dict[int | None, list[N]]:
     return grouped_nodes
 
 
-async def read_node_by_id(node_id: int, node_type: type[N] = Node) -> N:
+async def read_node(node_id: int, node_type: type[N] = Node) -> N:
     """Read a node by its ID."""
     stmt = select(node_type).where(node_type.node_id == node_id)
     async with current_session() as session:
@@ -74,9 +74,9 @@ async def create_parent_child_relationships(
 
 
 @syncable
-async def read_metadata(node: Node) -> dict[str, str]:
+async def read_metadata(node_id: int) -> dict[str, str]:
     """Read the metadata for a node."""
-    stmt = select(NodeMetadata).where(NodeMetadata.node_id == node.node_id)
+    stmt = select(NodeMetadata).where(NodeMetadata.node_id == node_id)
     async with current_session() as session:
         result = await session.execute(stmt)
         metadata_records = result.scalars().all()
@@ -84,12 +84,9 @@ async def read_metadata(node: Node) -> dict[str, str]:
 
 
 @syncable
-async def read_children(
-    root_node: Node,
-    node_type: type[N] = Node,
-) -> Sequence[N]:
+async def read_children(node_id: int, node_type: type[N] = Node) -> Sequence[N]:
     """Read the direct children of a node."""
-    stmt = select(node_type).where(node_type.node_parent_id == root_node.node_id)
+    stmt = select(node_type).where(node_type.node_parent_id == node_id)
     async with current_session() as session:
         result = await session.execute(stmt)
         children = result.scalars().all()
@@ -98,9 +95,8 @@ async def read_children(
 
 
 @syncable
-async def read_descendants(root_node: Node, node_type: type[N] = Node) -> Sequence[N]:
+async def read_descendants(node_id: int, node_type: type[N] = Node) -> Sequence[N]:
     """Read all descendants of this node."""
-    node_id = root_node.node_id
 
     # Create a CTE to get the descendants recursively
     node_cte = (

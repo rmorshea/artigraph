@@ -5,6 +5,8 @@ from typing import Any, Callable, Coroutine, Protocol, TypeVar, cast
 from anyio import from_thread
 from typing_extensions import ParamSpec
 
+from artigraph.orm.base import Base
+
 F = TypeVar("F", bound=Callable[..., Any])
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -24,6 +26,10 @@ def syncable(async_function: F) -> "Syncable[F]":
 
 def slugify(string: str) -> str:
     return SLUG_REPLACE_PATTERN.sub("-", string.lower()).strip("-")
+
+
+def polymetric_identity(cls: type[Base]) -> str:
+    return cls.__mapper_args__["polymorphic_identity"]
 
 
 async def run_in_thread(func: Callable[P, R], /, *args: P.args, **kwargs: P.kwargs) -> R:

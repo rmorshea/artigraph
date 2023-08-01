@@ -1,10 +1,11 @@
-from typing import Sequence, TypeVar
+from os import read
+from typing import Literal, Sequence, TypeGuard, TypeVar, overload
 
-from sqlalchemy import delete, join, select
+from sqlalchemy import Row, delete, join, select
 from sqlalchemy.orm import aliased
 
 from artigraph.db import current_session
-from artigraph.orm.node import Node, NodeMetadata
+from artigraph.orm.node import Node
 from artigraph.utils import syncable
 
 T = TypeVar("T")
@@ -19,21 +20,49 @@ def group_nodes_by_parent_id(nodes: Sequence[N]) -> dict[int | None, list[N]]:
     return grouped_nodes
 
 
-async def read_node(node_id: int, node_type: type[N] = Node) -> N:
+def is_node_type(node: Node, node_type: type[N]) -> TypeGuard[N]:
+    """Check if a node is of a given type."""
+    return node.node_type == node_type.polymorphic_identity
+
+
+@overload
+async def read_node(
+    node_id: int,
+    node_type: type[N] = Node,
+    *,
+    allow_none: Literal[True],
+) -> N | None:
+    ...
+
+
+@overload
+async def read_node(
+    node_id: int,
+    node_type: type[N] = Node,
+    *,
+    allow_none: Literal[False] = ...,
+) -> N:
+    ...
+
+
+async def read_node(node_id: int, node_type: type[N] = Node, *, allow_none: bool = False) -> N:
     """Read a node by its ID."""
     stmt = select(node_type).where(node_type.node_id == node_id)
     async with current_session() as session:
         result = await session.execute(stmt)
-        return result.scalar_one()
+        return result.scalar_one_or_none() if allow_none else result.scalar_one()
+
+
+read_nodes = syncable(read_node)
 
 
 @syncable
-async def node_exists(node_id: int) -> bool:
+async def node_exists(node_id: int, node_type: type[Node] = Node) -> bool:
     """Check if a node exists."""
-    stmt = select(Node.node_id).where(Node.node_id == node_id)
+    stmt = select(node_type.node_id).where(node_type.node_id == node_id)
     async with current_session() as session:
         result = await session.execute(stmt)
-        return bool(result.scalar_one_or_none())
+        return bool(result.one_or_none())
 
 
 @syncable
@@ -42,22 +71,6 @@ async def delete_nodes(node_ids: Sequence[int]) -> None:
     async with current_session() as session:
         stmt = delete(Node).where(Node.node_id.in_(node_ids))
         await session.execute(stmt)
-        await session.commit()
-
-
-@syncable
-async def create_metadata(node: Node, metadata: dict[str, str]) -> None:
-    """Create metadata for a node."""
-    metadata_nodes = [
-        NodeMetadata(
-            node_id=node.node_id,
-            key=key,
-            value=value,
-        )
-        for key, value in metadata.items()
-    ]
-    async with current_session() as session:
-        session.add_all(metadata_nodes)
         await session.commit()
 
 
@@ -74,19 +87,11 @@ async def create_parent_child_relationships(
 
 
 @syncable
-async def read_metadata(node_id: int) -> dict[str, str]:
-    """Read the metadata for a node."""
-    stmt = select(NodeMetadata).where(NodeMetadata.node_id == node_id)
-    async with current_session() as session:
-        result = await session.execute(stmt)
-        metadata_records = result.scalars().all()
-    return {record.key: record.value for record in metadata_records}
-
-
-@syncable
-async def read_children(node_id: int, node_type: type[N] = Node) -> Sequence[N]:
+async def read_children(node_id: int, node_type: type[N] | None = None) -> Sequence[N]:
     """Read the direct children of a node."""
-    stmt = select(node_type).where(node_type.node_parent_id == node_id)
+    stmt = select(Node).where(Node.node_parent_id == node_id)
+    if node_type is not None:
+        stmt = stmt.where(Node.node_type == node_type.polymorphic_identity)
     async with current_session() as session:
         result = await session.execute(stmt)
         children = result.scalars().all()
@@ -95,18 +100,18 @@ async def read_children(node_id: int, node_type: type[N] = Node) -> Sequence[N]:
 
 
 @syncable
-async def read_descendants(node_id: int, node_type: type[N] = Node) -> Sequence[N]:
+async def read_descendants(node_id: int, node_type: type[N] | None = None) -> Sequence[N]:
     """Read all descendants of this node."""
 
     # Create a CTE to get the descendants recursively
     node_cte = (
-        select(node_type.node_id.label("descendant_id"), node_type.node_parent_id)
-        .where(node_type.node_id == node_id)
+        select(Node.node_id.label("descendant_id"), Node.node_parent_id)
+        .where(Node.node_id == node_id)
         .cte(name="descendants", recursive=True)
     )
 
     # Recursive case: select the children of the current nodes
-    parent_node = aliased(node_type)
+    parent_node = aliased(Node)
     node_cte = node_cte.union_all(
         select(parent_node.node_id, parent_node.node_parent_id).where(
             parent_node.node_parent_id == node_cte.c.descendant_id
@@ -115,14 +120,18 @@ async def read_descendants(node_id: int, node_type: type[N] = Node) -> Sequence[
 
     # Join the CTE with the actual Node table to get the descendants
     descendants_query = (
-        select(node_type)
-        .select_from(join(node_type, node_cte, node_type.node_id == node_cte.c.descendant_id))
+        select(Node.__table__)
+        .select_from(join(Node, node_cte, Node.node_id == node_cte.c.descendant_id))
         .where(node_cte.c.descendant_id != node_id)  # Exclude the root node itself
-        .order_by(Node.node_id)
     )
+
+    if node_type is not None:
+        descendants_query = descendants_query.where(
+            Node.node_type == node_type.polymorphic_identity
+        )
 
     async with current_session() as session:
         result = await session.execute(descendants_query)
-        descendants = result.scalars().all()
+        descendants = result.all()
 
     return descendants

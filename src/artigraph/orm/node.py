@@ -1,6 +1,6 @@
 from typing import Any, ClassVar, Optional
 
-from sqlalchemy import ForeignKey, UniqueConstraint
+from sqlalchemy import ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
 from artigraph.orm.base import Base
@@ -22,11 +22,21 @@ class Node(Base):
                     cls.__table_args__ += table_args
                     break
             del cls.__table_args__
+
+        if cls.polymorphic_identity != cls.__mapper_args__["polymorphic_identity"]:
+            msg = (
+                f"polymorphic_identity {cls.polymorphic_identity!r} doesn't match "
+                f"__mapper_args__ {cls.__mapper_args__['polymorphic_identity']!r}"
+            )
+            raise ValueError(msg)
         super().__init_subclass__(**kwargs)
+
+    polymorphic_identity: ClassVar[str] = "node"
+    """The type of the node - should be overridden by subclasses and passed to mapper args."""
 
     __tablename__ = "artigraph_node"
     __mapper_args__: ClassVar[dict[str, Any]] = {
-        "polymorphic_identity": "node",
+        "polymorphic_identity": polymorphic_identity,
         "polymorphic_on": "node_type",
     }
 
@@ -38,22 +48,3 @@ class Node(Base):
 
     node_type: Mapped[str] = mapped_column(nullable=False, init=False)
     """The type of the node link."""
-
-
-class NodeMetadata(Base):
-    """A tag for a node."""
-
-    __tablename__ = "node_metadata"
-    __table_args__ = (UniqueConstraint("node_id", "key"),)
-
-    id: Mapped[int] = mapped_column(primary_key=True, init=False)  # noqa: A003
-    """The unique ID of this node metadata."""
-
-    node_id: Mapped[int] = mapped_column(ForeignKey("artigraph_node.node_id"))
-    """The ID of the node that this metadata is associated with."""
-
-    key: Mapped[str] = mapped_column(nullable=False)
-    """The key of this metadata."""
-
-    value: Mapped[str] = mapped_column(nullable=True)
-    """The value of this metadata."""

@@ -1,3 +1,4 @@
+from calendar import c
 from dataclasses import dataclass, fields
 from typing import Any, ClassVar, Generic, Sequence, TypedDict, TypeGuard, TypeVar
 
@@ -9,11 +10,12 @@ from artigraph.api.artifact import (
     group_artifacts_by_parent_id,
     read_descendant_artifacts,
 )
-from artigraph.api.node import read_children
+from artigraph.api.node import is_node_type, read_children, read_node
+from artigraph.db import current_session
 from artigraph.orm.artifact import DatabaseArtifact, RemoteArtifact
 from artigraph.orm.node import Node
 from artigraph.orm.run import Run
-from artigraph.serializer._core import Serializer, get_serializer_by_type
+from artigraph.serializer._core import Serializer, get_serialize_by_name, get_serializer_by_type
 from artigraph.storage._core import Storage, get_storage_by_name
 from artigraph.utils import UNDEFINED, syncable
 
@@ -72,39 +74,59 @@ class ArtifactModel:
         ARTIFACT_MODEL_TYPES_BY_NAME[cls.__name__] = cls
 
     @syncable
-    async def save(self, node: Node | None) -> int:
+    async def save(self, node: Node | None = None) -> DatabaseArtifact:
         """Save the artifacts to the database."""
-        if node is None:
+        if node is not None:
             for child in await read_children(node, DatabaseArtifact):
                 if _is_artifact_model_node(node):
                     msg = f"Run {child.node_id} already has an artifact group."
                     raise ValueError(msg)
-        return await create_artifacts(self._collect_qualified_artifacts(child))[0]
+        async with current_session():
+            model_node, nodes = await self._collect_qualified_artifacts(node)
+            await create_artifacts(nodes)
+        return model_node
 
     @classmethod
     @syncable
-    async def load(cls, run: Run) -> Self:
+    async def load(cls, node: Node | int) -> Self:
         """Load the artifacts from the database."""
-        artifacts = await read_descendant_artifacts(run)
-        artifacts_by_parent_id = group_artifacts_by_parent_id(artifacts)
+        if isinstance(node, int):
+            node = await read_node(node)
 
-        for node, _ in artifacts_by_parent_id[run.node_id]:
-            if _is_artifact_model_node(node):
-                model_node = node
-                break
+        if is_node_type(node, DatabaseArtifact):
+            node = await read_node(node.node_id, DatabaseArtifact)
+            if node.artifact_label != _ARTIFACT_MODEL_LABEL:
+                msg = f"Node {node} is not an artifact model node."
+                raise ValueError(msg)
+            model_node = node
+        elif is_node_type(node, Run):
+            for model_node in await read_children(node, DatabaseArtifact):
+                if model_node.artifact_label == _ARTIFACT_MODEL_LABEL:
+                    break
+            else:
+                msg = f"Run {node} does not have an artifact model."
+                raise ValueError(msg)
         else:
-            msg = f"Run {run.node_id} does not have an artifact group."
+            msg = f"Node {node} is not a run or artifact model node."
             raise ValueError(msg)
 
+        artifacts = await read_descendant_artifacts(model_node.node_id)
+        artifacts_by_parent_id = group_artifacts_by_parent_id(artifacts)
         return await cls._load_from_artifacts(model_node, artifacts_by_parent_id)
 
-    def _collect_qualified_artifacts(self, parent: Node | None) -> Sequence[QualifiedArtifact]:
+    async def _collect_qualified_artifacts(
+        self, parent: Node | None
+    ) -> tuple[DatabaseArtifact, Sequence[QualifiedArtifact]]:
         """Collect the records to be saved."""
 
         # creata a node for the model
         model_node = _create_artifact_model_node(parent, self)
+        async with current_session() as session:
+            session.add(model_node)
+            await session.commit()
+            await session.refresh(model_node)
 
-        records: list[QualifiedArtifact] = [(model_node, model_node.database_artifact_value)]
+        records: list[QualifiedArtifact] = []
 
         for f in fields(self):
             if not f.init:
@@ -131,7 +153,8 @@ class ArtifactModel:
                 )
                 records.append((st_artifact, value.value))
             elif isinstance(value, ArtifactModel):
-                records.extend(value._collect_qualified_artifacts(model_node))
+                _, inner_records = await value._collect_qualified_artifacts(model_node)
+                records.extend(inner_records)
             else:
                 db_artifact = DatabaseArtifact(
                     node_parent_id=model_node.node_id,
@@ -140,7 +163,7 @@ class ArtifactModel:
                 )
                 records.append((db_artifact, value))
 
-        return records
+        return model_node, records
 
     @classmethod
     async def _load_from_artifacts(
@@ -156,6 +179,12 @@ class ArtifactModel:
                 kwargs[node.artifact_label] = other_cls._load_from_artifacts(
                     node, artifacts_by_parent_id
                 )
+            elif is_node_type(node, RemoteArtifact):
+                storage = get_storage_by_name(node.remote_artifact_storage)
+                serializer = get_serialize_by_name(node.remote_artifact_serializer)
+                kwargs[node.artifact_label] = RemoteModel(
+                    storage=storage, serializer=serializer, value=value
+                )
             else:
                 kwargs[node.artifact_label] = value
 
@@ -165,10 +194,10 @@ class ArtifactModel:
         return cls(**kwargs)
 
 
-def _create_artifact_model_node(parent: Node, model: ArtifactModel) -> DatabaseArtifact:
+def _create_artifact_model_node(parent: Node | None, model: ArtifactModel) -> DatabaseArtifact:
     """Create a node for an artifact model."""
     return DatabaseArtifact(
-        node_parent_id=parent.node_id,
+        node_parent_id=None if parent is None else parent.node_id,
         artifact_label=_ARTIFACT_MODEL_LABEL,
         database_artifact_value=model.metadata(),
     )

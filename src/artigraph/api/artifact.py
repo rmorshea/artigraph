@@ -4,7 +4,7 @@ from typing import Any, Coroutine, Sequence, TypeVar
 from sqlalchemy import select
 from typing_extensions import TypeAlias
 
-from artigraph.api.node import delete_nodes, read_descendants
+from artigraph.api.node import delete_nodes, is_node_type, read_children, read_descendants
 from artigraph.db import current_session
 from artigraph.orm.artifact import Artifact, DatabaseArtifact, RemoteArtifact
 from artigraph.orm.node import Node
@@ -89,8 +89,7 @@ async def create_artifacts(qualified_artifacts: Sequence[QualifiedArtifact]) -> 
 
     # Save records in the database
     async with current_session() as session:
-        session.add_all(database_artifacts)
-        session.add_all(remote_artifacts)
+        session.add_all(database_artifacts + remote_artifacts)
         await session.commit()
         await asyncio.gather(*[session.refresh(a, ["node_id"]) for a, _ in qualified_artifacts])
         return [a.node_id for a, _ in qualified_artifacts]
@@ -115,10 +114,20 @@ async def delete_artifacts(artifacts: Sequence[Artifact]) -> None:
 
 
 @syncable
-async def read_descendant_artifacts(root_node: Node) -> Sequence[QualifiedArtifact]:
+async def read_descendant_artifacts(root_node_id: int) -> Sequence[QualifiedArtifact]:
     """Load the artifacts from the database."""
-    storage_artifacts = await read_descendants(root_node, RemoteArtifact)
-    database_artifacts = await read_descendants(root_node, DatabaseArtifact)
+    all_artifacts = await read_descendants(root_node_id)
+
+    remote_artifacts: list[RemoteArtifact] = []
+    database_artifacts: list[DatabaseArtifact] = []
+    for a in all_artifacts:
+        if is_node_type(a, RemoteArtifact):
+            remote_artifacts.append(a)
+        elif is_node_type(a, DatabaseArtifact):
+            database_artifacts.append(a)
+        else:
+            msg = f"Unknown artifact type: {a}"
+            raise RuntimeError(msg)
 
     qualified_artifacts: list[QualifiedArtifact] = [
         (a, a.database_artifact_value) for a in database_artifacts
@@ -126,13 +135,13 @@ async def read_descendant_artifacts(root_node: Node) -> Sequence[QualifiedArtifa
 
     # Load values from storage
     storage_read_coros: list[Coroutine[None, None, Any]] = []
-    for artifact in storage_artifacts:
+    for artifact in remote_artifacts:
         storage = get_storage_by_name(artifact.remote_artifact_storage)
         storage_read_coros.append(storage.read(artifact.remote_artifact_location))
 
     storage_data = await asyncio.gather(*storage_read_coros)
 
-    for artifact, data in zip(storage_artifacts, storage_data):
+    for artifact, data in zip(remote_artifacts, storage_data):
         serializer = get_serialize_by_name(artifact.remote_artifact_serializer)
         qualified_artifacts.append((artifact, serializer.deserialize(data)))
 
@@ -142,7 +151,7 @@ async def read_descendant_artifacts(root_node: Node) -> Sequence[QualifiedArtifa
 def _get_artifact_type_by_name(name: str) -> type[Artifact]:
     """Get the artifact type by name."""
     for cls in Artifact.__subclasses__():
-        if getattr(cls, "__mapper_args__", {}).get("polymorphic_identity") == name:
+        if cls.polymorphic_identity == name:
             return cls
     msg = f"Unknown artifact type {name}"
     raise ValueError(msg)

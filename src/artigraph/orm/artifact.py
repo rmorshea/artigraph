@@ -1,5 +1,6 @@
 from typing import Any, ClassVar
 
+from numpy import poly
 from sqlalchemy import JSON, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -18,7 +19,8 @@ class Artifact(Node):
 class RemoteArtifact(Artifact):
     """An artifact saved via a storage backend."""
 
-    __mapper_args__: ClassVar[dict[str, Any]] = {"polymorphic_identity": "storage_artifact"}
+    polymorphic_identity = "remote_artifact"
+    __mapper_args__: ClassVar[dict[str, Any]] = {"polymorphic_identity": polymorphic_identity}
 
     remote_artifact_serializer: Mapped[str] = mapped_column(nullable=True)
     """The name of the serializer used to serialize the artifact."""
@@ -33,7 +35,8 @@ class RemoteArtifact(Artifact):
 class DatabaseArtifact(Artifact):
     """An artifact saved directly in the database."""
 
-    __mapper_args__: ClassVar[dict[str, Any]] = {"polymorphic_identity": "database_artifact"}
+    polymorphic_identity = "database_artifact"
+    __mapper_args__: ClassVar[dict[str, Any]] = {"polymorphic_identity": polymorphic_identity}
 
     database_artifact_value: Mapped[Any] = mapped_column(JSON, nullable=True, default=None)
     """The data of the artifact."""

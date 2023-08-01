@@ -14,6 +14,7 @@ class TempJsonFile(RemoteModel[Any]):
     serializer: JsonSerializer = field(default=json_serializer, init=False)
 
 
+@dataclass(frozen=True)
 class SimpleArtifactModel(ArtifactModel):
     """A simple artifact model that stores a few basic artifact."""
 
@@ -28,9 +29,10 @@ async def test_save_load_simple_artifact_model():
         some_value="test-value",
         remote_value=TempJsonFile(value={"some": "data"}),
     )
-    await artifact.save(node=None)
 
-    loaded_artifact = await SimpleArtifactModel.load(node=None)
+    artifact_node = await artifact.save(None)
+
+    loaded_artifact = await SimpleArtifactModel.load(artifact_node)
     assert loaded_artifact.some_value == "test-value"
     assert loaded_artifact.remote_value.value == {"some": "data"}
     assert loaded_artifact.inner_model is None

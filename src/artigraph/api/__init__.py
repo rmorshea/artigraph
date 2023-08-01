@@ -4,7 +4,6 @@ from artigraph.api.node import (
     group_nodes_by_parent_id,
     read_children,
     read_descendants,
-    read_metadata,
 )
 from artigraph.api.run import new_run, run_context
 
@@ -12,7 +11,6 @@ __all__ = [
     "ArtifactModel",
     "read_descendant_artifacts",
     "read_children",
-    "read_metadata",
     "read_descendants",
     "new_run",
     "run_context",

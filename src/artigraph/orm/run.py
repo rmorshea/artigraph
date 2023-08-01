@@ -9,7 +9,8 @@ from artigraph.orm.node import Node
 class Run(Node):
     """A run of a pipeline."""
 
-    __mapper_args__: ClassVar[dict[str, Any]] = {"polymorphic_identity": "run"}
+    polymorphic_identity = "run"
+    __mapper_args__: ClassVar[dict[str, Any]] = {"polymorphic_identity": polymorphic_identity}
 
     run_version: Mapped[str] = mapped_column(nullable=True)
     """The version of the pipeline that was run (e.g. a Git commit hash)."""

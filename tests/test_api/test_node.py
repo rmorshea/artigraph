@@ -1,12 +1,10 @@
 import pytest
 
 from artigraph.api.node import (
-    create_metadata,
     create_parent_child_relationships,
     group_nodes_by_parent_id,
     read_children,
     read_descendants,
-    read_metadata,
     read_node,
 )
 from artigraph.db import current_session, get_engine, session_context
@@ -14,11 +12,13 @@ from artigraph.orm.node import Node
 
 
 class ThingOne(Node):
-    __mapper_args__ = {"polymorphic_identity": "thing_one"}  # noqa: RUF012
+    polymorphic_identity = "thing_one"
+    __mapper_args__ = {"polymorphic_identity": polymorphic_identity}  # noqa: RUF012
 
 
 class ThingTwo(Node):
-    __mapper_args__ = {"polymorphic_identity": "thing_two"}  # noqa: RUF012
+    polymorphic_identity = "thing_two"
+    __mapper_args__ = {"polymorphic_identity": polymorphic_identity}  # noqa: RUF012
 
 
 @pytest.fixture(autouse=True)
@@ -27,14 +27,6 @@ async def create_custom_node_tables():
     async with engine.begin() as conn:
         conn.run_sync(ThingOne.__table__.create)
         conn.run_sync(ThingTwo.__table__.create)
-
-
-async def test_create_and_read_metadata():
-    """Test creating and reading metadata for a node."""
-    node = await create_node()
-    metadata = {"foo": "bar", "baz": "qux"}
-    await create_metadata(node, metadata)
-    assert await read_metadata(node.node_id) == metadata
 
 
 async def test_read_direct_children():
@@ -59,6 +51,7 @@ async def test_read_recursive_children():
     graph = await create_graph()
     root = graph.get_root()
     children = await read_descendants(root.node_id)
+    print(children)
     expected_descendant_ids = {n.node_id for n in graph.get_all_nodes()} - {root.node_id}
     assert {n.node_id for n in children} == expected_descendant_ids
 

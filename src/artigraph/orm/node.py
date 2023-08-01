@@ -12,16 +12,16 @@ class Node(Base):
     __tablename__ = "artigraph_node"
     __mapper_args__: ClassVar[dict[str, Any]] = {
         "polymorphic_identity": "node",
-        "polymorphic_on": "type",
+        "polymorphic_on": "node_type",
     }
 
-    parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("node.id"))
+    node_parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("node.id"))
     """The ID of the parent node."""
 
-    id: Mapped[int] = mapped_column(primary_key=True, init=False)  # noqa: A003
+    node_id: Mapped[int] = mapped_column(primary_key=True, init=False)
     """The unique ID of this node"""
 
-    type: Mapped[str] = mapped_column(nullable=False, init=False)  # noqa: A003
+    node_type: Mapped[str] = mapped_column(nullable=False, init=False)
     """The type of the node link."""
 
 
@@ -34,7 +34,7 @@ class NodeMetadata(Base):
     id: Mapped[int] = mapped_column(primary_key=True, init=False)  # noqa: A003
     """The unique ID of this node metadata."""
 
-    node_id: Mapped[int] = mapped_column(ForeignKey("node.id"))
+    node_id: Mapped[int] = mapped_column(ForeignKey("node.node_id"))
     """The ID of the node that this metadata is associated with."""
 
     key: Mapped[str] = mapped_column(nullable=False)

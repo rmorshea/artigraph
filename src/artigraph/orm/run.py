@@ -11,11 +11,11 @@ class Run(Node):
 
     __mapper_args__: ClassVar[dict[str, Any]] = {"polymorphic_identity": "run"}
 
-    version: Mapped[str] = mapped_column(nullable=True)
+    run_version: Mapped[str] = mapped_column(nullable=True)
     """The version of the pipeline that was run (e.g. a Git commit hash)."""
 
-    description: Mapped[str] = mapped_column(nullable=True)
+    run_description: Mapped[str] = mapped_column(nullable=True)
     """A description of this run, providing more context about its purpose."""
 
-    finished_at: Mapped[Optional[datetime]] = mapped_column(default=None)
+    run_finished_at: Mapped[Optional[datetime]] = mapped_column(default=None)
     """The time that this run finished."""

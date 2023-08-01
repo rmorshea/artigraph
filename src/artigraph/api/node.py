@@ -15,8 +15,17 @@ def group_nodes_by_parent_id(nodes: Sequence[N]) -> dict[int | None, list[N]]:
     """Group nodes by their parent ID."""
     grouped_nodes: dict[int | None, list[N]] = {}
     for node in nodes:
-        grouped_nodes.setdefault(node.parent_id, []).append(node)
+        grouped_nodes.setdefault(node.node_parent_id, []).append(node)
     return grouped_nodes
+
+
+async def read_node_by_id(node_id: int, node_type: type[N] = Node) -> N:
+    """Read a node by its ID."""
+    stmt = select(node_type).where(node_type.node_id == node_id)
+    async with current_session() as session:
+        result = await session.execute(stmt)
+        node = result.scalar()
+    return node
 
 
 @syncable
@@ -24,7 +33,7 @@ async def create_metadata(node: Node, metadata: dict[str, str]) -> None:
     """Create metadata for a node."""
     metadata = [
         NodeMetadata(
-            node_id=node.id,
+            node_id=node.node_id,
             key=key,
             value=value,
         )
@@ -42,7 +51,7 @@ async def create_parent_child_relationships(
     """Create parent-to-child links between nodes."""
     async with current_session() as session:
         for parent, child in parent_child_pairs:
-            child.parent_id = parent.id
+            child.node_parent_id = parent.node_id
             session.add(child)
         await session.commit()
 
@@ -50,7 +59,7 @@ async def create_parent_child_relationships(
 @syncable
 async def read_metadata(node: Node) -> dict[str, str]:
     """Read the metadata for a node."""
-    stmt = select(NodeMetadata).where(NodeMetadata.node_id == node.id)
+    stmt = select(NodeMetadata).where(NodeMetadata.node_id == node.node_id)
     async with current_session() as session:
         result = await session.execute(stmt)
         metadata_records = result.scalars().all()
@@ -63,13 +72,13 @@ async def read_children(
     node_types: Sequence[type[N] | str] = (),
 ) -> Sequence[N]:
     """Read the direct children of a node."""
-    stmt = select(Node).where(Node.parent_id == root_node.id)
+    stmt = select(Node).where(Node.node_parent_id == root_node.node_id)
     node_type_names = [
         nt if isinstance(nt, str) else nt.__mapper_args__["polymorphic_identity"]
         for nt in node_types
     ]
     if node_type_names:
-        stmt = stmt.where(Node.type.in_(_get_node_type_names(node_types)))
+        stmt = stmt.where(Node.node_type.in_(_get_node_type_names(node_types)))
     async with current_session() as session:
         result = await session.execute(stmt)
         children = result.scalars().all()
@@ -84,33 +93,35 @@ async def read_descendants(
     node_types: Sequence[type[Node] | str] = (),
 ) -> Sequence[Node]:
     """Read all descendants of this node."""
-    node_id = root_node.id
+    node_id = root_node.node_id
 
     # Create a CTE to get the descendants recursively
     node_cte = (
-        select(Node.id.label("descendant_id"), Node.parent_id)
-        .where(Node.id == node_id)
+        select(Node.node_id.label("descendant_id"), Node.node_parent_id)
+        .where(Node.node_id == node_id)
         .cte(name="descendants", recursive=True)
     )
 
     # Recursive case: select the children of the current nodes
     parent_node = aliased(Node)
     node_cte = node_cte.union_all(
-        select(parent_node.id, parent_node.parent_id).where(
-            parent_node.parent_id == node_cte.c.descendant_id
+        select(parent_node.node_id, parent_node.node_parent_id).where(
+            parent_node.node_parent_id == node_cte.c.descendant_id
         )
     )
 
     # Join the CTE with the actual Node table to get the descendants
     descendants_query = (
         select(Node)
-        .select_from(join(Node, node_cte, Node.id == node_cte.c.descendant_id))
+        .select_from(join(Node, node_cte, Node.node_id == node_cte.c.descendant_id))
         .where(node_cte.c.descendant_id != node_id)  # Exclude the root node itself
-        .order_by(Node.id)
+        .order_by(Node.node_id)
     )
 
     if node_types:
-        descendants_query = descendants_query.where(Node.type.in_(_get_node_type_names(node_types)))
+        descendants_query = descendants_query.where(
+            Node.node_type.in_(_get_node_type_names(node_types))
+        )
 
     async with current_session() as session:
         result = await session.execute(descendants_query)

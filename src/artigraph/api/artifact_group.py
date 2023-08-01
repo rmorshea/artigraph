@@ -10,7 +10,7 @@ from artigraph.api.artifact import (
     read_artifacts,
 )
 from artigraph.api.node import read_children
-from artigraph.orm.artifact import DatabaseArtifact, StorageArtifact
+from artigraph.orm.artifact import DatabaseArtifact, RemoteArtifact
 from artigraph.orm.node import Node
 from artigraph.orm.run import Run
 from artigraph.serializer._core import Serializer, get_serializer_by_type
@@ -56,8 +56,8 @@ class ArtifactGroup:
     async def save(self, run: Run) -> None:
         """Save the artifacts to the database."""
         for group in await read_children(run, [DatabaseArtifact]):
-            if group.label == "__group_type__":
-                msg = f"Run {run.id} already has an artifact group."
+            if group.artifact_label == "__group_type__":
+                msg = f"Run {run.node_id} already has an artifact group."
                 raise ValueError(msg)
         await create_artifacts(self._collect_qualified_artifacts(run))
 
@@ -68,11 +68,11 @@ class ArtifactGroup:
         artifacts = await read_artifacts(run)
         artifacts_by_parent_id = group_artifacts_by_parent_id(artifacts)
 
-        for group, _ in artifacts_by_parent_id[run.id]:
-            if isinstance(group, DatabaseArtifact) and group.label == "__group_type__":
+        for group, _ in artifacts_by_parent_id[run.node_id]:
+            if isinstance(group, DatabaseArtifact) and group.artifact_label == "__group_type__":
                 break
         else:
-            msg = f"Run {run.id} does not have an artifact group."
+            msg = f"Run {run.node_id} does not have an artifact group."
             raise ValueError(msg)
 
         return await cls._from_artifacts(group, artifacts_by_parent_id)
@@ -82,12 +82,12 @@ class ArtifactGroup:
 
         # creata a node for the group type
         group = DatabaseArtifact(
-            parent_id=parent.id,
-            label="__group_type__",
-            value=self.__class__.__name__,
+            node_parent_id=parent.node_id,
+            artifact_label="__group_type__",
+            database_artifact_value=self.__class__.__name__,
         )
 
-        records: list[QualifiedArtifact] = [(group, group.value)]
+        records: list[QualifiedArtifact] = [(group, group.database_artifact_value)]
 
         for f in fields(self):
             if not f.init:
@@ -106,20 +106,20 @@ class ArtifactGroup:
                     if isinstance(value.storage, str)
                     else value.storage
                 )
-                st_artifact = StorageArtifact(
-                    parent_id=group.id,
-                    label=f.name,
-                    storage=storage.name,
-                    serializer=serializer.name,
+                st_artifact = RemoteArtifact(
+                    node_parent_id=group.node_id,
+                    artifact_label=f.name,
+                    remote_artifact_storage=storage.name,
+                    remote_artifact_serializer=serializer.name,
                 )
                 records.append((st_artifact, value.value))
             elif isinstance(value, ArtifactGroup):
                 records.extend(value._collect_qualified_artifacts(group))
             else:
                 db_artifact = DatabaseArtifact(
-                    parent_id=group.id,
-                    label=f.name,
-                    value=value,
+                    node_parent_id=group.node_id,
+                    artifact_label=f.name,
+                    database_artifact_value=value,
                 )
                 records.append((db_artifact, value))
 
@@ -133,10 +133,15 @@ class ArtifactGroup:
     ) -> Self:
         """Load the artifacts from the database."""
         kwargs: dict[str, Any] = {}
-        for artifact, value in artifacts_by_parent_id[group.id]:
-            if isinstance(artifact, DatabaseArtifact) and artifact.label == "__group_type__":
-                other_cls = ARTIFACT_GROUP_TYPES_BY_NAME[artifact.value]
-                kwargs[artifact.label] = other_cls._from_artifacts(artifact, artifacts_by_parent_id)
+        for artifact, value in artifacts_by_parent_id[group.node_id]:
+            if (
+                isinstance(artifact, DatabaseArtifact)
+                and artifact.artifact_label == "__group_type__"
+            ):
+                other_cls = ARTIFACT_GROUP_TYPES_BY_NAME[artifact.database_artifact_value]
+                kwargs[artifact.artifact_label] = other_cls._from_artifacts(
+                    artifact, artifacts_by_parent_id
+                )
             else:
-                kwargs[artifact.label] = value
+                kwargs[artifact.artifact_label] = value
         return cls(**kwargs)

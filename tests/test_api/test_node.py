@@ -1,3 +1,5 @@
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from artigraph.api.node import (
     create_metadata,
     create_parent_child_relationships,
@@ -7,7 +9,7 @@ from artigraph.api.node import (
     read_metadata,
     read_node_by_id,
 )
-from artigraph.db import current_session
+from artigraph.db import current_session, session_context
 from artigraph.orm.node import Node
 
 
@@ -24,7 +26,7 @@ async def test_read_direct_children():
     graph = await create_graph()
     root = graph.get_root()
     children = await read_children(root)
-    assert {n.id for n in children} == {n.node_id for n in graph.get_children(root.node_id)}
+    assert {n.node_id for n in children} == {n.node_id for n in graph.get_children(root.node_id)}
 
 
 async def test_read_direct_children_with_node_types():
@@ -59,21 +61,21 @@ async def test_read_recursive_children_with_node_types():
 
 async def test_create_parent_child_relationships():
     """Test creating parent-to-child relationships between nodes."""
-    grandparent = await create_node()
-    parent = await create_node(grandparent)
-    child = await create_node(parent)
-    await create_parent_child_relationships([(grandparent, parent), (parent, child)])
+    async with session_context(expire_on_commit=False):
+        grandparent = await create_node()
+        parent = await create_node(grandparent)
+        child = await create_node(parent)
+        await create_parent_child_relationships([(grandparent, parent), (parent, child)])
 
-    db_parent = await read_node_by_id(parent.node_id)
-    db_child = await read_node_by_id(child.node_id)
+        db_parent = await read_node_by_id(parent.node_id)
+        db_child = await read_node_by_id(child.node_id)
 
-    assert db_parent.node_parent_id == grandparent.node_id
-    assert db_child.node_parent_id == parent.node_id
+        assert db_parent.node_parent_id == grandparent.node_id
+        assert db_child.node_parent_id == parent.node_id
 
 
 async def create_node(parent=None):
-    node = Node(node_parent_id=parent.id if parent else None)
-    node.node_type = "simple"
+    node = Node(node_parent_id=parent.node_id if parent else None)
 
     async with current_session() as session:
         session.add(node)

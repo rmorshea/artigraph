@@ -15,7 +15,7 @@ class Node(Base):
         "polymorphic_on": "node_type",
     }
 
-    node_parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("node.id"))
+    node_parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("artigraph_node.node_id"))
     """The ID of the parent node."""
 
     node_id: Mapped[int] = mapped_column(primary_key=True, init=False)
@@ -34,7 +34,7 @@ class NodeMetadata(Base):
     id: Mapped[int] = mapped_column(primary_key=True, init=False)  # noqa: A003
     """The unique ID of this node metadata."""
 
-    node_id: Mapped[int] = mapped_column(ForeignKey("node.node_id"))
+    node_id: Mapped[int] = mapped_column(ForeignKey("artigraph_node.node_id"))
     """The ID of the node that this metadata is associated with."""
 
     key: Mapped[str] = mapped_column(nullable=False)

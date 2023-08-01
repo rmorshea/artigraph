@@ -5,12 +5,12 @@ from typing import AsyncIterator, Callable, Iterator, TypeVar
 
 from typing_extensions import ParamSpec
 
-from artigraph.api.artifact_group import ArtifactGroup
+from artigraph.api.artifact_model import ArtifactModel
 from artigraph.db import current_session
 from artigraph.orm.run import Run
 
 P = ParamSpec("P")
-A = TypeVar("A", bound=ArtifactGroup)
+A = TypeVar("A", bound=ArtifactModel)
 _CURRENT_RUN_ID: ContextVar[int] = ContextVar("CURRENT_RUN_ID")
 
 

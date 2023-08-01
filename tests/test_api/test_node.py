@@ -1,5 +1,3 @@
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from artigraph.api.node import (
     create_metadata,
     create_parent_child_relationships,

@@ -1,6 +1,6 @@
-from typing import Optional, Sequence, TypeVar
+from typing import Sequence, TypeVar
 
-from sqlalchemy import join, select
+from sqlalchemy import delete, join, select
 from sqlalchemy.orm import aliased
 
 from artigraph.db import current_session
@@ -26,6 +26,24 @@ async def read_node_by_id(node_id: int, node_type: type[N] = Node) -> N:
         result = await session.execute(stmt)
         node = result.scalar()
     return node
+
+
+@syncable
+async def node_exists(node_id: int) -> bool:
+    """Check if a node exists."""
+    stmt = select(Node.node_id).where(Node.node_id == node_id)
+    async with current_session() as session:
+        result = await session.execute(stmt)
+        return bool(result.scalar_one_or_none())
+
+
+@syncable
+async def delete_nodes(node_ids: Sequence[int]) -> None:
+    """Delete nodes."""
+    async with current_session() as session:
+        stmt = delete(Node).where(Node.node_id.in_(node_ids))
+        await session.execute(stmt)
+        await session.commit()
 
 
 @syncable

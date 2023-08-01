@@ -20,14 +20,14 @@ class RemoteArtifact(Artifact):
 
     __mapper_args__: ClassVar[dict[str, Any]] = {"polymorphic_identity": "storage_artifact"}
 
-    remote_artifact_location: Mapped[str] = mapped_column(init=False, nullable=True)
-    """A string describing where the artifact is stored."""
-
     remote_artifact_serializer: Mapped[str] = mapped_column(nullable=True)
     """The name of the serializer used to serialize the artifact."""
 
     remote_artifact_storage: Mapped[str] = mapped_column(nullable=True)
     """The name of the storage method for the artifact."""
+
+    remote_artifact_location: Mapped[str] = mapped_column(init=False, nullable=True)
+    """A string describing where the artifact is stored."""
 
 
 class DatabaseArtifact(Artifact):

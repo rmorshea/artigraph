@@ -1,10 +1,10 @@
 import asyncio
 from typing import Any, Coroutine, Sequence, TypeVar
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from typing_extensions import TypeAlias
 
-from artigraph.api.node import read_descendants
+from artigraph.api.node import delete_nodes, read_descendants
 from artigraph.db import current_session
 from artigraph.orm.artifact import Artifact, DatabaseArtifact, RemoteArtifact
 from artigraph.orm.node import Node
@@ -71,26 +71,44 @@ async def create_artifacts(qualified_artifacts: Sequence[QualifiedArtifact]) -> 
             database_artifacts.append(artifact)
 
     # Save values to storage first
-    storage_artifacts: list[RemoteArtifact] = []
+    remote_artifacts: list[RemoteArtifact] = []
     storage_create_coros: list[Coroutine[None, None, str]] = []
     for artifact, value in qualified_storage_artifacts:
         storage = get_storage_by_name(artifact.remote_artifact_storage)
         serializer = get_serialize_by_name(artifact.remote_artifact_serializer)
-        storage_artifacts.append(artifact)
+        remote_artifacts.append(artifact)
         storage_create_coros.append(storage.create(serializer.serialize(value)))
 
     storage_locations = await asyncio.gather(*storage_create_coros)
 
-    for artifact, location in zip(storage_artifacts, storage_locations):
+    for artifact, location in zip(remote_artifacts, storage_locations):
         artifact.remote_artifact_location = location
 
     # Save records in the database
     async with current_session() as session:
         session.add_all(database_artifacts)
-        session.add_all(storage_artifacts)
+        session.add_all(remote_artifacts)
         await session.commit()
         await asyncio.gather(*[session.refresh(a, ["node_id"]) for a, _ in qualified_artifacts])
         return [a.node_id for a, _ in qualified_artifacts]
+
+
+@syncable
+async def delete_artifacts(artifacts: Sequence[Artifact]) -> None:
+    """Delete the artifacts from the database."""
+    remote_artifacts: list[RemoteArtifact] = []
+    for artifact in artifacts:
+        if isinstance(artifact, RemoteArtifact):
+            remote_artifacts.append(artifact)
+
+    # Delete values from storage first
+    storage_delete_coros: list[Coroutine[None, None, None]] = []
+    for artifact in remote_artifacts:
+        storage = get_storage_by_name(artifact.remote_artifact_storage)
+        storage_delete_coros.append(storage.delete(artifact.remote_artifact_location))
+
+    await asyncio.gather(*storage_delete_coros)
+    await delete_nodes([a.node_id for a in artifacts])
 
 
 @syncable

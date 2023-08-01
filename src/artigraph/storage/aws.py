@@ -76,3 +76,14 @@ class S3Storage(Storage):
         """Delete an S3 object."""
         client = _S3_CLIENT.get()
         await run_in_thread(client.delete_object, Bucket=self.bucket, Key=key)
+
+    async def exists(self, key: str) -> None:
+        """Check if an S3 object exists."""
+        client = _S3_CLIENT.get()
+        try:
+            await run_in_thread(client.head_object, Bucket=self.bucket, Key=key)
+        except ClientError as error:
+            if error.response["Error"]["Code"] == "NoSuchKey":
+                return False
+            raise
+        return True

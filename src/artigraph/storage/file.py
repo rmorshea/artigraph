@@ -36,6 +36,11 @@ class FileSystemStorage(Storage):
         path = self.dir / key
         path.unlink()
 
+    async def exists(self, key: str) -> bool:
+        """Check if an artifact exists in the filesystem."""
+        path = self.dir / key
+        return path.exists()
+
 
 temp_dir = TemporaryDirectory()
 temp_file_storage = FileSystemStorage(temp_dir.name)

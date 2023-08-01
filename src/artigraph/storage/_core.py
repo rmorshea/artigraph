@@ -80,3 +80,8 @@ class Storage(ABC):
     async def delete(self, location: str, /) -> None:
         """Delete artifact data at the given location."""
         ...
+
+    @abstractmethod
+    async def exists(self, location: str, /) -> bool:
+        """Check if artifact data exists at the given location."""
+        ...

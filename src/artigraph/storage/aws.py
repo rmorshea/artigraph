@@ -10,7 +10,7 @@ from botocore.exceptions import ClientError
 from typing_extensions import ParamSpec
 
 from artigraph.storage._core import Storage, register_storage
-from artigraph.utils import run_in_thread
+from artigraph.utils import run_in_thread, slugify
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -39,7 +39,7 @@ class S3Storage(Storage):
 
     def __init__(self, bucket: str, prefix: str) -> None:
         """Initialize the storage backend."""
-        self.name = f"artigraph.s3.{bucket}.{prefix}"
+        self.name = slugify(f"artigraph-s3-{bucket}-{prefix}")
         self.bucket = bucket
         self.prefix = prefix
         register_storage(self)

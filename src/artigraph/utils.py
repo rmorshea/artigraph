@@ -1,3 +1,4 @@
+import re
 from functools import partial, wraps
 from typing import Any, Callable, Coroutine, Protocol, TypeVar, cast
 
@@ -8,6 +9,8 @@ F = TypeVar("F", bound=Callable[..., Any])
 P = ParamSpec("P")
 R = TypeVar("R")
 
+SLUG_REPLACE_PATTERN = re.compile(r"[^a-z0-9]+")
+"""A pattern for replacing non-alphanumeric characters in slugs"""
 
 UNDEFINED = cast(Any, type("UNDEFINED", (), {"__repr__": lambda: "UNDEFINED"}))
 """A sentinel for undefined values"""
@@ -17,6 +20,10 @@ def syncable(async_function: F) -> "Syncable[F]":
     """Make an async function callable synchronously via an added 'sync' attribute."""
     async_function.sync = _syncify(async_function)  # type: ignore[attr-defined]
     return async_function  # type: ignore[return-value]
+
+
+def slugify(string: str) -> str:
+    return SLUG_REPLACE_PATTERN.sub("-", string.lower()).strip("-")
 
 
 async def run_in_thread(func: Callable[P, R], /, *args: P.args, **kwargs: P.kwargs) -> R:

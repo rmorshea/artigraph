@@ -7,9 +7,8 @@ from artigraph.serializer._core import Serializer, register_serializer
 class PolarsSerializer(Serializer[pl.DataFrame | pl.Series]):
     """A serializer for Polars dataframes."""
 
-    def __init__(self) -> None:
-        self.types = (pl.DataFrame, pl.Series)
-        self.name = "artigraph.polars"
+    types = (pl.DataFrame, pl.Series)
+    name = "artigraph-polars"
 
     @staticmethod
     def serialize(value: pl.DataFrame | pl.Series) -> bytes:

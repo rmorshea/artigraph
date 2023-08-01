@@ -9,7 +9,7 @@ class PandasSerializer(Serializer[pd.DataFrame | pd.Series]):
     """A serializer for Pandas dataframes."""
 
     types = (pd.DataFrame, pd.Series)
-    name = "artigraph.pandas"
+    name = "artigraph-pandas"
 
     @staticmethod
     def serialize(value: pd.DataFrame | pd.Series) -> bytes:

@@ -12,7 +12,7 @@ class NumpySerializer(Serializer[np.ndarray]):
     """A serializer for numpy arrays."""
 
     types = (np.ndarray,)
-    name = "artigraph.numpy"
+    name = "artigraph-numpy"
 
     @staticmethod
     def serialize(value: np.ndarray) -> bytes:

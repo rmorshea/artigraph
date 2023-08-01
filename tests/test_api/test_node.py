@@ -51,7 +51,6 @@ async def test_read_recursive_children():
     graph = await create_graph()
     root = graph.get_root()
     children = await read_descendants(root.node_id)
-    print(children)
     expected_descendant_ids = {n.node_id for n in graph.get_all_nodes()} - {root.node_id}
     assert {n.node_id for n in children} == expected_descendant_ids
 

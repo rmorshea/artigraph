@@ -1,7 +1,7 @@
 import asyncio
 from typing import Any, Coroutine, Sequence, TypeVar
 
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from typing_extensions import TypeAlias
 
 from artigraph.api.node import delete_nodes, read_descendants
@@ -51,8 +51,11 @@ async def read_artifact_by_id(artifact_id: int) -> QualifiedArtifact:
         storage = get_storage_by_name(artifact.remote_artifact_storage)
         serializer = get_serialize_by_name(artifact.remote_artifact_serializer)
         value = serializer.deserialize(await storage.read(artifact.remote_artifact_location))
-    else:
+    elif isinstance(artifact, DatabaseArtifact):
         value = artifact.database_artifact_value
+    else:
+        msg = f"Unknown artifact type: {artifact}"
+        raise RuntimeError(msg)
 
     return artifact, value
 
@@ -115,7 +118,11 @@ async def delete_artifacts(artifacts: Sequence[Artifact]) -> None:
 async def read_descendant_artifacts(root_node: Node) -> Sequence[QualifiedArtifact]:
     """Load the artifacts from the database."""
     storage_artifacts = await read_descendants(root_node, RemoteArtifact)
-    qualified_artifacts = list(await read_descendants(root_node, DatabaseArtifact))
+    database_artifacts = await read_descendants(root_node, DatabaseArtifact)
+
+    qualified_artifacts: list[QualifiedArtifact] = [
+        (a, a.database_artifact_value) for a in database_artifacts
+    ]
 
     # Load values from storage
     storage_read_coros: list[Coroutine[None, None, Any]] = []

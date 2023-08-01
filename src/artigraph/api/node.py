@@ -24,8 +24,7 @@ async def read_node_by_id(node_id: int, node_type: type[N] = Node) -> N:
     stmt = select(node_type).where(node_type.node_id == node_id)
     async with current_session() as session:
         result = await session.execute(stmt)
-        node = result.scalar()
-    return node
+        return result.scalar_one()
 
 
 @syncable
@@ -49,7 +48,7 @@ async def delete_nodes(node_ids: Sequence[int]) -> None:
 @syncable
 async def create_metadata(node: Node, metadata: dict[str, str]) -> None:
     """Create metadata for a node."""
-    metadata = [
+    metadata_nodes = [
         NodeMetadata(
             node_id=node.node_id,
             key=key,
@@ -58,7 +57,7 @@ async def create_metadata(node: Node, metadata: dict[str, str]) -> None:
         for key, value in metadata.items()
     ]
     async with current_session() as session:
-        session.add_all(metadata)
+        session.add_all(metadata_nodes)
         await session.commit()
 
 

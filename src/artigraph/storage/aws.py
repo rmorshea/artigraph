@@ -77,7 +77,7 @@ class S3Storage(Storage):
         client = _S3_CLIENT.get()
         await run_in_thread(client.delete_object, Bucket=self.bucket, Key=key)
 
-    async def exists(self, key: str) -> None:
+    async def exists(self, key: str) -> bool:
         """Check if an S3 object exists."""
         client = _S3_CLIENT.get()
         try:

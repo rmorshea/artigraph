@@ -74,7 +74,7 @@ class ArtifactModel:
     @syncable
     async def save(self, run: Run) -> None:
         """Save the artifacts to the database."""
-        for node in await read_children(run, [DatabaseArtifact]):
+        for node in await read_children(run, DatabaseArtifact):
             if _is_artifact_model_node(node):
                 msg = f"Run {run.node_id} already has an artifact group."
                 raise ValueError(msg)
@@ -164,7 +164,7 @@ class ArtifactModel:
         return cls(**kwargs)
 
 
-def _create_artifact_model_node(parent: DatabaseArtifact, model: ArtifactModel) -> DatabaseArtifact:
+def _create_artifact_model_node(parent: Node, model: ArtifactModel) -> DatabaseArtifact:
     """Create a node for an artifact model."""
     return DatabaseArtifact(
         node_parent_id=parent.node_id,

@@ -1,5 +1,3 @@
-from enum import auto
-
 import pytest
 
 from artigraph.api.node import (

@@ -1,4 +1,4 @@
-from typing import Sequence, TypeVar
+from typing import Optional, Sequence, TypeVar
 
 from sqlalchemy import join, select
 from sqlalchemy.orm import aliased
@@ -91,6 +91,7 @@ async def read_children(
 async def read_descendants(
     root_node: Node,
     node_types: Sequence[type[Node] | str] = (),
+    limit: Optional[int] = None,
 ) -> Sequence[Node]:
     """Read all descendants of this node."""
     node_id = root_node.node_id
@@ -122,6 +123,9 @@ async def read_descendants(
         descendants_query = descendants_query.where(
             Node.node_type.in_(_get_node_type_names(node_types))
         )
+
+    if limit is not None:
+        descendants_query = descendants_query.limit(limit)
 
     async with current_session() as session:
         result = await session.execute(descendants_query)

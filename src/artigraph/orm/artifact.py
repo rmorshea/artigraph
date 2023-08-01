@@ -1,6 +1,6 @@
 from typing import Any, ClassVar
 
-from sqlalchemy import JSON
+from sqlalchemy import JSON, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from artigraph.orm.node import Node
@@ -8,6 +8,8 @@ from artigraph.orm.node import Node
 
 class Artifact(Node):
     """A base class for artifacts."""
+
+    __table_args__ = (UniqueConstraint("node_parent_id", "artifact_label"),)
 
     artifact_label: Mapped[str] = mapped_column(use_existing_column=True, nullable=True)
     """A label for the artifact."""

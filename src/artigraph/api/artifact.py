@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Coroutine, Sequence, TypeVar
+from typing import Any, Coroutine, Optional, Sequence, TypeVar
 
 from typing_extensions import TypeAlias
 
@@ -26,6 +26,12 @@ def group_artifacts_by_parent_id(
     for artifact, value in qualified_artifacts:
         artifacts_by_parent_id.setdefault(artifact.node_parent_id, []).append((artifact, value))
     return artifacts_by_parent_id
+
+
+@syncable
+async def create_artifact(artifact: RemoteArtifact | DatabaseArtifact, value: Any) -> None:
+    """Save the artifact to the database."""
+    await create_artifacts([(artifact, value)])
 
 
 @syncable
@@ -62,9 +68,12 @@ async def create_artifacts(qualified_artifacts: Sequence[QualifiedArtifact]) -> 
 
 
 @syncable
-async def read_artifacts(root_node: Node) -> Sequence[QualifiedArtifact]:
+async def read_artifacts(
+    root_node: Node,
+    limit: Optional[int] = None,
+) -> Sequence[QualifiedArtifact]:
     """Load the artifacts from the database."""
-    artifacts = await read_descendants(root_node, [DatabaseArtifact, RemoteArtifact])
+    artifacts = await read_descendants(root_node, [DatabaseArtifact, RemoteArtifact], limit)
 
     storage_artifacts: list[RemoteArtifact] = []
     qualified_artifacts: list[QualifiedArtifact] = []

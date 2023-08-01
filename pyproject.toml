@@ -51,16 +51,14 @@ dependencies = [
 ]
 
 [tool.hatch.envs.default.scripts]
-test = "pytest {args:tests}"
+cov = ["cov-test", "cov-report"]
+cov-report = ["- coverage combine", "coverage report"]
+cov-test = "coverage run -m pytest {args:tests}"
 format = ["black {args:.}", "ruff --fix {args:.}", "style"]
 lint = ["style", "typing"]
-
-test-cov = "coverage run -m pytest {args:tests}"
-cov-report = ["- coverage combine", "coverage report"]
-cov = ["test-cov", "cov-report"]
-
-lint-typing = "pyright {args:src}"
 lint-style = ["ruff {args:.}", "black --check --diff {args:.}"]
+lint-typing = "pyright {args:src}"
+test = "pytest {args:tests}"
 
 # --- Pytest ---------------------------------------------------------------------------------------
 

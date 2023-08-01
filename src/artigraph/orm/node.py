@@ -9,6 +9,20 @@ from artigraph.orm.base import Base
 class Node(Base):
     """A base class for describing a node in a graph."""
 
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        # Table args cannot be define on subclasses without a __tablename__ but this is
+        # inconvenient and somewhat defeats the purpose of using a base class. Instead
+        # transfer the table args to the first subclass that has a __tablename__
+        # before SQLAlchemy complains.
+        if hasattr(cls, "__table_args__"):
+            table_args = cls.__table_args__
+            for parent_cls in cls.mro():
+                if hasattr(parent_cls, "__tablename__"):
+                    cls.__table_args__ += table_args
+                    break
+            del cls.__table_args__
+        super().__init_subclass__(**kwargs)
+
     __tablename__ = "artigraph_node"
     __mapper_args__: ClassVar[dict[str, Any]] = {
         "polymorphic_identity": "node",

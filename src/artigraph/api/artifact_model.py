@@ -7,7 +7,7 @@ from artigraph.api.artifact import (
     QualifiedArtifact,
     create_artifacts,
     group_artifacts_by_parent_id,
-    read_artifacts,
+    read_descendant_artifacts,
 )
 from artigraph.api.node import read_children
 from artigraph.orm.artifact import DatabaseArtifact, RemoteArtifact
@@ -84,7 +84,7 @@ class ArtifactModel:
     @syncable
     async def load(cls, run: Run) -> Self:
         """Load the artifacts from the database."""
-        artifacts = await read_artifacts(run)
+        artifacts = await read_descendant_artifacts(run)
         artifacts_by_parent_id = group_artifacts_by_parent_id(artifacts)
 
         for node, _ in artifacts_by_parent_id[run.node_id]:

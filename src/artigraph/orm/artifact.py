@@ -35,5 +35,5 @@ class DatabaseArtifact(Artifact):
 
     __mapper_args__: ClassVar[dict[str, Any]] = {"polymorphic_identity": "database_artifact"}
 
-    database_artifact_value: Mapped[Any] = mapped_column(JSON, nullable=True)
+    database_artifact_value: Mapped[Any] = mapped_column(JSON, nullable=True, default=None)
     """The data of the artifact."""

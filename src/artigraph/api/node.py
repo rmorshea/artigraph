@@ -69,42 +69,31 @@ async def read_metadata(node: Node) -> dict[str, str]:
 @syncable
 async def read_children(
     root_node: Node,
-    node_types: Sequence[type[N] | str] = (),
+    node_type: type[N] = Node,
 ) -> Sequence[N]:
     """Read the direct children of a node."""
-    stmt = select(Node).where(Node.node_parent_id == root_node.node_id)
-    node_type_names = [
-        nt if isinstance(nt, str) else nt.__mapper_args__["polymorphic_identity"]
-        for nt in node_types
-    ]
-    if node_type_names:
-        stmt = stmt.where(Node.node_type.in_(_get_node_type_names(node_types)))
+    stmt = select(node_type).where(node_type.node_parent_id == root_node.node_id)
     async with current_session() as session:
         result = await session.execute(stmt)
         children = result.scalars().all()
-
     # we know we've filtered appropriately, so we can ignore the type check
     return children  # type: ignore
 
 
 @syncable
-async def read_descendants(
-    root_node: Node,
-    node_types: Sequence[type[Node] | str] = (),
-    limit: Optional[int] = None,
-) -> Sequence[Node]:
+async def read_descendants(root_node: Node, node_type: type[N] = Node) -> Sequence[N]:
     """Read all descendants of this node."""
     node_id = root_node.node_id
 
     # Create a CTE to get the descendants recursively
     node_cte = (
-        select(Node.node_id.label("descendant_id"), Node.node_parent_id)
-        .where(Node.node_id == node_id)
+        select(node_type.node_id.label("descendant_id"), node_type.node_parent_id)
+        .where(node_type.node_id == node_id)
         .cte(name="descendants", recursive=True)
     )
 
     # Recursive case: select the children of the current nodes
-    parent_node = aliased(Node)
+    parent_node = aliased(node_type)
     node_cte = node_cte.union_all(
         select(parent_node.node_id, parent_node.node_parent_id).where(
             parent_node.node_parent_id == node_cte.c.descendant_id
@@ -113,30 +102,14 @@ async def read_descendants(
 
     # Join the CTE with the actual Node table to get the descendants
     descendants_query = (
-        select(Node)
-        .select_from(join(Node, node_cte, Node.node_id == node_cte.c.descendant_id))
+        select(node_type)
+        .select_from(join(node_type, node_cte, node_type.node_id == node_cte.c.descendant_id))
         .where(node_cte.c.descendant_id != node_id)  # Exclude the root node itself
         .order_by(Node.node_id)
     )
-
-    if node_types:
-        descendants_query = descendants_query.where(
-            Node.node_type.in_(_get_node_type_names(node_types))
-        )
-
-    if limit is not None:
-        descendants_query = descendants_query.limit(limit)
 
     async with current_session() as session:
         result = await session.execute(descendants_query)
         descendants = result.scalars().all()
 
     return descendants
-
-
-def _get_node_type_names(node_types: Sequence[type[Node] | str]) -> list[str]:
-    """Get the node types as strings."""
-    return [
-        nt if isinstance(nt, str) else nt.__mapper_args__["polymorphic_identity"]
-        for nt in node_types
-    ]

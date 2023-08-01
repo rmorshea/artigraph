@@ -1,3 +1,7 @@
+from enum import auto
+
+import pytest
+
 from artigraph.api.node import (
     create_metadata,
     create_parent_child_relationships,
@@ -7,8 +11,24 @@ from artigraph.api.node import (
     read_metadata,
     read_node_by_id,
 )
-from artigraph.db import current_session, session_context
+from artigraph.db import current_session, get_engine, session_context
 from artigraph.orm.node import Node
+
+
+class ThingOne(Node):
+    __mapper_args__ = {"polymorphic_identity": "thing_one"}  # noqa: RUF012
+
+
+class ThingTwo(Node):
+    __mapper_args__ = {"polymorphic_identity": "thing_two"}  # noqa: RUF012
+
+
+@pytest.fixture(autouse=True)
+async def create_custom_node_tables():
+    engine = get_engine()
+    async with engine.begin() as conn:
+        conn.run_sync(ThingOne.__table__.create)
+        conn.run_sync(ThingTwo.__table__.create)
 
 
 async def test_create_and_read_metadata():
@@ -31,10 +51,9 @@ async def test_read_direct_children_with_node_types():
     """Test reading the direct children of a node with node types."""
     graph = await create_graph()
     root = graph.get_root()
-    children = await read_children(root, node_types=["first"])
-    assert {n.id for n in children} == {
-        n.node_id for n in graph.get_children(root.node_id) if n.node_type == "first"
-    }
+    children = await read_children(root, ThingOne)
+    expected_ids = {n.node_id for n in graph.get_children(root.node_id) if isinstance(n, ThingOne)}
+    assert {n.node_id for n in children} == expected_ids
 
 
 async def test_read_recursive_children():
@@ -46,14 +65,13 @@ async def test_read_recursive_children():
     assert {n.node_id for n in children} == expected_descendant_ids
 
 
-async def test_read_recursive_children_with_node_types():
+async def test_read_recursive_children_with_node_type():
     """Test reading the recursive children of a node with node types."""
     graph = await create_graph()
     root = graph.get_root()
-    children = await read_descendants(root, node_types=["first"])
-    expected_descendant_ids = {
-        n.node_id for n in graph.get_all_nodes() if n.node_type == "first"
-    } - {root.node_id}
+    children = await read_descendants(root, ThingOne)
+    all_run_ids = {n.node_id for n in graph.get_all_nodes() if isinstance(n, ThingOne)}
+    expected_descendant_ids = all_run_ids - {root.node_id}
     assert {n.node_id for n in children} == expected_descendant_ids
 
 
@@ -88,23 +106,23 @@ async def create_graph() -> "Graph":
 
     The tree looks like this:
 
-    root(type=run)
-    ├── child1(type=run)
-    │   ├── grandchild1(type=storage_artifact)
-    │   │   └── greatgrandchild1(type=storage_artifact)
-    │   └── grandchild2(type=run)
-    └── child2(type=run)
-        ├── grandchild3(type=run)
-        └── grandchild4(type=storage_artifact)
+    ThingOne
+    ├── ThingOne
+    │   ├── ThingTwo
+    │   │   └── ThingTwo
+    │   └── ThingOne
+    └── ThingOne
+        ├── ThingOne
+        └── ThingTwo
     """
     graph = Graph(None)
-    root = graph.add_child("run")
-    child1 = root.add_child("run")
-    grandchild1 = child1.add_child("storage_artifact")
-    grandchild1.add_child("storage_artifact")
-    child2 = root.add_child("run")
-    child2.add_child("run")
-    child2.add_child("storage_artifact")
+    root = graph.add_child(ThingOne)
+    child1 = root.add_child(ThingOne)
+    grandchild1 = child1.add_child(ThingTwo)
+    grandchild1.add_child(ThingTwo)
+    child2 = root.add_child(ThingOne)
+    child2.add_child(ThingOne)
+    child2.add_child(ThingTwo)
 
     await graph.create()
 
@@ -118,9 +136,8 @@ class Graph:
         self.parent = parent
         self.children: list[Graph] = []
 
-    def add_child(self, node_type: str):
-        node = Node(None)
-        node.node_type = node_type
+    def add_child(self, node_type: type[Node]):
+        node = node_type(None)
         graph = Graph(node)
         self.children.append(graph)
         return graph

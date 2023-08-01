@@ -12,8 +12,9 @@ class Node(Base):
     def __init_subclass__(cls, **kwargs: Any) -> None:
         # Table args cannot be define on subclasses without a __tablename__ but this is
         # inconvenient and somewhat defeats the purpose of using a base class. Instead
-        # transfer the table args to the first subclass that has a __tablename__
-        # before SQLAlchemy complains.
+        # transfer the table args to the first subclass that has a __tablename__ before
+        # SQLAlchemy complains. This is safe since we're using single table inheritance
+        # and the table args are the same for all subclasses.
         if hasattr(cls, "__table_args__"):
             table_args = cls.__table_args__
             for parent_cls in cls.mro():

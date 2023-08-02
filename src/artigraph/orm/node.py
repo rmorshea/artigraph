@@ -29,10 +29,16 @@ class Node(Base):
                 f"__mapper_args__ {cls.__mapper_args__['polymorphic_identity']!r}"
             )
             raise ValueError(msg)
+
+        Node.polymorphic_identity_mapping[cls.polymorphic_identity] = cls
+
         super().__init_subclass__(**kwargs)
 
     polymorphic_identity: ClassVar[str] = "node"
     """The type of the node - should be overridden by subclasses and passed to mapper args."""
+
+    polymorphic_identity_mapping: ClassVar[dict[str, type["Node"]]] = {}
+    """A mapping of node types to their subclasses."""
 
     __tablename__ = "artigraph_node"
     __mapper_args__: ClassVar[dict[str, Any]] = {

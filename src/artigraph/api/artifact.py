@@ -4,7 +4,7 @@ from typing import Any, Coroutine, Sequence, TypeVar
 from sqlalchemy import select
 from typing_extensions import TypeAlias
 
-from artigraph.api.node import delete_nodes, is_node_type, read_children, read_descendants
+from artigraph.api.node import delete_nodes, is_node_type, read_descendants
 from artigraph.db import current_session
 from artigraph.orm.artifact import Artifact, DatabaseArtifact, RemoteArtifact
 from artigraph.orm.node import Node

@@ -1,5 +1,5 @@
-from os import read
-from typing import Literal, Sequence, TypeGuard, TypeVar, overload
+from dataclasses import fields
+from typing import Any, Iterator, Literal, Sequence, TypeGuard, TypeVar, overload
 
 from sqlalchemy import Row, delete, join, select
 from sqlalchemy.orm import aliased
@@ -87,11 +87,11 @@ async def create_parent_child_relationships(
 
 
 @syncable
-async def read_children(node_id: int, node_type: type[N] | None = None) -> Sequence[N]:
+async def read_children(node_id: int, *node_types: type[N]) -> Sequence[N]:
     """Read the direct children of a node."""
     stmt = select(Node).where(Node.node_parent_id == node_id)
-    if node_type is not None:
-        stmt = stmt.where(Node.node_type == node_type.polymorphic_identity)
+    if node_types:
+        stmt = stmt.where(Node.node_type.in_([n.polymorphic_identity for n in node_types]))
     async with current_session() as session:
         result = await session.execute(stmt)
         children = result.scalars().all()
@@ -100,7 +100,7 @@ async def read_children(node_id: int, node_type: type[N] | None = None) -> Seque
 
 
 @syncable
-async def read_descendants(node_id: int, node_type: type[N] | None = None) -> Sequence[N]:
+async def read_descendants(node_id: int, *node_types: type[N]) -> Sequence[N]:
     """Read all descendants of this node."""
 
     # Create a CTE to get the descendants recursively
@@ -125,13 +125,30 @@ async def read_descendants(node_id: int, node_type: type[N] | None = None) -> Se
         .where(node_cte.c.descendant_id != node_id)  # Exclude the root node itself
     )
 
-    if node_type is not None:
+    if node_types:
         descendants_query = descendants_query.where(
-            Node.node_type == node_type.polymorphic_identity
+            Node.node_type.in_([n.polymorphic_identity for n in node_types])
         )
 
     async with current_session() as session:
         result = await session.execute(descendants_query)
         descendants = result.all()
 
-    return descendants
+    return _nodes_from_rows(descendants)
+
+
+def _nodes_from_rows(rows: Row[Any]) -> Iterator[Node]:
+    nodes: list[Node] = []
+    for r in rows:
+        node_type = Node.polymorphic_identity_mapping[r.node_type]
+        kwargs: dict[str, Any] = {}
+        attrs: dict[str, Any] = {}
+        for f in fields(node_type):
+            if f.init:
+                kwargs[f.name] = getattr(r, f.name)
+            else:
+                attrs[f.name] = getattr(r, f.name)
+        node_obj = node_type(**kwargs)
+        node_obj.__dict__.update(attrs)
+        nodes.append(node_obj)
+    return nodes

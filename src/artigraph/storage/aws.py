@@ -65,7 +65,7 @@ class S3Storage(Storage):
             await run_in_thread(client.head_object, Bucket=self.bucket, Key=key)
         except ClientError as error:
             if error.response["Error"]["Code"] != "404":
-                raise
+                raise  # nocov
             await run_in_thread(client.put_object, Bucket=self.bucket, Key=key, Body=value)
 
         return key
@@ -94,5 +94,5 @@ class S3Storage(Storage):
         except ClientError as error:
             if error.response["Error"]["Code"] == "404":
                 return False
-            raise
+            raise  # nocov
         return True

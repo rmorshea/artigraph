@@ -1,29 +1,26 @@
 import polars as pl
-import pyarrow as pa
 
 from artigraph.serializer._core import Serializer, register_serializer
+from artigraph.serializer.pyarrow import ArrowSerializer, parquet_serializer
 
 
-class PolarsSerializer(Serializer[pl.DataFrame | pl.Series]):
+class PolarsSerializer(Serializer[pl.DataFrame]):
     """A serializer for Polars dataframes."""
 
-    types = (pl.DataFrame, pl.Series)
-    name = "artigraph-polars"
+    types = (pl.DataFrame,)
 
-    @staticmethod
-    def serialize(value: pl.DataFrame | pl.Series) -> bytes:
+    def __init__(self, pyarrow_serializer: ArrowSerializer = parquet_serializer):
+        self.pyarrow_serializer = pyarrow_serializer
+        self.name = f"artigraph-polars-{pyarrow_serializer.name}"
+
+    def serialize(self, value: pl.DataFrame) -> bytes:
         """Serialize a Polars dataframe."""
-        pa_value = value.to_arrow()
-        return pa_value.serialize().to_buffer().to_pybytes()
+        return self.pyarrow_serializer.serialize(value.to_arrow())
 
-    @staticmethod
-    def deserialize(value: bytes) -> pl.DataFrame | pl.Series:
+    def deserialize(self, value: bytes) -> pl.DataFrame:
         """Deserialize a Polars dataframe."""
-        pa_value = pa.deserialize(value)
-        return pl.from_arrow(pa_value)
+        return pl.from_arrow(self.pyarrow_serializer.deserialize(value))  # type: ignore
 
 
-polars_serializer = PolarsSerializer()
-"""A serializer for Polars dataframes."""
-
-register_serializer(polars_serializer)
+polars_serializer = register_serializer(PolarsSerializer())
+"""A serializer for Polars dataframes that uses the parquet file format."""

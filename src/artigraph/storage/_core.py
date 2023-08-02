@@ -13,13 +13,13 @@ logger = logging.getLogger(__name__)
 
 
 def get_storage_by_name(name: str) -> "Storage":
-    if name not in STORAGE_BY_NAME:
+    if name not in STORAGE_BY_NAME:  # nocov
         msg = f"No storage named {name!r} exists."
         raise ValueError(msg)
     return STORAGE_BY_NAME[name]
 
 
-def register_storage(storage: "Storage") -> None:
+def register_storage(storage: S) -> S:
     """Register a storage backend.
 
     It's recommended that each storage backend be defined and registerd in a separate
@@ -43,6 +43,8 @@ def register_storage(storage: "Storage") -> None:
         raise ValueError(msg)
 
     STORAGE_BY_NAME[storage.name] = storage
+
+    return storage
 
 
 class Storage(ABC):

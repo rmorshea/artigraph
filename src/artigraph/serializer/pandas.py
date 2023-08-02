@@ -5,24 +5,22 @@ import pandas as pd
 from artigraph.serializer import Serializer, register_serializer
 
 
-class PandasSerializer(Serializer[pd.DataFrame | pd.Series]):
+class PandasSerializer(Serializer[pd.DataFrame]):
     """A serializer for Pandas dataframes."""
 
-    types = (pd.DataFrame, pd.Series)
+    types = (pd.DataFrame,)
     name = "artigraph-pandas"
 
     @staticmethod
-    def serialize(value: pd.DataFrame | pd.Series) -> bytes:
+    def serialize(value: pd.DataFrame) -> bytes:
         """Serialize a Pandas dataframe."""
         return value.to_parquet()
 
     @staticmethod
-    def deserialize(value: bytes) -> pd.DataFrame | pd.Series:
+    def deserialize(value: bytes) -> pd.DataFrame:
         """Deserialize a Pandas dataframe."""
         return pd.read_parquet(BytesIO(value))
 
 
-pandas_serializer = PandasSerializer()
+pandas_serializer = register_serializer(PandasSerializer())
 """A serializer for Pandas dataframes."""
-
-register_serializer(pandas_serializer)

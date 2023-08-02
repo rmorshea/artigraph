@@ -10,6 +10,7 @@ class Artifact(Node):
     """A base class for artifacts."""
 
     __table_args__ = (UniqueConstraint("node_parent_id", "artifact_label"),)
+    __mapper_args__: ClassVar[dict[str, Any]] = {"polymorphic_abstract": True}
 
     artifact_label: Mapped[str] = mapped_column(use_existing_column=True, nullable=True)
     """A label for the artifact."""

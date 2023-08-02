@@ -1,5 +1,5 @@
 from dataclasses import fields
-from typing import Any, Iterator, Literal, Sequence, TypeGuard, TypeVar, overload
+from typing import Any, Literal, Sequence, TypeGuard, TypeVar, overload
 
 from sqlalchemy import Row, delete, join, select
 from sqlalchemy.orm import aliased
@@ -45,7 +45,9 @@ async def read_node(
     ...
 
 
-async def read_node(node_id: int, node_type: type[N] = Node, *, allow_none: bool = False) -> N:
+async def read_node(
+    node_id: int, node_type: type[N] = Node, *, allow_none: bool = False
+) -> N | None:
     """Read a node by its ID."""
     stmt = select(node_type).where(node_type.node_id == node_id)
     async with current_session() as session:
@@ -137,8 +139,8 @@ async def read_descendants(node_id: int, *node_types: type[N]) -> Sequence[N]:
     return _nodes_from_rows(descendants)
 
 
-def _nodes_from_rows(rows: Row[Any]) -> Iterator[Node]:
-    nodes: list[Node] = []
+def _nodes_from_rows(rows: Sequence[Row[Any]]) -> Sequence[Any]:
+    nodes: list[Any] = []
     for r in rows:
         node_type = Node.polymorphic_identity_mapping[r.node_type]
         kwargs: dict[str, Any] = {}

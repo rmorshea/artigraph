@@ -43,8 +43,7 @@ class FileSystemStorage(Storage):
 
 
 temp_dir = TemporaryDirectory()
-temp_file_storage = FileSystemStorage(temp_dir.name)
-
-register_storage(temp_file_storage)
+temp_file_storage = register_storage(FileSystemStorage(temp_dir.name))
+"""A temporary file storage backend (best for testing)."""
 
 atexit.register(temp_dir.cleanup)

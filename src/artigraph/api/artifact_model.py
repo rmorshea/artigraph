@@ -16,7 +16,7 @@ from artigraph.orm.node import Node
 from artigraph.orm.run import Run
 from artigraph.serializer._core import Serializer, get_serialize_by_name, get_serializer_by_type
 from artigraph.storage._core import Storage, get_storage_by_name
-from artigraph.utils import UNDEFINED, syncable
+from artigraph.utils import syncable
 
 T = TypeVar("T")
 N = TypeVar("N", bound=Node)
@@ -35,12 +35,8 @@ class RemoteModel(Generic[T]):
     storage: Storage
     """The storage method for the artifact."""
 
-    serializer: Serializer = UNDEFINED
+    serializer: Serializer[T] | None = None
     """The serializer used to serialize the artifact."""
-
-    def __post_init__(self) -> None:
-        if self.serializer is UNDEFINED:
-            self.serializer = get_serializer_by_type(self.value)
 
 
 @dataclass(frozen=True)
@@ -76,7 +72,7 @@ class ArtifactModel:
     async def save(self, node: Node | None = None) -> DatabaseArtifact:
         """Save the artifacts to the database."""
         if node is not None:
-            for child in await read_children(node, DatabaseArtifact):
+            for child in await read_children(node.node_id, DatabaseArtifact):
                 if _is_artifact_model_node(node):
                     msg = f"Run {child.node_id} already has an artifact group."
                     raise ValueError(msg)
@@ -99,7 +95,7 @@ class ArtifactModel:
                 raise ValueError(msg)
             model_node = node
         elif is_node_type(node, Run):
-            for model_node in await read_children(node, DatabaseArtifact):
+            for model_node in await read_children(node.node_id, DatabaseArtifact):
                 if model_node.artifact_label == _ARTIFACT_MODEL_LABEL:
                     break
             else:

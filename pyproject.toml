@@ -23,6 +23,7 @@ classifiers = [
 dependencies = ["typing_extensions", "sqlalchemy>=2,<3", "anyio>=3,<4"]
 
 [project.optional-dependencies]
+all = ["artigraph[aws,pandas,numpy,polars]"]
 aws = ["boto3>=1,<2"]
 pandas = ["pandas>=2,<3", "pyarrow>=12,<13"]
 numpy = ["numpy>=1,<2", "pandas>=2,<3", "pyarrow>=12,<13"]

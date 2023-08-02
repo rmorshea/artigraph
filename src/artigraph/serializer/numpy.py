@@ -18,7 +18,7 @@ class NumpySerializer(Serializer[np.ndarray]):
     def serialize(value: np.ndarray) -> bytes:
         """Serialize a numpy array."""
         if len(value.shape) == NP_1D_SHAPE_LEN:
-            pd_value = pd.Series(value)
+            pd_value = pd.DataFrame({"1darray": value})
         elif len(value.shape) == NP_2D_SHAPE_LEN:
             pd_value = pd.DataFrame(dict(enumerate(value.T)))
         else:
@@ -30,13 +30,9 @@ class NumpySerializer(Serializer[np.ndarray]):
     def deserialize(value: bytes) -> np.ndarray:
         """Deserialize a numpy array."""
         pd_value = pandas_serializer.deserialize(value)
-        if isinstance(pd_value, pd.Series):
-            return pd_value.to_numpy()
-        elif isinstance(pd_value, pd.DataFrame):
-            return pd_value.values.T
-        else:
-            msg = f"Can only deserialize Series or DataFrame, not {type(pd_value)}."
-            raise ValueError(msg)
+        if "1darray" in pd_value.columns:
+            return pd_value["1darray"].to_numpy()
+        return pd_value.to_numpy()
 
 
 numpy_serializer = NumpySerializer()

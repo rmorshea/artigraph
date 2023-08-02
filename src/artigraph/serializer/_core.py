@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 def get_serialize_by_name(name: str) -> "Serializer[Any]":
     """Get a serializer by name."""
-    if name not in SERIALIZERS_BY_NAME:
+    if name not in SERIALIZERS_BY_NAME:  # nocov
         msg = f"No serializer named {name!r}"
         raise ValueError(msg)
     return SERIALIZERS_BY_NAME[name]
@@ -31,7 +31,7 @@ def get_serializer_by_type(value: type[T] | T) -> "Serializer[T]":
     raise ValueError(msg)
 
 
-def register_serializer(serializer: "Serializer[Any]") -> None:
+def register_serializer(serializer: S) -> S:
     """Register a serializer.
 
     It's recommended that each serializer be defined and registerd in a separate module
@@ -64,6 +64,8 @@ def register_serializer(serializer: "Serializer[Any]") -> None:
         if serializable_type in SERIALIZERS_BY_TYPE:
             logger.debug("Overriding serializer for type %s with %s", serializable_type, serializer)
         SERIALIZERS_BY_TYPE[serializable_type] = serializer
+
+    return serializer
 
 
 class Serializer(ABC, Generic[T]):

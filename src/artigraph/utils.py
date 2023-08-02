@@ -2,10 +2,8 @@ import re
 from functools import partial, wraps
 from typing import Any, Callable, Coroutine, Protocol, TypeVar, cast
 
-from anyio import from_thread
+from anyio import from_thread, to_thread
 from typing_extensions import ParamSpec
-
-from artigraph.orm.base import Base
 
 F = TypeVar("F", bound=Callable[..., Any])
 P = ParamSpec("P")
@@ -25,16 +23,13 @@ def syncable(async_function: F) -> "Syncable[F]":
 
 
 def slugify(string: str) -> str:
+    """Convert a string to a slug."""
     return SLUG_REPLACE_PATTERN.sub("-", string.lower()).strip("-")
-
-
-def polymetric_identity(cls: type[Base]) -> str:
-    return cls.__mapper_args__["polymorphic_identity"]
 
 
 async def run_in_thread(func: Callable[P, R], /, *args: P.args, **kwargs: P.kwargs) -> R:
     """Run a sync function in a thread."""
-    return await from_thread.run(partial(func, *args, **kwargs))  # type: ignore
+    return await to_thread.run_sync(partial(func, *args, **kwargs))  # type: ignore
 
 
 class Syncable(Protocol[F]):
@@ -47,6 +42,7 @@ class Syncable(Protocol[F]):
 def _syncify(async_function: Callable[P, Coroutine[None, None, R]]) -> Callable[P, R]:
     @wraps(async_function)
     def sync_function(*args: P.args, **kwargs: P.kwargs) -> R:
-        return from_thread.run(partial(async_function, *args, **kwargs))
+        with from_thread.start_blocking_portal() as portal:
+            return portal.call(partial(async_function, *args, **kwargs))
 
     return sync_function

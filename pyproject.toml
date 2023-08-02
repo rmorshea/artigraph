@@ -48,6 +48,7 @@ dependencies = [
   "ruff>=0.0.243",
   "aiosqlite>=0.19,<1",
   "greenlet>=2,<3",
+  "moto>=4,<5",
 ]
 
 [tool.hatch.envs.default.scripts]

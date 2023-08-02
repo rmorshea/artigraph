@@ -1,6 +1,5 @@
 from typing import Any, ClassVar
 
-from numpy import poly
 from sqlalchemy import JSON, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 

@@ -1,3 +1,4 @@
+import moto
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
@@ -18,3 +19,9 @@ async def create_tables(engine: AsyncEngine):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield engine
+
+
+@pytest.fixture(autouse=True)
+def mock_aws():
+    with moto.mock_s3():
+        yield

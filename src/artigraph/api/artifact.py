@@ -53,7 +53,7 @@ async def read_artifact_by_id(artifact_id: int) -> QualifiedArtifact:
         value = serializer.deserialize(await storage.read(artifact.remote_artifact_location))
     elif isinstance(artifact, DatabaseArtifact):
         value = artifact.database_artifact_value
-    else:
+    else:  # nocov
         msg = f"Unknown artifact type: {artifact}"
         raise RuntimeError(msg)
 
@@ -125,7 +125,7 @@ async def read_descendant_artifacts(root_node_id: int) -> Sequence[QualifiedArti
             remote_artifacts.append(a)
         elif is_node_type(a, DatabaseArtifact):
             database_artifacts.append(a)
-        else:
+        else:  # nocov
             msg = f"Unknown artifact type: {a}"
             raise RuntimeError(msg)
 
@@ -153,5 +153,5 @@ def _get_artifact_type_by_name(name: str) -> type[Artifact]:
     for cls in Artifact.__subclasses__():
         if cls.polymorphic_identity == name:
             return cls
-    msg = f"Unknown artifact type {name}"
-    raise ValueError(msg)
+    msg = f"Unknown artifact type {name}"  # nocov
+    raise ValueError(msg)  # nocov

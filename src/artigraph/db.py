@@ -35,7 +35,7 @@ async def session_context(**kwargs: Any) -> AsyncIterator[AsyncSession]:
 async def current_session() -> AsyncIterator[AsyncSession]:
     """A context manager for an asynchronous database session."""
     try:
-        session = _CURRENT_SESSION.get()
+        session = get_session()
     except LookupError:
         pass
     else:
@@ -48,8 +48,6 @@ async def current_session() -> AsyncIterator[AsyncSession]:
         except Exception:
             await session.rollback()
             raise
-        finally:
-            await session.close()
 
 
 def set_engine(engine: AsyncEngine) -> Callable[[], None]:
@@ -63,7 +61,7 @@ def get_engine() -> AsyncEngine:
     """Get the current engine."""
     try:
         return _CURRENT_ENGINE.get()
-    except LookupError:
+    except LookupError:  # nocov
         msg = "No current asynchronous engine"
         raise LookupError(msg) from None
 
@@ -79,6 +77,6 @@ def get_session() -> AsyncSession:
     """Get the current session."""
     try:
         return _CURRENT_SESSION.get()
-    except LookupError:
+    except LookupError:  # nocov
         msg = "No current asynchronous session"
         raise LookupError(msg) from None

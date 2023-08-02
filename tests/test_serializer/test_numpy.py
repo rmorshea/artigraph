@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from artigraph.serializer.numpy import numpy_serializer
 
@@ -17,10 +18,5 @@ def test_serialize_deserialize_2d_array():
 
 def test_cannot_serialize_higher_dimensional_array():
     array_3d = np.array([[[1, 2, 3], [4, 5, 6]]])
-    try:
+    with pytest.raises(ValueError, match=r"Can only serialize 1D or 2D arrays, not"):
         numpy_serializer.serialize(array_3d)
-    except ValueError:
-        pass
-    else:
-        msg = "Should not be able to serialize a 3D array."
-        raise AssertionError(msg)

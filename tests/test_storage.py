@@ -4,9 +4,9 @@ from typing import ContextManager
 import pytest
 from boto3 import client
 
-from artigraph.storage import Storage
+from artigraph.storage import Storage, register_storage
 from artigraph.storage.aws import S3Storage, s3_client_context
-from artigraph.storage.file import temp_file_storage
+from artigraph.storage.file import FileSystemStorage, temp_file_storage
 
 
 @contextmanager
@@ -35,3 +35,10 @@ async def test_storage(storage: Storage, setup_storage: ContextManager | None):
         assert await storage.read(key) == b"Goodbye, world!"
         await storage.delete(key)
         assert not await storage.exists(key)
+
+
+def test_cannot_register_storage_with_same_name():
+    """Test that storage backends cannot be registered with the same name."""
+    register_storage(FileSystemStorage("test"))
+    with pytest.raises(ValueError):
+        register_storage(FileSystemStorage("test"))

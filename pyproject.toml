@@ -140,7 +140,7 @@ ban-relative-imports = "all"
 # --- Coverage -------------------------------------------------------------------------------------
 
 [tool.coverage.run]
-source_pkgs = ["artigraph", "tests"]
+source_pkgs = ["artigraph"]
 branch = true
 parallel = true
 

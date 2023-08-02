@@ -1,5 +1,4 @@
 import logging
-import warnings
 from abc import ABC, abstractmethod
 from typing import TypeVar
 
@@ -27,14 +26,6 @@ def register_storage(storage: S) -> S:
     Thus, if a user does not import a storage backend it will not be registered. This is
     important because some storage backends may have dependencies that are not installed.
     """
-    if type(storage).__module__ in storage.name:
-        warnings.warn(
-            "Storage name contains 'module.__name__' which may change between "
-            "versions. Consider avoiding dynamic names",
-            UserWarning,
-            stacklevel=2,
-        )
-
     if storage.name in STORAGE_BY_NAME:
         msg = (
             f"Serializer named {storage.name!r} already "

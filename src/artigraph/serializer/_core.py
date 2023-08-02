@@ -1,5 +1,4 @@
 import logging
-import warnings
 from abc import ABC, abstractmethod
 from inspect import isclass
 from typing import Any, Generic, Sequence, TypedDict, TypeVar
@@ -27,8 +26,8 @@ def get_serializer_by_type(value: type[T] | T) -> "Serializer[T]":
     for cls in (value if isclass(value) else type(value)).mro():
         if cls in SERIALIZERS_BY_TYPE:
             return SERIALIZERS_BY_TYPE[cls]
-    msg = f"No serializer exists for {value!r}"
-    raise ValueError(msg)
+    msg = f"No serializer exists for {value!r}"  # nocov
+    raise ValueError(msg)  # nocov
 
 
 def register_serializer(serializer: S) -> S:
@@ -43,17 +42,9 @@ def register_serializer(serializer: S) -> S:
     2. Serializers that supprt the same type will override each other - only the last one
        registered will be used unless the user explicitly selects one.
     """
-    if not isinstance(serializer, Serializer):
+    if not isinstance(serializer, Serializer):  # nocov
         msg = f"{serializer} is not of Serializer"
         raise ValueError(msg)
-
-    if type(serializer).__module__ in serializer.name:
-        warnings.warn(
-            "Serializer name contains 'module.__name__' which may change between "
-            "versions. Consider avoiding dynamic names",
-            UserWarning,
-            stacklevel=2,
-        )
 
     if serializer.name in SERIALIZERS_BY_NAME:
         msg = f"Serializer named {serializer.name!r} already registered."
@@ -90,12 +81,12 @@ class Serializer(ABC, Generic[T]):
     @abstractmethod
     def serialize(self, value: T, /) -> bytes:
         """Serialize a value to a string or bytes."""
-        raise NotImplementedError()
+        raise NotImplementedError()  # nocov
 
     @abstractmethod
     def deserialize(self, value: bytes, /) -> T:
         """Deserialize a string or bytes to a value."""
-        raise NotImplementedError()
+        raise NotImplementedError()  # nocov
 
 
 class DataWrapper(TypedDict):

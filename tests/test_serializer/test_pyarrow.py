@@ -1,4 +1,5 @@
 import pyarrow as pa
+import pytest
 
 from artigraph.serializer.pyarrow import feather_serializer, parquet_serializer
 
@@ -16,10 +17,5 @@ def test_parquet_serializer():
 
 
 def test_only_table_is_supported():
-    try:
+    with pytest.raises(TypeError, match=r"Expected a PyArrow table, got"):
         feather_serializer.serialize(pa.array([1, 2, 3]))
-    except TypeError:
-        pass
-    else:
-        msg = "Should not be able to serialize a non-table."
-        raise AssertionError(msg)

@@ -1,5 +1,5 @@
 from dataclasses import dataclass, fields
-from typing import Any, ClassVar, Generic, Sequence, TypedDict, TypeGuard, TypeVar
+from typing import Any, ClassVar, Generic, Literal, Sequence, TypedDict, TypeGuard, TypeVar
 
 from typing_extensions import Self
 
@@ -21,7 +21,6 @@ from artigraph.utils import syncable
 T = TypeVar("T")
 N = TypeVar("N", bound=Node)
 
-_ARTIFACT_MODEL_LABEL = "__artifact_model__"
 ARTIFACT_MODEL_TYPES_BY_NAME: dict[str, type["ArtifactModel"]] = {}
 
 
@@ -49,6 +48,7 @@ class ArtifactModel:
     def metadata(cls) -> "ArtifactModelMetadata":
         """Get the metadata for the artifact model."""
         return ArtifactModelMetadata(
+            __is_artifact_model__=True,
             model_type=cls.__name__,
             model_version=cls.version,
         )
@@ -90,13 +90,13 @@ class ArtifactModel:
 
         if is_node_type(node, DatabaseArtifact):
             node = await read_node(node.node_id, DatabaseArtifact)
-            if node.artifact_label != _ARTIFACT_MODEL_LABEL:
+            if not _is_artifact_model_node(node):
                 msg = f"Node {node} is not an artifact model node."
                 raise ValueError(msg)
             model_node = node
         elif is_node_type(node, Run):
             for model_node in await read_children(node.node_id, DatabaseArtifact):
-                if model_node.artifact_label == _ARTIFACT_MODEL_LABEL:
+                if _is_artifact_model_node(model_node):
                     break
             else:
                 msg = f"Run {node} does not have an artifact model."
@@ -110,12 +110,12 @@ class ArtifactModel:
         return await cls._load_from_artifacts(model_node, artifacts_by_parent_id)
 
     async def _collect_qualified_artifacts(
-        self, parent: Node | None
+        self, parent: Node | None, label: str = ""
     ) -> tuple[DatabaseArtifact, Sequence[QualifiedArtifact]]:
         """Collect the records to be saved."""
 
         # creata a node for the model
-        model_node = _create_artifact_model_node(parent, self)
+        model_node = _create_artifact_model_node(parent, label, self)
         async with current_session() as session:
             session.add(model_node)
             await session.commit()
@@ -148,7 +148,7 @@ class ArtifactModel:
                 )
                 records.append((st_artifact, value.value))
             elif isinstance(value, ArtifactModel):
-                _, inner_records = await value._collect_qualified_artifacts(model_node)
+                _, inner_records = await value._collect_qualified_artifacts(model_node, f.name)
                 records.extend(inner_records)
             else:
                 db_artifact = DatabaseArtifact(
@@ -170,8 +170,9 @@ class ArtifactModel:
         kwargs: dict[str, Any] = {}
         for node, value in artifacts_by_parent_id[model_node.node_id]:
             if _is_artifact_model_node(node):
-                other_cls = ARTIFACT_MODEL_TYPES_BY_NAME[node.database_artifact_value]
-                kwargs[node.artifact_label] = other_cls._load_from_artifacts(
+                metadata: ArtifactModelMetadata = node.database_artifact_value
+                other_cls = ARTIFACT_MODEL_TYPES_BY_NAME[metadata["model_type"]]
+                kwargs[node.artifact_label] = await other_cls._load_from_artifacts(
                     node, artifacts_by_parent_id
                 )
             elif is_node_type(node, RemoteArtifact):
@@ -189,22 +190,31 @@ class ArtifactModel:
         return cls(**kwargs)
 
 
-def _create_artifact_model_node(parent: Node | None, model: ArtifactModel) -> DatabaseArtifact:
+def _create_artifact_model_node(
+    parent: Node | None, label: str, model: ArtifactModel
+) -> DatabaseArtifact:
     """Create a node for an artifact model."""
     return DatabaseArtifact(
         node_parent_id=None if parent is None else parent.node_id,
-        artifact_label=_ARTIFACT_MODEL_LABEL,
+        artifact_label=label,
         database_artifact_value=model.metadata(),
     )
 
 
 def _is_artifact_model_node(node: Node) -> TypeGuard[DatabaseArtifact]:
     """Check if a node describes an artifact model."""
-    return isinstance(node, DatabaseArtifact) and node.artifact_label == _ARTIFACT_MODEL_LABEL
+    return (
+        isinstance(node, DatabaseArtifact)
+        and isinstance(node.database_artifact_value, dict)
+        and node.database_artifact_value.get("__is_artifact_model__") is True
+    )
 
 
 class ArtifactModelMetadata(TypedDict):
     """The metadata for an artifact model."""
+
+    __is_artifact_model__: Literal[True]
+    """A flag to indicate that this deascribes an artifact model."""
 
     model_type: str
     """The type of artifact model."""

@@ -15,9 +15,9 @@ class Node(Base):
         # transfer the table args to the first subclass that has a __tablename__ before
         # SQLAlchemy complains. This is safe since we're using single table inheritance
         # and the table args are the same for all subclasses.
-        if hasattr(cls, "__table_args__"):
+        if "__table_args__" in cls.__dict__:
             table_args = cls.__table_args__
-            for parent_cls in cls.mro():
+            for parent_cls in cls.mro():  # nocov (this)
                 if hasattr(parent_cls, "__tablename__"):
                     cls.__table_args__ += table_args
                     break

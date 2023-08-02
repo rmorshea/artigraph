@@ -12,7 +12,7 @@ R = TypeVar("R")
 SLUG_REPLACE_PATTERN = re.compile(r"[^a-z0-9]+")
 """A pattern for replacing non-alphanumeric characters in slugs"""
 
-UNDEFINED = cast(Any, type("UNDEFINED", (), {"__repr__": lambda: "UNDEFINED"}))
+UNDEFINED = cast(Any, type("UNDEFINED", (), {"__repr__": lambda _: "UNDEFINED"}))()
 """A sentinel for undefined values"""
 
 

@@ -1,6 +1,6 @@
 import pytest
 
-from artigraph.utils import slugify, syncable
+from artigraph.utils import UNDEFINED, slugify, syncable
 
 
 def test_syncable():
@@ -21,3 +21,7 @@ def test_syncable():
 )
 def test_slugify(raw, slug):
     assert slugify(raw) == slug
+
+
+def test_undefined_repr():
+    assert repr(UNDEFINED) == "UNDEFINED"

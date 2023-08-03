@@ -52,9 +52,15 @@ def register_serializer(serializer: S) -> S:
     SERIALIZERS_BY_NAME[serializer.name] = serializer
 
     for serializable_type in serializer.types:
-        if serializable_type in SERIALIZERS_BY_TYPE:
-            logger.debug("Overriding serializer for type %s with %s", serializable_type, serializer)
-        SERIALIZERS_BY_TYPE[serializable_type] = serializer
+        if serializable_type not in SERIALIZERS_BY_TYPE:
+            SERIALIZERS_BY_TYPE[serializable_type] = serializer
+        else:
+            logger.debug(
+                "Did not register %s for %s - %s already exists",
+                serializer,
+                serializable_type,
+                SERIALIZERS_BY_TYPE[serializable_type],
+            )
 
     return serializer
 

@@ -1,3 +1,5 @@
+import asyncio
+from collections.abc import Collection
 from dataclasses import fields
 from typing import Any, Literal, Sequence, TypeGuard, TypeVar, overload
 
@@ -74,6 +76,19 @@ async def delete_nodes(node_ids: Sequence[int]) -> None:
         stmt = delete(Node).where(Node.node_id.in_(node_ids))
         await session.execute(stmt)
         await session.commit()
+
+
+@syncable
+async def create_nodes(
+    nodes: Collection[Node], refresh_attributes: Sequence[str]
+) -> Collection[Node]:
+    """Create nodes and, if given, refresh their attributes."""
+    async with current_session() as session:
+        session.add_all(nodes)
+        await session.commit()
+        if refresh_attributes:
+            await asyncio.gather(*[session.refresh(n, refresh_attributes) for n in nodes])
+    return nodes
 
 
 @syncable

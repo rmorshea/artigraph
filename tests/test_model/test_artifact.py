@@ -1,34 +1,23 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
-from artigraph.api.artifact_model import ArtifactModel, RemoteModel
-from artigraph.serializer.json import JsonSerializer, json_serializer
-from artigraph.storage.file import FileSystemStorage, temp_file_storage
+from artigraph.model.artifact import ArtifactModel, artifact_field
+from artigraph.serializer.json import json_serializer
+from artigraph.storage.file import temp_file_storage
 
 
-@dataclass(frozen=True)
-class TempJsonFile(RemoteModel[Any]):
-    """A JSON file that is stored in a temporary file."""
-
-    storage: FileSystemStorage = field(default=temp_file_storage, init=False)
-    serializer: JsonSerializer = field(default=json_serializer, init=False)
-
-
-@dataclass(frozen=True)
-class SimpleArtifactModel(ArtifactModel):
+@dataclass
+class SimpleArtifactModel(ArtifactModel, version=1):
     """A simple artifact model that stores a few basic artifact."""
 
     some_value: str
-    remote_value: TempJsonFile
+    remote_value: Any = artifact_field(serializer=json_serializer, storage=temp_file_storage)
     inner_model: "None | SimpleArtifactModel" = None
 
 
 async def test_save_load_simple_artifact_model():
     """Test saving and loading a simple artifact model."""
-    artifact = SimpleArtifactModel(
-        some_value="test-value",
-        remote_value=TempJsonFile(value={"some": "data"}),
-    )
+    artifact = SimpleArtifactModel(some_value="test-value", remote_value={"some": "data"})
 
     artifact_node = await artifact.save(None)
 
@@ -42,16 +31,16 @@ async def test_save_load_simple_artifact_model_with_inner_model():
     """Test saving and loading a simple artifact model with an inner model."""
     inner_inner_artifact = SimpleArtifactModel(
         some_value="inner-inner-value",
-        remote_value=TempJsonFile(value={"inner-inner": "data"}),
+        remote_value={"inner-inner": "data"},
     )
     inner_artifact = SimpleArtifactModel(
         some_value="inner-value",
-        remote_value=TempJsonFile(value={"inner": "data"}),
+        remote_value={"inner": "data"},
         inner_model=inner_inner_artifact,
     )
     artifact = SimpleArtifactModel(
         some_value="test-value",
-        remote_value=TempJsonFile(value={"some": "data"}),
+        remote_value={"some": "data"},
         inner_model=inner_artifact,
     )
 

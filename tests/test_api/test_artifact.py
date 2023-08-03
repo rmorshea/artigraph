@@ -7,7 +7,11 @@ from artigraph.storage.file import temp_file_storage
 
 async def test_create_read_delete_database_artifact():
     """Test creating an artifact."""
-    artifact = DatabaseArtifact(node_parent_id=None, artifact_label="test-label")
+    artifact = DatabaseArtifact(
+        node_parent_id=None,
+        artifact_label="test-label",
+        artifact_serializer=json_serializer.name,
+    )
     artifact_id = await create_artifact(artifact, {"some": "data"})
 
     artifact, db_artifact_value = await read_artifact_by_id(artifact_id)
@@ -24,7 +28,7 @@ async def test_create_read_delete_remote_artifact():
         node_parent_id=None,
         artifact_label="test-label",
         remote_artifact_storage=temp_file_storage.name,
-        remote_artifact_serializer=json_serializer.name,
+        artifact_serializer=json_serializer.name,
     )
     artifact_id = await create_artifact(artifact, {"some": "data"})
 

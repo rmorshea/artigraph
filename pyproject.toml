@@ -107,6 +107,8 @@ select = [
   "YTT",
 ]
 ignore = [
+  # Ignore function call in class definition (see: https://github.com/astral-sh/ruff/issues/4171)
+  "RUF009",
   # Allow non-abstract empty methods in abstract base classes
   "B027",
   # Allow boolean positional values in function calls, like `dict.get(... True)`

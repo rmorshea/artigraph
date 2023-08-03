@@ -6,7 +6,7 @@ from typing_extensions import TypeAlias
 
 from artigraph.api.node import delete_nodes, is_node_type, read_descendants
 from artigraph.db import current_session
-from artigraph.orm.artifact import Artifact, DatabaseArtifact, RemoteArtifact
+from artigraph.orm.artifact import BaseArtifact, DatabaseArtifact, RemoteArtifact
 from artigraph.orm.node import Node
 from artigraph.serializer._core import get_serialize_by_name
 from artigraph.storage._core import get_storage_by_name
@@ -47,12 +47,12 @@ async def read_artifact_by_id(artifact_id: int) -> QualifiedArtifact:
         result = await session.execute(stmt)
         artifact = result.scalar_one()
 
+    serializer = get_serialize_by_name(artifact.artifact_serializer)
     if isinstance(artifact, RemoteArtifact):
         storage = get_storage_by_name(artifact.remote_artifact_storage)
-        serializer = get_serialize_by_name(artifact.remote_artifact_serializer)
         value = serializer.deserialize(await storage.read(artifact.remote_artifact_location))
     elif isinstance(artifact, DatabaseArtifact):
-        value = artifact.database_artifact_value
+        value = serializer.deserialize(artifact.database_artifact_value)
     else:  # nocov
         msg = f"Unknown artifact type: {artifact}"
         raise RuntimeError(msg)
@@ -70,7 +70,8 @@ async def create_artifacts(qualified_artifacts: Sequence[QualifiedArtifact]) -> 
         if isinstance(artifact, RemoteArtifact):
             qualified_storage_artifacts.append((artifact, value))
         else:
-            artifact.database_artifact_value = value
+            serializer = get_serialize_by_name(artifact.artifact_serializer)
+            artifact.database_artifact_value = serializer.serialize(value)
             database_artifacts.append(artifact)
 
     # Save values to storage first
@@ -78,7 +79,7 @@ async def create_artifacts(qualified_artifacts: Sequence[QualifiedArtifact]) -> 
     storage_create_coros: list[Coroutine[None, None, str]] = []
     for artifact, value in qualified_storage_artifacts:
         storage = get_storage_by_name(artifact.remote_artifact_storage)
-        serializer = get_serialize_by_name(artifact.remote_artifact_serializer)
+        serializer = get_serialize_by_name(artifact.artifact_serializer)
         remote_artifacts.append(artifact)
         storage_create_coros.append(storage.create(serializer.serialize(value)))
 
@@ -96,7 +97,7 @@ async def create_artifacts(qualified_artifacts: Sequence[QualifiedArtifact]) -> 
 
 
 @syncable
-async def delete_artifacts(artifacts: Sequence[Artifact]) -> None:
+async def delete_artifacts(artifacts: Sequence[BaseArtifact]) -> None:
     """Delete the artifacts from the database."""
     remote_artifacts: list[RemoteArtifact] = []
     for artifact in artifacts:
@@ -142,15 +143,15 @@ async def read_descendant_artifacts(root_node_id: int) -> Sequence[QualifiedArti
     storage_data = await asyncio.gather(*storage_read_coros)
 
     for artifact, data in zip(remote_artifacts, storage_data):
-        serializer = get_serialize_by_name(artifact.remote_artifact_serializer)
+        serializer = get_serialize_by_name(artifact.artifact_serializer)
         qualified_artifacts.append((artifact, serializer.deserialize(data)))
 
     return qualified_artifacts
 
 
-def _get_artifact_type_by_name(name: str) -> type[Artifact]:
+def _get_artifact_type_by_name(name: str) -> type[BaseArtifact]:
     """Get the artifact type by name."""
-    for cls in Artifact.__subclasses__():
+    for cls in BaseArtifact.__subclasses__():
         if cls.polymorphic_identity == name:
             return cls
     msg = f"Unknown artifact type {name}"  # nocov

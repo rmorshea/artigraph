@@ -10,7 +10,14 @@ A library for creating interrelated graphs of artifacts and the runs that produc
 **Table of Contents**
 
 - [Installation](#installation)
-- [License](#license)
+- [About](#about)
+- [Usage](#usage)
+  - [Artifact Models](#artifact-models)
+    - [Nesting Artifact Models](#nesting-artifact-models)
+  - [Runs](#runs)
+    - [Custom Run Classes](#custom-run-classes)
+  - [Serializers](#serializers)
+  - [Storage](#storage)
 
 ## Installation
 
@@ -30,7 +37,8 @@ To install only a select set of dependencies replace `all` with any of:
 
 Artigraph is narrowly focused on managing the artifacts produced by a data pipeline. It
 does not provide any functionality for running the pipeline itself. Instead, it is meant
-to be used in conjunction with a pipeline runner like [Prefect](https://www.prefect.io/).
+to be used in conjunction with a pipeline runner like [Prefect](https://www.prefect.io/)
+or [Dask](https://dask.org/).
 
 Artigraph is built atop [SQLAlchemy](https://www.sqlalchemy.org/) using its async
 engine. It supports most major databases including PostgreSQL, MySQL, and SQLite.
@@ -217,6 +225,36 @@ assert run_artifacts == {
 }
 ```
 
+### Custom Run Classes
+
+The `Run` class and associated table is quite barebones and is meant to be subclassed.
+Beyond the standard fields defined on the `Node` it only has a `run_finished_at` field
+which is set when a `RunManager` exits. You can extend the `Run` class to add additional
+fields and relationships using [single table inheritance](https://docs.sqlalchemy.org/en/20/orm/inheritance.html#single-table-inheritance).
+Given that fields on all subclasses of `Node` are stored in the same table, it's
+recommended that you prefix your custom fields with the name of your subclass to avoid
+collisions.
+
+```python
+from sqlalchemy.declarative import Mapped, mapped_column
+from artigraph.orm.run import Run
+
+
+class MyRun(Run):
+    __mapper_args__ = {"polymorphic_identity": "my_run"}
+    my_run_field: Mapped[str] = mapped_column()
+```
+
+You can then use this custom run class with a `RunManager`:
+
+```python
+from artigraph import Run, RunManager
+
+my_run = MyRun(node_parent_id=None, my_field="hello")
+async with RunManager(my_run) as manager:
+    await manager.save_artifact("my-data-model", MyDataModel(...))
+```
+
 ## Serializers
 
 Artigraph has built-in support for the following data types and serialization formats:
@@ -238,3 +276,7 @@ Artigraph has built-in support for the following storage backends:
 ## License
 
 `artigraph` is distributed under the terms of the [MIT](https://spdx.org/licenses/MIT.html) license.
+
+```
+
+```

@@ -276,7 +276,3 @@ Artigraph has built-in support for the following storage backends:
 ## License
 
 `artigraph` is distributed under the terms of the [MIT](https://spdx.org/licenses/MIT.html) license.
-
-```
-
-```

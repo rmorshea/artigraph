@@ -13,7 +13,7 @@ from artigraph.api.artifact import (
     read_descendant_artifacts,
 )
 from artigraph.api.node import create_nodes, create_parent_child_relationships
-from artigraph.db import current_session
+from artigraph.db import current_session, session_context
 from artigraph.orm.artifact import DatabaseArtifact, RemoteArtifact
 from artigraph.serializer import Serializer, get_serializer_by_type
 from artigraph.serializer.json import json_serializer
@@ -105,7 +105,7 @@ class ArtifactModel:
         root_node.node_parent_id = parent_id
         root_node.artifact_label = label
 
-        async with current_session():
+        async with session_context(expire_on_commit=False):
             await create_nodes(
                 list(nodes_by_path.values()),
                 refresh_attributes=["node_id"],
@@ -195,7 +195,7 @@ class ArtifactModel:
                 artifacts.append(
                     (
                         DatabaseArtifact(
-                            parent_node_id=parent.node_id,
+                            node_parent_id=parent.node_id,
                             artifact_label=f.name,
                             artifact_serializer=serializer.name,
                         ),
@@ -206,7 +206,7 @@ class ArtifactModel:
                 artifacts.append(
                     (
                         RemoteArtifact(
-                            parent_node_id=parent.node_id,
+                            node_parent_id=parent.node_id,
                             artifact_label=f.name,
                             artifact_serializer=serializer.name,
                             remote_artifact_storage=storage.name,

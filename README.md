@@ -259,12 +259,12 @@ async with RunManager(my_run) as manager:
 
 Artigraph has built-in support for the following data types and serialization formats:
 
-- Pandas DataFrames (`artigraph.serializer.pandas.dataframe_serializer`)
-- Numpy Arrays (only 1d and 2d) (`artigraph.serializer.numpy.array_serializer`)
-- Polars DataFrames (`artigraph.serializer.polars.dataframe_serializer`)
-- PyArrow:
-  - Feather (`artigraph.serializer.pyarrow.feather_serializer`)
-  - Parque (`artigraph.serializer.pyarrow.parquet_serializer`)
+- [Pandas](https://pandas.pydata.org/) DataFrames (`artigraph.serializer.pandas.dataframe_serializer`)
+- 1d and 2d [Numpy](https://numpy.org/) Arrays (`artigraph.serializer.numpy.array_serializer`)
+- [Polars](https://pola-rs.github.io/) DataFrames (`artigraph.serializer.polars.dataframe_serializer`)
+- [PyArrow](https://arrow.apache.org/docs/python/index.html):
+  - [Feather](https://arrow.apache.org/docs/format/Columnar.html) (`artigraph.serializer.pyarrow.feather_serializer`)
+  - [Parque](https://parquet.apache.org/) (`artigraph.serializer.pyarrow.parquet_serializer`)
 
 ## Storage
 

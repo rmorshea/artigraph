@@ -19,7 +19,5 @@ class JsonSerializer(Serializer[Any]):
         return json.loads(value.decode("utf-8"))
 
 
-json_serializer = JsonSerializer()
+json_serializer = register_serializer(JsonSerializer())
 """A serializer for JSON."""
-
-register_serializer(json_serializer)

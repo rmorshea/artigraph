@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Any
 
-from artigraph.model.artifact import (
+from artigraph.api.artifact_model import (
     ArtifactMapping,
     ArtifactModel,
     ArtifactSequence,

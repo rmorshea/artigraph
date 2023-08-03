@@ -27,6 +27,15 @@ ArtifactFieldValues = dict[str, tuple["ArtifactFieldConfig", Any]]
 ARTIFACT_MODEL_TYPES_BY_NAME: dict[str, type["ArtifactModel"]] = {}
 
 
+def get_artifact_model_type_by_name(name: str) -> type["ArtifactModel"]:
+    """Get an artifact model type by its name."""
+    try:
+        return ARTIFACT_MODEL_TYPES_BY_NAME[name]
+    except KeyError:
+        msg = f"Unknown artifact model type {name!r}"
+        raise ValueError(msg) from None
+
+
 def artifact_field(
     *, serializer: Serializer[Any] | None = None, storage: Storage | None = None, **kwargs: Any
 ) -> Field:
@@ -136,10 +145,11 @@ class ArtifactModel:
     async def load(cls, node_id: int) -> Self:
         """Load the artifact model from the database."""
         root_qaul_artifact = await read_artifact_by_id(node_id)
-        if not _is_artifact_model_metadata(root_qaul_artifact):
+        if not is_qualified_artifact_model(root_qaul_artifact):
             msg = f"Node {node_id} is not an artifact model."
             raise ValueError(msg)
         root_node, root_metadata = root_qaul_artifact
+        cls = get_artifact_model_type_by_name(root_metadata["model_type"])
 
         artifacts = await read_descendant_artifacts(root_node.node_id)
         artifacts_by_parent_id = group_artifacts_by_parent_id(artifacts)
@@ -241,7 +251,7 @@ class ArtifactModel:
         """Load the artifacts from the database."""
         kwargs: dict[str, Any] = {}
         for qual_artifact in artifacts_by_parent_id[model_node.node_id]:
-            if _is_artifact_model_metadata(qual_artifact):
+            if is_qualified_artifact_model(qual_artifact):
                 node, value = qual_artifact
                 other_cls = ARTIFACT_MODEL_TYPES_BY_NAME[value["model_type"]]
                 kwargs[node.artifact_label] = await other_cls._load_from_artifacts(
@@ -314,7 +324,7 @@ class _ArtifactModelMetadata(TypedDict):
     """The version of the artifact model."""
 
 
-def _is_artifact_model_metadata(
+def is_qualified_artifact_model(
     qual_artifact: QualifiedArtifact,
 ) -> TypeGuard[tuple[DatabaseArtifact, _ArtifactModelMetadata]]:
     """Check if the value is artifact model metadata."""

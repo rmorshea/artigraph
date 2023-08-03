@@ -7,8 +7,8 @@ class StringSerializer(Serializer[str]):
     types = (str,)
     name = "artigraph-string"
 
-    serialize = staticmethod(str.encode)
-    deserialize = staticmethod(bytes.decode)
+    serialize = staticmethod(str.encode)  # type: ignore
+    deserialize = staticmethod(bytes.decode)  # type: ignore
 
 
 string_serializer = register_serializer(StringSerializer())

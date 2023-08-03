@@ -1,14 +1,6 @@
 import pytest
 
-from artigraph.utils import UNDEFINED, slugify, syncable
-
-
-def test_syncable():
-    @syncable
-    async def some_async_func():
-        return 42
-
-    assert some_async_func.sync() == 42
+from artigraph.utils import UNDEFINED, slugify
 
 
 @pytest.mark.parametrize(

@@ -48,3 +48,15 @@ async def test_run_context_save_load_artifact():
         artifact = SimpleArtifactModel("test", None)
         await run_context.save_artifact("test", artifact)
     assert await run_context.load_artifact("test") == artifact
+
+
+async def test_run_context_save_load_artifacts():
+    """Test the run context."""
+    run = Run(None)
+    async with RunContext(run) as run_context:
+        artifacts = {
+            "test1": SimpleArtifactModel("test1", None),
+            "test2": SimpleArtifactModel("test2", None),
+        }
+        await run_context.save_artifacts(artifacts)
+    assert await run_context.load_artifacts() == artifacts

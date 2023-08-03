@@ -18,7 +18,6 @@ from artigraph.orm.artifact import DatabaseArtifact, RemoteArtifact
 from artigraph.serializer import Serializer, get_serializer_by_type
 from artigraph.serializer.json import json_serializer
 from artigraph.storage import Storage
-from artigraph.utils import syncable
 
 T = TypeVar("T")
 A = TypeVar("A", bound="ArtifactModel | ArtifactMapping | ArtifactSequence")
@@ -104,7 +103,6 @@ class ArtifactModel:
         """Migrate the artifact model to a new version."""
         return data
 
-    @syncable
     async def save(self, label: str, parent_id: int | None = None) -> int:
         """Save the artifact model to the database."""
         parent_node = None if parent_id is None else await read_node(parent_id)
@@ -141,7 +139,6 @@ class ArtifactModel:
         return root_node.node_id
 
     @classmethod  # type: ignore
-    @syncable
     async def load(cls, node_id: int) -> Self:
         """Load the artifact model from the database."""
         root_qaul_artifact = await read_artifact_by_id(node_id)

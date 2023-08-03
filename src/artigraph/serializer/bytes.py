@@ -7,8 +7,8 @@ class BytesSerializer(Serializer[bytes]):
     types = (bytes,)
     name = "artigraph-bytes"
 
-    serialize = staticmethod(lambda b: b)
-    deserialize = staticmethod(lambda b: b)
+    serialize = staticmethod(lambda b: b)  # type: ignore
+    deserialize = staticmethod(lambda b: b)  # type: ignore
 
 
 bytes_serializer = register_serializer(BytesSerializer())

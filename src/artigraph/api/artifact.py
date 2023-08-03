@@ -10,7 +10,6 @@ from artigraph.orm.artifact import BaseArtifact, DatabaseArtifact, RemoteArtifac
 from artigraph.orm.node import Node
 from artigraph.serializer import get_serialize_by_name
 from artigraph.storage._core import get_storage_by_name
-from artigraph.utils import syncable
 
 T = TypeVar("T")
 N = TypeVar("N", bound=Node)
@@ -29,14 +28,12 @@ def group_artifacts_by_parent_id(
     return artifacts_by_parent_id
 
 
-@syncable
 async def create_artifact(artifact: RemoteArtifact | DatabaseArtifact, value: Any) -> int:
     """Save the artifact to the database."""
     result = await create_artifacts([(artifact, value)])
     return result[0]
 
 
-@syncable
 async def read_artifact_by_id(artifact_id: int) -> QualifiedArtifact:
     """Load the artifact from the database."""
     stmt = select(Node.node_type).where(Node.node_id == artifact_id)
@@ -64,7 +61,6 @@ async def read_artifact_by_id(artifact_id: int) -> QualifiedArtifact:
     return artifact, value
 
 
-@syncable
 async def create_artifacts(qualified_artifacts: Sequence[QualifiedArtifact]) -> Sequence[int]:
     """Save the artifacts to the database."""
     qualified_storage_artifacts: list[tuple[RemoteArtifact, Any]] = []
@@ -100,7 +96,6 @@ async def create_artifacts(qualified_artifacts: Sequence[QualifiedArtifact]) -> 
         return [a.node_id for a, _ in qualified_artifacts]
 
 
-@syncable
 async def delete_artifacts(artifacts: Sequence[BaseArtifact]) -> None:
     """Delete the artifacts from the database."""
     remote_artifacts: list[RemoteArtifact] = []
@@ -118,12 +113,10 @@ async def delete_artifacts(artifacts: Sequence[BaseArtifact]) -> None:
     await delete_nodes([a.node_id for a in artifacts])
 
 
-@syncable
 async def read_child_artifacts(root_node_id: int) -> Sequence[QualifiedArtifact]:
     return await _read_qualified_artifacts(await read_children(root_node_id))
 
 
-@syncable
 async def read_descendant_artifacts(root_node_id: int) -> Sequence[QualifiedArtifact]:
     """Load the artifacts from the database."""
     return await _read_qualified_artifacts(await read_descendants(root_node_id))

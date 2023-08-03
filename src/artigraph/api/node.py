@@ -8,7 +8,6 @@ from sqlalchemy.orm import aliased
 
 from artigraph.db import current_session
 from artigraph.orm.node import Node
-from artigraph.utils import syncable
 
 T = TypeVar("T")
 N = TypeVar("N", bound=Node)
@@ -57,10 +56,6 @@ async def read_node(
         return result.scalar_one_or_none() if allow_none else result.scalar_one()
 
 
-read_nodes = syncable(read_node)
-
-
-@syncable
 async def node_exists(node_id: int, node_type: type[Node] = Node) -> bool:
     """Check if a node exists."""
     stmt = select(node_type.node_id).where(node_type.node_id == node_id)
@@ -69,7 +64,6 @@ async def node_exists(node_id: int, node_type: type[Node] = Node) -> bool:
         return bool(result.one_or_none())
 
 
-@syncable
 async def delete_nodes(node_ids: Sequence[int]) -> None:
     """Delete nodes."""
     async with current_session() as session:
@@ -78,7 +72,6 @@ async def delete_nodes(node_ids: Sequence[int]) -> None:
         await session.commit()
 
 
-@syncable
 async def create_nodes(
     nodes: Collection[Node], refresh_attributes: Sequence[str]
 ) -> Collection[Node]:
@@ -91,7 +84,6 @@ async def create_nodes(
     return nodes
 
 
-@syncable
 async def create_parent_child_relationships(
     parent_child_pairs: Sequence[tuple[Node | None, Node]]
 ) -> None:
@@ -103,7 +95,6 @@ async def create_parent_child_relationships(
         await session.commit()
 
 
-@syncable
 async def read_children(node_id: int, *node_types: type[N]) -> Sequence[N]:
     """Read the direct children of a node."""
     stmt = select(Node).where(Node.node_parent_id == node_id)
@@ -116,7 +107,6 @@ async def read_children(node_id: int, *node_types: type[N]) -> Sequence[N]:
     return children  # type: ignore
 
 
-@syncable
 async def read_descendants(node_id: int, *node_types: type[N]) -> Sequence[N]:
     """Read all descendants of this node."""
 

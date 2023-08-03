@@ -1,5 +1,3 @@
-import pytest
-
 from artigraph.api.node import (
     create_parent_child_relationships,
     group_nodes_by_parent_id,
@@ -7,7 +5,7 @@ from artigraph.api.node import (
     read_descendants,
     read_node,
 )
-from artigraph.db import current_session, get_engine, session_context
+from artigraph.db import current_session, session_context
 from artigraph.orm.node import Node
 
 
@@ -19,14 +17,6 @@ class ThingOne(Node):
 class ThingTwo(Node):
     polymorphic_identity = "thing_two"
     __mapper_args__ = {"polymorphic_identity": polymorphic_identity}  # noqa: RUF012
-
-
-@pytest.fixture(autouse=True)
-async def create_custom_node_tables():
-    engine = get_engine()
-    async with engine.begin() as conn:
-        conn.run_sync(ThingOne.__table__.create)
-        conn.run_sync(ThingTwo.__table__.create)
 
 
 async def test_read_direct_children():

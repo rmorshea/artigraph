@@ -22,6 +22,7 @@ from artigraph.utils import syncable
 
 T = TypeVar("T")
 A = TypeVar("A", bound="ArtifactModel | ArtifactMapping | ArtifactSequence")
+ArtifactFieldValues = dict[str, tuple["ArtifactFieldConfig", Any]]
 
 ARTIFACT_MODEL_TYPES_BY_NAME: dict[str, type["ArtifactModel"]] = {}
 
@@ -144,6 +145,61 @@ class ArtifactModel:
         artifacts_by_parent_id = group_artifacts_by_parent_id(artifacts)
         return await cls._load_from_artifacts(root_node, root_metadata, artifacts_by_parent_id)
 
+    def _model_data(self) -> dict[str, Any]:
+        """Get the data for the artifact model.
+
+        Should be overwritten in subclasses.
+        """
+        return {f.name: getattr(self, f.name) for f in fields(self) if f.init}
+
+    def _model_field_configs(self) -> dict[str, ArtifactFieldConfig]:
+        """Get the field configs for the artifact model (may be an empty dict)"""
+        return {
+            f.name: f.metadata.get("artifact_model_field_config", ArtifactFieldConfig())
+            for f in fields(self)
+            if f.init
+        }
+
+    def _model_field_artifacts(self, parent: DatabaseArtifact) -> Sequence[QualifiedArtifact]:
+        artifacts: list[QualifiedArtifact] = []
+        field_configs = self._model_field_configs()
+        for label, value in self._model_data().items():
+            if isinstance(value, ArtifactModel):
+                continue
+            field_config: ArtifactFieldConfig = field_configs.get(label, ArtifactFieldConfig())
+
+            serializer = (
+                field_config.get("serializer")
+                or self.model_config.get("default_field_serializer")
+                or get_serializer_by_type(value)
+            )
+            storage = field_config.get("storage") or self.model_config.get("default_field_storage")
+
+            if storage is None:
+                artifacts.append(
+                    (
+                        DatabaseArtifact(
+                            node_parent_id=parent.node_id,
+                            artifact_label=label,
+                            artifact_serializer=serializer.name,
+                        ),
+                        value,
+                    )
+                )
+            else:
+                artifacts.append(
+                    (
+                        RemoteArtifact(
+                            node_parent_id=parent.node_id,
+                            artifact_label=label,
+                            artifact_serializer=serializer.name,
+                            remote_artifact_storage=storage.name,
+                        ),
+                        value,
+                    )
+                )
+        return artifacts
+
     def _model_children(self) -> dict[str, "ArtifactModel"]:
         children: dict[str, ArtifactModel] = {}
         for f in fields(self):
@@ -174,52 +230,6 @@ class ArtifactModel:
                 )
             ),
         )
-
-    def _model_field_artifacts(self, parent: DatabaseArtifact) -> Sequence[QualifiedArtifact]:
-        artifacts: list[QualifiedArtifact] = []
-        for f in fields(self):
-            if not f.init:
-                continue
-            v = getattr(self, f.name)
-            if isinstance(v, ArtifactModel):
-                continue
-
-            value = getattr(self, f.name)
-            field_config: ArtifactFieldConfig = f.metadata.get(
-                "artifact_model_field_config", ArtifactFieldConfig()
-            )
-
-            serializer = (
-                field_config.get("serializer")
-                or self.model_config.get("default_field_serializer")
-                or get_serializer_by_type(value)
-            )
-            storage = field_config.get("storage") or self.model_config.get("default_field_storage")
-
-            if storage is None:
-                artifacts.append(
-                    (
-                        DatabaseArtifact(
-                            node_parent_id=parent.node_id,
-                            artifact_label=f.name,
-                            artifact_serializer=serializer.name,
-                        ),
-                        value,
-                    )
-                )
-            else:
-                artifacts.append(
-                    (
-                        RemoteArtifact(
-                            node_parent_id=parent.node_id,
-                            artifact_label=f.name,
-                            artifact_serializer=serializer.name,
-                            remote_artifact_storage=storage.name,
-                        ),
-                        value,
-                    )
-                )
-        return artifacts
 
     @classmethod
     async def _load_from_artifacts(
@@ -255,8 +265,11 @@ class ArtifactMapping(ArtifactModel, Mapping[str, A], version=1):
     def __init__(self, *args: dict[str, A], **kwargs: A):
         self._data = dict(*args, **kwargs)
 
-    def _artifact_model_children(self) -> dict[str, "ArtifactModel"]:
-        return {k: v for k, v in self.items() if isinstance(v, ArtifactModel)}
+    def _model_data(self) -> dict[str, Any]:
+        return self._data
+
+    def _model_field_configs(self) -> dict[str, ArtifactFieldConfig]:
+        return {}
 
     def __getitem__(self, key: str) -> A:
         return self._data[key]
@@ -271,14 +284,18 @@ class ArtifactMapping(ArtifactModel, Mapping[str, A], version=1):
 class ArtifactSequence(Sequence[A], ArtifactModel, version=1):
     """A sequence whose values are other artifact models"""
 
-    def __init__(self, *args: Sequence[A]) -> None:
-        self._data = tuple(*args)
+    def __init__(self, *args: Sequence[A], **kwargs: A) -> None:
+        self._data = {str(i): v for i, v in enumerate(tuple(*args))}
+        self._data.update(kwargs)
 
-    def _artifact_model_children(self) -> dict[str, "ArtifactModel"]:
-        return {str(i): v for i, v in enumerate(self) if isinstance(v, ArtifactModel)}
+    def _model_data(self):
+        return self._data
+
+    def _model_field_configs(self) -> dict[str, ArtifactFieldConfig]:
+        return {}
 
     def __getitem__(self, key: int) -> A:
-        return self._data[key]
+        return self._data[str(key)]
 
     def __len__(self) -> int:
         return len(self._data)
@@ -298,16 +315,19 @@ class _ArtifactModelMetadata(TypedDict):
 
 
 def _is_artifact_model_metadata(
-    value: QualifiedArtifact,
+    qual_artifact: QualifiedArtifact,
 ) -> TypeGuard[tuple[DatabaseArtifact, _ArtifactModelMetadata]]:
     """Check if the value is artifact model metadata."""
+    _, value = qual_artifact
     return isinstance(value, dict) and value.get("__is_artifact_model__") is True
 
 
 def _get_model_paths(model: ArtifactModel, path: str = "") -> dict[str, ArtifactModel]:
     """Get the paths of all artifact models in the tree."""
     paths: dict[str, ArtifactModel] = {path: model}
-    for key, child in model._model_children().items():
+    for key, child in model._model_data().items():
+        if not isinstance(child, ArtifactModel):
+            continue
         escaped_key = quote(key)
         for child_path, child_model in _get_model_paths(child, f"{path}/{escaped_key}").items():
             paths[child_path] = child_model

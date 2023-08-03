@@ -1,7 +1,12 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
-from artigraph.model.artifact import ArtifactModel, artifact_field
+from artigraph.model.artifact import (
+    ArtifactMapping,
+    ArtifactModel,
+    ArtifactSequence,
+    artifact_field,
+)
 from artigraph.serializer.json import json_serializer
 from artigraph.storage.file import temp_file_storage
 
@@ -18,13 +23,9 @@ class SimpleArtifactModel(ArtifactModel, version=1):
 async def test_save_load_simple_artifact_model():
     """Test saving and loading a simple artifact model."""
     artifact = SimpleArtifactModel(some_value="test-value", remote_value={"some": "data"})
-
-    artifact_node = await artifact.save(None)
-
-    loaded_artifact = await SimpleArtifactModel.load(artifact_node)
-    assert loaded_artifact.some_value == "test-value"
-    assert loaded_artifact.remote_value == {"some": "data"}
-    assert loaded_artifact.inner_model is None
+    artifact_id = await artifact.save(None)
+    loaded_artifact = await SimpleArtifactModel.load(artifact_id)
+    assert loaded_artifact == artifact
 
 
 async def test_save_load_simple_artifact_model_with_inner_model():
@@ -44,12 +45,43 @@ async def test_save_load_simple_artifact_model_with_inner_model():
         inner_model=inner_artifact,
     )
 
-    artifact_node = await artifact.save(None)
+    artifact_id = await artifact.save(None)
+    loaded_artifact = await SimpleArtifactModel.load(artifact_id)
+    assert loaded_artifact == artifact
 
-    loaded_artifact = await SimpleArtifactModel.load(artifact_node)
-    assert loaded_artifact.some_value == "test-value"
-    assert loaded_artifact.remote_value == {"some": "data"}
-    assert loaded_artifact.inner_model.some_value == "inner-value"
-    assert loaded_artifact.inner_model.remote_value == {"inner": "data"}
-    assert loaded_artifact.inner_model.inner_model.some_value == "inner-inner-value"
-    assert loaded_artifact.inner_model.inner_model.remote_value == {"inner-inner": "data"}
+
+@dataclass
+class ComplexArtifactModel(ArtifactModel, version=1):
+    """A complex artifact model that stores a few basic artifact."""
+
+    simple: SimpleArtifactModel
+    mapping: ArtifactMapping["ComplexArtifactModel"] = field(default_factory=dict)
+    sequence: ArtifactSequence["ComplexArtifactModel"] = field(default_factory=dict)
+
+
+async def test_save_load_complex_artifact_model():
+    """Test saving and loading a complex artifact model."""
+    simple = SimpleArtifactModel(some_value="test-value", remote_value={"some": "data"})
+    artifact = ComplexArtifactModel(
+        simple=simple,
+        mapping=ArtifactMapping(
+            key1=ComplexArtifactModel(
+                simple=simple,
+                mapping=ArtifactMapping(key1=ComplexArtifactModel(simple=simple)),
+            ),
+            key2=ComplexArtifactModel(simple=simple),
+        ),
+        sequence=ArtifactSequence(
+            [
+                ComplexArtifactModel(simple=simple),
+                ComplexArtifactModel(
+                    simple=simple,
+                    mapping=ArtifactMapping(key3=ComplexArtifactModel(simple=simple)),
+                ),
+            ]
+        ),
+    )
+
+    artifact_id = await artifact.save(None)
+    loaded_artifact = await ComplexArtifactModel.load(artifact_id)
+    assert loaded_artifact == artifact

@@ -10,7 +10,7 @@ async def test_current_session_auto_rollback():
         async with current_session() as session:
             node = Node(None)
             session.add(node)
-            session.commit()
+            await session.flush()
             result = await session.execute(select(Node))
             result.scalar_one()
             msg = "This should trigger a rollback"

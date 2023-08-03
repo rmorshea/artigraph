@@ -2,6 +2,8 @@ import logging
 from abc import ABC, abstractmethod
 from typing import TypeVar
 
+from typing_extensions import Self
+
 B = TypeVar("B", bound=str | bytes)
 S = TypeVar("S", bound="Storage")
 
@@ -16,26 +18,6 @@ def get_storage_by_name(name: str) -> "Storage":
         msg = f"No storage named {name!r} exists."
         raise ValueError(msg)
     return STORAGE_BY_NAME[name]
-
-
-def register_storage(storage: S) -> S:
-    """Register a storage backend.
-
-    It's recommended that each storage backend be defined and registerd in a separate
-    module so that users can select which storage they want to use by importing the module.
-    Thus, if a user does not import a storage backend it will not be registered. This is
-    important because some storage backends may have dependencies that are not installed.
-    """
-    if storage.name in STORAGE_BY_NAME:
-        msg = (
-            f"Serializer named {storage.name!r} already "
-            f"registered as {STORAGE_BY_NAME[storage.name]!r}"
-        )
-        raise ValueError(msg)
-
-    STORAGE_BY_NAME[storage.name] = storage
-
-    return storage
 
 
 class Storage(ABC):
@@ -53,6 +35,25 @@ class Storage(ABC):
     you should create and register a subclass with the new name and deprecate the old
     one.
     """
+
+    def register(self) -> Self:
+        """Register a storage backend.
+
+        It's recommended that each storage backend be defined and registerd in a separate
+        module so that users can select which storage they want to use by importing the module.
+        Thus, if a user does not import a storage backend it will not be registered. This is
+        important because some storage backends may have dependencies that are not installed.
+        """
+        if self.name in STORAGE_BY_NAME:
+            msg = (
+                f"Serializer named {self.name!r} already "
+                f"registered as {STORAGE_BY_NAME[self.name]!r}"
+            )
+            raise ValueError(msg)
+
+        STORAGE_BY_NAME[self.name] = self
+
+        return self
 
     @abstractmethod
     async def create(self, data: bytes, /) -> str:

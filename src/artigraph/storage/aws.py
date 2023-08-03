@@ -9,7 +9,7 @@ from botocore.client import BaseClient
 from botocore.exceptions import ClientError
 from typing_extensions import ParamSpec
 
-from artigraph.storage._core import Storage, register_storage
+from artigraph.storage.core import Storage
 from artigraph.utils import run_in_thread, slugify
 
 P = ParamSpec("P")
@@ -46,12 +46,11 @@ def s3_client_context(client: BaseClient) -> Iterator[BaseClient]:
 class S3Storage(Storage):
     """S3 storage backend for Artigraph."""
 
-    def __init__(self, bucket: str, prefix: str) -> None:
+    def __init__(self, bucket: str, prefix: str = "") -> None:
         """Initialize the storage backend."""
         self.name = slugify(f"artigraph-s3-{bucket}-{prefix}")
         self.bucket = bucket
         self.prefix = prefix
-        register_storage(self)
 
     async def create(self, value: bytes) -> str:
         """Create an S3 object and return is key."""

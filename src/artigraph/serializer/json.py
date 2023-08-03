@@ -1,7 +1,7 @@
 import json
 from typing import Any
 
-from artigraph.serializer import Serializer, register_serializer
+from artigraph.serializer import Serializer
 
 
 class JsonSerializer(Serializer[Any]):
@@ -19,5 +19,5 @@ class JsonSerializer(Serializer[Any]):
         return json.loads(value.decode("utf-8"))
 
 
-json_serializer = register_serializer(JsonSerializer())
+json_serializer = JsonSerializer().register()
 """A serializer for JSON."""

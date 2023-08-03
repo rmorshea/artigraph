@@ -7,7 +7,7 @@ from artigraph.orm.node import Node
 
 
 class Run(Node):
-    """A run of a pipeline."""
+    """A base class for describing a run of a pipeline."""
 
     polymorphic_identity = "run"
     __mapper_args__: ClassVar[dict[str, Any]] = {"polymorphic_identity": polymorphic_identity}

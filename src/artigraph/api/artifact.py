@@ -9,7 +9,7 @@ from artigraph.db import current_session
 from artigraph.orm.artifact import BaseArtifact, DatabaseArtifact, RemoteArtifact
 from artigraph.orm.node import Node
 from artigraph.serializer import get_serialize_by_name
-from artigraph.storage._core import get_storage_by_name
+from artigraph.storage.core import get_storage_by_name
 
 T = TypeVar("T")
 N = TypeVar("N", bound=Node)

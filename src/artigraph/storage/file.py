@@ -3,7 +3,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from uuid import uuid4
 
-from artigraph.storage import Storage, register_storage
+from artigraph.storage import Storage
 from artigraph.utils import slugify
 
 
@@ -43,7 +43,7 @@ class FileSystemStorage(Storage):
 
 
 temp_dir = TemporaryDirectory()
-temp_file_storage = register_storage(FileSystemStorage(temp_dir.name))
+temp_file_storage = FileSystemStorage(temp_dir.name).register()
 """A temporary file storage backend (best for testing)."""
 
 atexit.register(temp_dir.cleanup)

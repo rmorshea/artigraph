@@ -1,14 +1,14 @@
 import numpy as np
 import pandas as pd
 
-from artigraph.serializer._core import Serializer, register_serializer
-from artigraph.serializer.pandas import pandas_serializer
+from artigraph.serializer.core import Serializer
+from artigraph.serializer.pandas import dataframe_serializer
 
 NP_1D_SHAPE_LEN = 1
 NP_2D_SHAPE_LEN = 2
 
 
-class NumpySerializer(Serializer[np.ndarray]):
+class ArraySerializer(Serializer[np.ndarray]):
     """A serializer for numpy arrays."""
 
     types = (np.ndarray,)
@@ -24,18 +24,16 @@ class NumpySerializer(Serializer[np.ndarray]):
         else:
             msg = f"Can only serialize 1D or 2D arrays, not {value.shape}."
             raise ValueError(msg)
-        return pandas_serializer.serialize(pd_value)
+        return dataframe_serializer.serialize(pd_value)
 
     @staticmethod
     def deserialize(value: bytes) -> np.ndarray:
         """Deserialize a numpy array."""
-        pd_value = pandas_serializer.deserialize(value)
+        pd_value = dataframe_serializer.deserialize(value)
         if "1darray" in pd_value.columns:
             return pd_value["1darray"].to_numpy()
         return pd_value.to_numpy()
 
 
-numpy_serializer = NumpySerializer()
+array_serializer = ArraySerializer().register()
 """A serializer for numpy arrays."""
-
-register_serializer(numpy_serializer)

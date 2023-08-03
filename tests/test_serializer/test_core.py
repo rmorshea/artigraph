@@ -1,6 +1,6 @@
 import pytest
 
-from artigraph.serializer import Serializer, get_serializer_by_type, register_serializer
+from artigraph.serializer import Serializer, get_serializer_by_type
 
 
 class IntSerializer(Serializer[int]):
@@ -14,13 +14,13 @@ class IntSerializer(Serializer[int]):
         return int.from_bytes(value)
 
 
-int_serializer = register_serializer(IntSerializer())
+int_serializer = IntSerializer().register()
 
 
 def test_cannot_register_serializer_with_same_name():
     """Test that storage backends cannot be registered with the same name."""
     with pytest.raises(ValueError, match=r"Serializer named 'artigraph-int' already registered"):
-        register_serializer(IntSerializer())
+        IntSerializer().register()
 
 
 def test_get_serilizer_by_type():

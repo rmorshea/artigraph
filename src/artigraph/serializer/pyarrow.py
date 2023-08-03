@@ -4,7 +4,7 @@ from typing import Literal
 import pyarrow as pa
 from pyarrow import feather, parquet
 
-from artigraph.serializer._core import Serializer, register_serializer
+from artigraph.serializer.core import Serializer
 
 
 class ArrowSerializer(Serializer[pa.Table]):
@@ -52,8 +52,8 @@ class ArrowSerializer(Serializer[pa.Table]):
         return feather.read_table(buffer)
 
 
-feather_serializer = register_serializer(ArrowSerializer("feather"))
+feather_serializer = ArrowSerializer("feather").register()
 """A serializer for PyArrow tables using Feather."""
 
-parquet_serializer = register_serializer(ArrowSerializer("parquet"))
+parquet_serializer = ArrowSerializer("parquet").register()
 """A serializer for PyArrow tables using Parquet."""

@@ -23,11 +23,12 @@ classifiers = [
 dependencies = ["typing_extensions", "sqlalchemy>=2,<3", "anyio>=3,<4"]
 
 [project.optional-dependencies]
-all = ["artigraph[aws,pandas,numpy,polars]"]
+all = ["artigraph[aws,pandas,numpy,polars,pyarrow]"]
 aws = ["boto3>=1,<2"]
-pandas = ["pandas>=2,<3", "pyarrow>=12,<13"]
-numpy = ["numpy>=1,<2", "pandas>=2,<3", "pyarrow>=12,<13"]
-polars = ["polars<1", "pyarrow>=12,<13"]
+pandas = ["pandas>=2,<3", "artigraph[pyarrow]"]
+numpy = ["numpy>=1,<2", "pandas>=2,<3", "artigraph[pyarrow]"]
+polars = ["polars<1", "artigraph[pyarrow]"]
+pyarrow = ["pyarrow>=12,<13"]
 
 [project.urls]
 Documentation = "https://github.com/unknown/artigraph#readme"

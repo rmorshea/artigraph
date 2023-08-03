@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from artigraph.serializer import Serializer, register_serializer
+from artigraph.serializer import Serializer
 
 
 class DatetimeSerializer(Serializer):
@@ -33,8 +33,8 @@ class TimeDeltaSerializer(Serializer):
         return timedelta(seconds=float(value.decode()))
 
 
-datetime_serializer = register_serializer(DatetimeSerializer())
+datetime_serializer = DatetimeSerializer().register()
 """A serializer for datetime.datetime."""
 
-timedelta_serializer = register_serializer(TimeDeltaSerializer())
+timedelta_serializer = TimeDeltaSerializer().register()
 """A serializer for datetime.timedelta."""

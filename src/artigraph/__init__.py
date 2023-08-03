@@ -1,18 +1,24 @@
 __version__ = "0.0.3"
 
-from artigraph.api.artifact_model import ArtifactMapping, ArtifactModelConfig, artifact_field
-from artigraph.api.run import RunContext, current_run_context
-from artigraph.serializer import Serializer, register_serializer
-from artigraph.storage import Storage, register_storage
+from artigraph.api.artifact_model import (
+    ArtifactMapping,
+    ArtifactModel,
+    ArtifactModelConfig,
+    ArtifactSequence,
+    artifact_field,
+)
+from artigraph.api.run import RunManager, run_manager
+from artigraph.serializer import Serializer
+from artigraph.storage import Storage
 
 __all__ = [
     "artifact_field",
     "ArtifactMapping",
+    "ArtifactModel",
     "ArtifactModelConfig",
-    "current_run_context",
-    "register_serializer",
-    "register_storage",
-    "RunContext",
+    "ArtifactSequence",
+    "run_manager",
+    "RunManager",
     "Serializer",
     "Storage",
 ]

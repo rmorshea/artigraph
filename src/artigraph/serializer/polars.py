@@ -1,10 +1,10 @@
 import polars as pl
 
-from artigraph.serializer._core import Serializer, register_serializer
+from artigraph.serializer.core import Serializer
 from artigraph.serializer.pyarrow import ArrowSerializer, parquet_serializer
 
 
-class PolarsSerializer(Serializer[pl.DataFrame]):
+class DataFrameSerializer(Serializer[pl.DataFrame]):
     """A serializer for Polars dataframes."""
 
     types = (pl.DataFrame,)
@@ -22,5 +22,5 @@ class PolarsSerializer(Serializer[pl.DataFrame]):
         return pl.from_arrow(self.pyarrow_serializer.deserialize(value))  # type: ignore
 
 
-polars_serializer = register_serializer(PolarsSerializer())
+dataframe_serializer = DataFrameSerializer().register()
 """A serializer for Polars dataframes that uses the parquet file format."""

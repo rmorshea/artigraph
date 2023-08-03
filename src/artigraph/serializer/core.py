@@ -3,6 +3,8 @@ from abc import ABC, abstractmethod
 from inspect import isclass
 from typing import Any, Generic, Sequence, TypedDict, TypeVar
 
+from typing_extensions import Self
+
 T = TypeVar("T")
 S = TypeVar("S", bound="Serializer[Any]")
 
@@ -30,41 +32,6 @@ def get_serializer_by_type(value: type[T] | T) -> "Serializer[T]":
     raise ValueError(msg)  # nocov
 
 
-def register_serializer(serializer: S) -> S:
-    """Register a serializer.
-
-    It's recommended that each serializer be defined and registerd in a separate module
-    so that users can select which serializers they want to use by importing the module.
-    Thus if a user does not import a serializer if will not be registered. This is
-    important for two reasons:
-
-    1. It allows users to avoid importing dependencies they don't need.
-    2. Serializers that supprt the same type will override each other - only the last one
-       registered will be used unless the user explicitly selects one.
-    """
-    if not isinstance(serializer, Serializer):  # nocov
-        msg = f"{serializer} is not of Serializer"
-        raise ValueError(msg)
-
-    if serializer.name in SERIALIZERS_BY_NAME:
-        msg = f"Serializer named {serializer.name!r} already registered."
-        raise ValueError(msg)
-    SERIALIZERS_BY_NAME[serializer.name] = serializer
-
-    for serializable_type in serializer.types:
-        if serializable_type not in SERIALIZERS_BY_TYPE:
-            SERIALIZERS_BY_TYPE[serializable_type] = serializer
-        else:
-            logger.debug(
-                "Did not register %s for %s - %s already exists",
-                serializer,
-                serializable_type,
-                SERIALIZERS_BY_TYPE[serializable_type],
-            )
-
-    return serializer
-
-
 class Serializer(ABC, Generic[T]):
     """A type of artifact that can be serialized to a string or bytes."""
 
@@ -84,6 +51,40 @@ class Serializer(ABC, Generic[T]):
     types: Sequence[type[T]]
     """The type or types of values that can be serialized."""
 
+    def register(self) -> Self:
+        """Register a serializer.
+
+        It's recommended that each serializer be defined and registerd in a separate module
+        so that users can select which serializers they want to use by importing the module.
+        Thus if a user does not import a serializer if will not be registered. This is
+        important for two reasons:
+
+        1. It allows users to avoid importing dependencies they don't need.
+        2. Serializers that supprt the same type will override each other - only the last one
+        registered will be used unless the user explicitly selects one.
+        """
+        if not isinstance(self, Serializer):  # nocov
+            msg = f"{self} is not of Serializer"
+            raise ValueError(msg)
+
+        if self.name in SERIALIZERS_BY_NAME:
+            msg = f"Serializer named {self.name!r} already registered."
+            raise ValueError(msg)
+        SERIALIZERS_BY_NAME[self.name] = self
+
+        for serializable_type in self.types:
+            if serializable_type not in SERIALIZERS_BY_TYPE:
+                SERIALIZERS_BY_TYPE[serializable_type] = self
+            else:
+                logger.debug(
+                    "Did not register %s for %s - %s already exists",
+                    self,
+                    serializable_type,
+                    SERIALIZERS_BY_TYPE[serializable_type],
+                )
+
+        return self
+
     @abstractmethod
     def serialize(self, value: T, /) -> bytes:
         """Serialize a value to a string or bytes."""
@@ -102,3 +103,29 @@ class DataWrapper(TypedDict):
     serializer_name: int
     data_encoding: str
     data: str
+
+
+class StringSerializer(Serializer[str]):
+    """A serializer for JSON."""
+
+    types = (str,)
+    name = "artigraph-string"
+
+    serialize = staticmethod(str.encode)  # type: ignore
+    deserialize = staticmethod(bytes.decode)  # type: ignore
+
+
+StringSerializer().register()
+
+
+class BytesSerializer(Serializer[bytes]):
+    """A serializer for JSON."""
+
+    types = (bytes,)
+    name = "artigraph-bytes"
+
+    serialize = staticmethod(lambda b: b)  # type: ignore
+    deserialize = staticmethod(lambda b: b)  # type: ignore
+
+
+BytesSerializer().register()

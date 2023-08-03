@@ -2,10 +2,10 @@ from io import BytesIO
 
 import pandas as pd
 
-from artigraph.serializer import Serializer, register_serializer
+from artigraph.serializer import Serializer
 
 
-class PandasSerializer(Serializer[pd.DataFrame]):
+class DataFrameSerializer(Serializer[pd.DataFrame]):
     """A serializer for Pandas dataframes."""
 
     types = (pd.DataFrame,)
@@ -22,5 +22,5 @@ class PandasSerializer(Serializer[pd.DataFrame]):
         return pd.read_parquet(BytesIO(value))
 
 
-pandas_serializer = register_serializer(PandasSerializer())
+dataframe_serializer = DataFrameSerializer().register()
 """A serializer for Pandas dataframes."""

@@ -31,9 +31,9 @@ polars = ["polars<1", "artigraph[pyarrow]"]
 pyarrow = ["pyarrow>=12,<13"]
 
 [project.urls]
-Documentation = "https://github.com/unknown/artigraph#readme"
-Issues = "https://github.com/unknown/artigraph/issues"
-Source = "https://github.com/unknown/artigraph"
+Documentation = "https://github.com/rmorshea/artigraph#readme"
+Issues = "https://github.com/rmorshea/artigraph/issues"
+Source = "https://github.com/rmorshea/artigraph"
 
 # --- Hatch ----------------------------------------------------------------------------------------
 

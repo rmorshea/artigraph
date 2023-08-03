@@ -1,6 +1,6 @@
 from collections.abc import Mapping, Sequence
-from dataclasses import Field, field, fields
-from typing import Any, ClassVar, Literal, TypedDict, TypeVar
+from dataclasses import Field, dataclass, field, fields
+from typing import Any, ClassVar, Iterator, Literal, TypedDict, TypeVar
 from urllib.parse import quote, unquote
 
 from typing_extensions import Self, TypeGuard, dataclass_transform
@@ -13,7 +13,7 @@ from artigraph.api.artifact import (
     read_descendant_artifacts,
 )
 from artigraph.api.node import create_nodes, create_parent_child_relationships, read_node
-from artigraph.db import current_session, session_context
+from artigraph.db import session_context
 from artigraph.orm.artifact import DatabaseArtifact, RemoteArtifact
 from artigraph.serializer import Serializer, get_serializer_by_type
 from artigraph.serializer.json import json_serializer
@@ -27,7 +27,7 @@ ARTIFACT_MODEL_TYPES_BY_NAME: dict[str, type["ArtifactModel"]] = {}
 
 
 def artifact_field(
-    *, serializer: Serializer[T] | None = None, storage: Storage | None = None, **kwargs: Any
+    *, serializer: Serializer[Any] | None = None, storage: Storage | None = None, **kwargs: Any
 ) -> Field:
     """A dataclass field with a serializer and storage."""
     metadata = kwargs.get("metadata", {})
@@ -62,6 +62,7 @@ class ArtifactFieldConfig(TypedDict, total=False):
 
 
 @dataclass_transform(field_specifiers=(artifact_field,))
+@dataclass
 class ArtifactModel:
     """A collection of artifacts that are saved together."""
 
@@ -87,7 +88,7 @@ class ArtifactModel:
     @classmethod
     def migrate(
         cls,
-        metadata: "_ArtifactModelMetadata",  # noqa: ARG003
+        version: int,  # noqa: ARG003
         data: dict[str, Any],
     ) -> dict[str, Any]:
         """Migrate the artifact model to a new version."""
@@ -129,18 +130,19 @@ class ArtifactModel:
 
         return root_node.node_id
 
-    @classmethod
+    @classmethod  # type: ignore
     @syncable
     async def load(cls, node_id: int) -> Self:
         """Load the artifact model from the database."""
-        root_node, root_node_metadata = await read_artifact_by_id(node_id)
-        if not _is_artifact_model_metadata(root_node_metadata):
+        root_qaul_artifact = await read_artifact_by_id(node_id)
+        if not _is_artifact_model_metadata(root_qaul_artifact):
             msg = f"Node {node_id} is not an artifact model."
             raise ValueError(msg)
+        root_node, root_metadata = root_qaul_artifact
 
         artifacts = await read_descendant_artifacts(root_node.node_id)
         artifacts_by_parent_id = group_artifacts_by_parent_id(artifacts)
-        return await cls._load_from_artifacts(root_node, root_node_metadata, artifacts_by_parent_id)
+        return await cls._load_from_artifacts(root_node, root_metadata, artifacts_by_parent_id)
 
     def _model_children(self) -> dict[str, "ArtifactModel"]:
         children: dict[str, ArtifactModel] = {}
@@ -228,19 +230,21 @@ class ArtifactModel:
     ) -> Self:
         """Load the artifacts from the database."""
         kwargs: dict[str, Any] = {}
-        for node, value in artifacts_by_parent_id[model_node.node_id]:
-            if _is_artifact_model_metadata(value):
+        for qual_artifact in artifacts_by_parent_id[model_node.node_id]:
+            if _is_artifact_model_metadata(qual_artifact):
+                node, value = qual_artifact
                 other_cls = ARTIFACT_MODEL_TYPES_BY_NAME[value["model_type"]]
                 kwargs[node.artifact_label] = await other_cls._load_from_artifacts(
-                    node,
+                    node,  # type: ignore
                     value,
                     artifacts_by_parent_id,
                 )
             else:
+                node, value = qual_artifact
                 kwargs[node.artifact_label] = value
 
         if model_metadata["model_version"] != cls.model_version:
-            kwargs = cls.migrate(model_node.database_artifact_value, kwargs)
+            kwargs = cls.migrate(model_metadata["model_version"], kwargs)
 
         return cls(**kwargs)
 
@@ -254,15 +258,30 @@ class ArtifactMapping(ArtifactModel, Mapping[str, A], version=1):
     def _artifact_model_children(self) -> dict[str, "ArtifactModel"]:
         return {k: v for k, v in self.items() if isinstance(v, ArtifactModel)}
 
+    def __getitem__(self, key: str) -> A:
+        return self._data[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._data)
+
+    def __len__(self) -> int:
+        return len(self._data)
+
 
 class ArtifactSequence(Sequence[A], ArtifactModel, version=1):
     """A sequence whose values are other artifact models"""
 
-    def __init__(self, *args: A) -> None:
+    def __init__(self, *args: Sequence[A]) -> None:
         self._data = tuple(*args)
 
     def _artifact_model_children(self) -> dict[str, "ArtifactModel"]:
         return {str(i): v for i, v in enumerate(self) if isinstance(v, ArtifactModel)}
+
+    def __getitem__(self, key: int) -> A:
+        return self._data[key]
+
+    def __len__(self) -> int:
+        return len(self._data)
 
 
 class _ArtifactModelMetadata(TypedDict):
@@ -278,9 +297,11 @@ class _ArtifactModelMetadata(TypedDict):
     """The version of the artifact model."""
 
 
-def _is_artifact_model_metadata(value: Any) -> TypeGuard[_ArtifactModelMetadata]:
+def _is_artifact_model_metadata(
+    value: QualifiedArtifact,
+) -> TypeGuard[tuple[DatabaseArtifact, _ArtifactModelMetadata]]:
     """Check if the value is artifact model metadata."""
-    return isinstance(value, dict) and value.get("__is_artifact_model__")
+    return isinstance(value, dict) and value.get("__is_artifact_model__") is True
 
 
 def _get_model_paths(model: ArtifactModel, path: str = "") -> dict[str, ArtifactModel]:
@@ -293,9 +314,9 @@ def _get_model_paths(model: ArtifactModel, path: str = "") -> dict[str, Artifact
     return paths
 
 
-def _get_model_parent_path(path: str) -> str | None:
+def _get_model_parent_path(path: str) -> str:
     """Get the path of the parent artifact model."""
-    return None if path == "" else path.rsplit("/", 1)[0]
+    return "__parent_of_root__" if path == "" else path.rsplit("/", 1)[0]
 
 
 def _get_model_label_from_path(path: str) -> str:

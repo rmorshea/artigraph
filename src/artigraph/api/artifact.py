@@ -52,7 +52,11 @@ async def read_artifact_by_id(artifact_id: int) -> QualifiedArtifact:
         storage = get_storage_by_name(artifact.remote_artifact_storage)
         value = serializer.deserialize(await storage.read(artifact.remote_artifact_location))
     elif isinstance(artifact, DatabaseArtifact):
-        value = serializer.deserialize(artifact.database_artifact_value)
+        value = (
+            None
+            if artifact.database_artifact_value is None
+            else serializer.deserialize(artifact.database_artifact_value)
+        )
     else:  # nocov
         msg = f"Unknown artifact type: {artifact}"
         raise RuntimeError(msg)
@@ -130,22 +134,28 @@ async def read_descendant_artifacts(root_node_id: int) -> Sequence[QualifiedArti
             msg = f"Unknown artifact type: {a}"
             raise RuntimeError(msg)
 
-    qualified_artifacts: list[QualifiedArtifact] = [
-        (a, get_serialize_by_name(a.artifact_serializer).deserialize(a.database_artifact_value))
-        for a in database_artifacts
-    ]
+    qualified_artifacts: list[QualifiedArtifact] = []
+
+    for d_artifact in database_artifacts:
+        raw_value = d_artifact.database_artifact_value
+        value = (
+            None
+            if raw_value is None
+            else get_serialize_by_name(d_artifact.artifact_serializer).deserialize(raw_value)
+        )
+        qualified_artifacts.append((d_artifact, value))
 
     # Load values from storage
     storage_read_coros: list[Coroutine[None, None, Any]] = []
-    for artifact in remote_artifacts:
-        storage = get_storage_by_name(artifact.remote_artifact_storage)
-        storage_read_coros.append(storage.read(artifact.remote_artifact_location))
+    for r_artifact in remote_artifacts:
+        storage = get_storage_by_name(r_artifact.remote_artifact_storage)
+        storage_read_coros.append(storage.read(r_artifact.remote_artifact_location))
 
     storage_data = await asyncio.gather(*storage_read_coros)
 
-    for artifact, data in zip(remote_artifacts, storage_data):
-        serializer = get_serialize_by_name(artifact.artifact_serializer)
-        qualified_artifacts.append((artifact, serializer.deserialize(data)))
+    for r_artifact, data in zip(remote_artifacts, storage_data):
+        serializer = get_serialize_by_name(r_artifact.artifact_serializer)
+        qualified_artifacts.append((r_artifact, serializer.deserialize(data)))
 
     return qualified_artifacts
 

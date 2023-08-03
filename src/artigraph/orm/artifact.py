@@ -1,6 +1,6 @@
 from typing import Any, ClassVar
 
-from sqlalchemy import JSON, UniqueConstraint
+from sqlalchemy import UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from artigraph.orm.node import Node

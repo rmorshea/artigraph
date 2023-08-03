@@ -1,16 +1,11 @@
 from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from datetime import datetime, timezone
-from typing import AsyncIterator, Callable, Iterator, TypeVar
+from typing import AsyncIterator, Callable, Iterator
 
-from typing_extensions import ParamSpec
-
-from artigraph.api.artifact_model import ArtifactModel
 from artigraph.db import current_session
 from artigraph.orm.run import Run
 
-P = ParamSpec("P")
-A = TypeVar("A", bound=ArtifactModel)
 _CURRENT_RUN_ID: ContextVar[int] = ContextVar("CURRENT_RUN_ID")
 
 

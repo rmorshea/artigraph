@@ -93,12 +93,12 @@ async def create_nodes(
 
 @syncable
 async def create_parent_child_relationships(
-    parent_child_pairs: Sequence[tuple[Node, Node]]
+    parent_child_pairs: Sequence[tuple[Node | None, Node]]
 ) -> None:
     """Create parent-to-child links between nodes."""
     async with current_session() as session:
         for parent, child in parent_child_pairs:
-            child.node_parent_id = parent.node_id
+            child.node_parent_id = None if parent is None else parent.node_id
             session.add(child)
         await session.commit()
 

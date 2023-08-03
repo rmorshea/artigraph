@@ -23,7 +23,7 @@ async def test_save_load_simple_artifact_model():
 
     loaded_artifact = await SimpleArtifactModel.load(artifact_node)
     assert loaded_artifact.some_value == "test-value"
-    assert loaded_artifact.remote_value.value == {"some": "data"}
+    assert loaded_artifact.remote_value == {"some": "data"}
     assert loaded_artifact.inner_model is None
 
 
@@ -48,8 +48,8 @@ async def test_save_load_simple_artifact_model_with_inner_model():
 
     loaded_artifact = await SimpleArtifactModel.load(artifact_node)
     assert loaded_artifact.some_value == "test-value"
-    assert loaded_artifact.remote_value.value == {"some": "data"}
+    assert loaded_artifact.remote_value == {"some": "data"}
     assert loaded_artifact.inner_model.some_value == "inner-value"
-    assert loaded_artifact.inner_model.remote_value.value == {"inner": "data"}
+    assert loaded_artifact.inner_model.remote_value == {"inner": "data"}
     assert loaded_artifact.inner_model.inner_model.some_value == "inner-inner-value"
-    assert loaded_artifact.inner_model.inner_model.remote_value.value == {"inner-inner": "data"}
+    assert loaded_artifact.inner_model.inner_model.remote_value == {"inner-inner": "data"}

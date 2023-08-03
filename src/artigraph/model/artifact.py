@@ -12,7 +12,7 @@ from artigraph.api.artifact import (
     read_artifact_by_id,
     read_descendant_artifacts,
 )
-from artigraph.api.node import create_nodes, create_parent_child_relationships
+from artigraph.api.node import create_nodes, create_parent_child_relationships, read_node
 from artigraph.db import current_session, session_context
 from artigraph.orm.artifact import DatabaseArtifact, RemoteArtifact
 from artigraph.serializer import Serializer, get_serializer_by_type
@@ -80,6 +80,7 @@ class ArtifactModel:
         if cls.__name__ in ARTIFACT_MODEL_TYPES_BY_NAME:
             msg = f"Artifact model named {cls.__name__!r} already exists"
             raise RuntimeError(msg)
+        ARTIFACT_MODEL_TYPES_BY_NAME[cls.__name__] = cls
         cls.model_version = version
         cls.model_config = config or ArtifactModelConfig()
 
@@ -95,6 +96,8 @@ class ArtifactModel:
     @syncable
     async def save(self, label: str, parent_id: int | None = None) -> int:
         """Save the artifact model to the database."""
+        parent_node = None if parent_id is None else await read_node(parent_id)
+
         models_by_path = _get_model_paths(self)
         nodes_by_path = {
             path: model._model_node(_get_model_label_from_path(path))
@@ -112,7 +115,7 @@ class ArtifactModel:
             )
             await create_parent_child_relationships(
                 [
-                    (nodes_by_path[_get_model_parent_path(path)], node)
+                    (nodes_by_path.get(_get_model_parent_path(path), parent_node), node)
                     for path, node in nodes_by_path.items()
                 ]
             )
@@ -130,7 +133,7 @@ class ArtifactModel:
     @syncable
     async def load(cls, node_id: int) -> Self:
         """Load the artifact model from the database."""
-        root_node, root_node_metadata = read_artifact_by_id(node_id)
+        root_node, root_node_metadata = await read_artifact_by_id(node_id)
         if not _is_artifact_model_metadata(root_node_metadata):
             msg = f"Node {node_id} is not an artifact model."
             raise ValueError(msg)
@@ -227,11 +230,10 @@ class ArtifactModel:
         kwargs: dict[str, Any] = {}
         for node, value in artifacts_by_parent_id[model_node.node_id]:
             if _is_artifact_model_metadata(value):
-                metadata: _ArtifactModelMetadata = node.database_artifact_value
-                other_cls = ARTIFACT_MODEL_TYPES_BY_NAME[metadata["model_type"]]
+                other_cls = ARTIFACT_MODEL_TYPES_BY_NAME[value["model_type"]]
                 kwargs[node.artifact_label] = await other_cls._load_from_artifacts(
                     node,
-                    metadata,
+                    value,
                     artifacts_by_parent_id,
                 )
             else:
@@ -291,9 +293,9 @@ def _get_model_paths(model: ArtifactModel, path: str = "") -> dict[str, Artifact
     return paths
 
 
-def _get_model_parent_path(path: str) -> str:
+def _get_model_parent_path(path: str) -> str | None:
     """Get the path of the parent artifact model."""
-    return path.rsplit("/", 1)[0]
+    return None if path == "" else path.rsplit("/", 1)[0]
 
 
 def _get_model_label_from_path(path: str) -> str:

@@ -8,7 +8,7 @@ from artigraph.api.node import delete_nodes, is_node_type, read_descendants
 from artigraph.db import current_session
 from artigraph.orm.artifact import BaseArtifact, DatabaseArtifact, RemoteArtifact
 from artigraph.orm.node import Node
-from artigraph.serializer._core import get_serialize_by_name
+from artigraph.serializer import get_serialize_by_name
 from artigraph.storage._core import get_storage_by_name
 from artigraph.utils import syncable
 
@@ -131,7 +131,8 @@ async def read_descendant_artifacts(root_node_id: int) -> Sequence[QualifiedArti
             raise RuntimeError(msg)
 
     qualified_artifacts: list[QualifiedArtifact] = [
-        (a, a.database_artifact_value) for a in database_artifacts
+        (a, get_serialize_by_name(a.artifact_serializer).deserialize(a.database_artifact_value))
+        for a in database_artifacts
     ]
 
     # Load values from storage

@@ -26,11 +26,16 @@ To install only a select set of dependencies replace `all` with any of:
 - `polars`
 - `pyarrow`
 
-## Usage
+## About
 
 Artigraph is narrowly focused on managing the artifacts produced by a data pipeline. It
 does not provide any functionality for running the pipeline itself. Instead, it is meant
 to be used in conjunction with a pipeline runner like [Prefect](https://www.prefect.io/).
+
+Artigraph is built atop [SQLAlchemy](https://www.sqlalchemy.org/) using its async
+engine. It supports most major databases including PostgreSQL, MySQL, and SQLite.
+
+## Usage
 
 The core concepts in Artigraph are:
 
@@ -58,7 +63,7 @@ class MyDataModel(ArtifactModel, version=1):
     another_value: str
 ```
 
-You can then save and load this model to the database:
+You can then save to, and load from, the database:
 
 ```python
 model = MyDataModel(some_value=42, another_value="hello")
@@ -66,9 +71,8 @@ artifact_id = await model.save(label="my-data-model")
 assert await MyDataModel.load(artifact_id) == model
 ```
 
-Fields of a model may specify external storage or custom serializers.
-
-For example, you can store a large Pandas DataFrame in S3.
+You may specify external storage or custom serializers for model fields. The code below
+shows how you might store a large Pandas DataFrame in S3:
 
 ```python
 import pandas as pd
@@ -103,7 +107,10 @@ from artigraph import ArtifactModel, ArtifactModelConfig, artifact_field
 class MyDataModel(
     ArtifactModel,
     version=1,
-    config=ArtifactModelConfig(default_field_storage=s3_bucket)
+    config=ArtifactModelConfig(
+        default_field_storage=s3_bucket,
+        default_field_serializer=pandas_serializer,
+    )
 ):
     ...
 ```

@@ -166,41 +166,194 @@ from artigraph import span_context
 
 
 async def main():
-    async with span_context() as outer:
-        async with span_context() as inner_1:
-            ...
-        async with span_context() as inner_2:
-            ...
+    async with span_context() as parent1:
+        async with span_context() as child1:
+            async with span_context() as grandchild1:
+                pass
+        async with span_context() as child2:
+            pass
 ```
 
 Will create a span hierarchy like this:
 
+```mermaid
+graph LR
+    parent1 --> child1
+    parent1 --> child2
+    child1 --> grandchild1
 ```
-outer
-├── inner_1
-└── inner_2
+
+Attaching artifacts to those nested spans:
+
+```python
+from artigraph import span_context
+
+
+@dataclass
+class MyDataModel(ArtifactModel, version=1):
+    some_value: int
+    another_value: str
+
+
+async def main():
+    async with span_context() as parent1:
+        async with span_context() as child1:
+            await create_span_artifact("current", label="model1", data=MyDataModel(...))
+            async with span_context() as grandchild1:
+                pass
+        async with span_context() as child2:
+            pass
+        await create_span_artifact("current", label="model2", data=MyDataModel(...))
+```
+
+Would then extend the graph:
+
+<div id="span-graph"></div>
+
+```mermaid
+graph LR
+    parent1 --> child1
+    parent1 --> child2
+    child1 --> grandchild1
+    child1 --> |model1| model1[MyDataModel]
+    parent1 --> |model3| model3[MyDataModel]
 ```
 
 ### Querying Spans
 
-Artigraph provides a number of utilities for querying spans. For example, you can all
-the direct children/parent of the full list of ancestors/descendants of a span:
+Artigraph provides a number of utilities for querying spans. For example, given the
+[graph above](#span-graph) you could ask for:
+
+-   [The direct children of a node](#span-children)
+-   [All descendants of a node](#span-descendants)
+-   [The parent of a node](#span-parent)
+-   [All ancestors of a node](#span-ancestors)
+-   [Child artifacts](#child-artifacts)
+-   [Descendant artifacts](#descendant-artifacts)
+
+#### Span Children
 
 ```python
-from artigraph import (
-    read_child_spans,
-    read_parent_span,
-    read_ancestor_spans,
-    read_descendant_spans,
-)
-
-span_id = ...  # the id of the span you want to query
-
 async def main():
-    children = await read_child_spans(span_id)
-    parent = await read_parent_span(span_id)
-    ancestors = await read_ancestor_spans(span_id)
-    descendant = await read_descendant_spans(span_id)
+    ...
+    parent1_children = await read_child_spans(parent1)
+```
+
+`parent1_children`` would be the highlighted nodes:
+
+```mermaid
+graph LR
+    style child1 stroke:red,stroke-width:2px
+    style child2 stroke:red,stroke-width:2px
+    parent1 --> child1
+    parent1 --> child2
+    child1 --> grandchild1
+    child1 --> |model1| model1[MyDataModel]
+    parent1 --> |model3| model3[MyDataModel]
+```
+
+#### Span Descendants
+
+```python
+async def main():
+    ...
+    parent1_descendants = await read_descendant_spans(parent1)
+```
+
+`parent1_descendants` would be the highlighted nodes:
+
+```mermaid
+graph LR
+    style child1 stroke:red,stroke-width:2px
+    style child2 stroke:red,stroke-width:2px
+    style grandchild1 stroke:red,stroke-width:2px
+    parent1 --> child1
+    parent1 --> child2
+    child1 --> grandchild1
+    child1 --> |model1| model1[MyDataModel]
+    parent1 --> |model3| model3[MyDataModel]
+```
+
+#### Span Parent
+
+```python
+async def main():
+    ...
+    child1_parent = await read_parent_span(child1)
+```
+
+`child1_parent` would be the highlighted node:
+
+```mermaid
+graph LR
+    style parent1 stroke:red,stroke-width:2px
+    parent1 --> child1
+    parent1 --> child2
+    child1 --> grandchild1
+    child1 --> |model1| model1[MyDataModel]
+    parent1 --> |model3| model3[MyDataModel]
+```
+
+#### Span Ancestors
+
+```python
+async def main():
+    ...
+    grandchild1_ancestors = await read_ancestor_spans(grandchild1)
+```
+
+`grandchild1_ancestors` would be the highlighted nodes:
+
+```mermaid
+graph LR
+    style parent1 stroke:red,stroke-width:2px
+    style child1 stroke:red,stroke-width:2px
+    parent1 --> child1
+    parent1 --> child2
+    child1 --> grandchild1
+    child1 --> |model1| model1[MyDataModel]
+    parent1 --> |model3| model3[MyDataModel]
+```
+
+#### Child Artifacts
+
+```python
+async def main():
+    ...
+    parent1_child_artifacts = await read_child_artifacts(parent1)
+```
+
+`parent1_child_artifacts` would be the highlighted nodes:
+
+```mermaid
+graph LR
+    parent1 --> child1
+    parent1 --> child2
+    child1 --> grandchild1
+    child1 --> |model1| model1[MyDataModel]
+    parent1 --> |model3| model3[MyDataModel]
+    style model3 stroke:red,stroke-width:2px
+```
+
+#### Descendant Artifacts
+
+```python
+async def main():
+    ...
+    parent1_descendant_artifacts = await read_descendant_artifacts(parent1)
+```
+
+`parent1_descendant_artifacts` would be the highlighted nodes:
+
+```mermaid
+graph LR
+    parent1 --> child1
+    parent1 --> child2
+    child1 --> grandchild1
+    child1 --> |model1| model1[MyDataModel]
+    parent1 --> |model3| model3[MyDataModel]
+    style model1 stroke:red,stroke-width:2px
+    style model3 stroke:red,stroke-width:2px
 ```
 
 ### Customizing Spans

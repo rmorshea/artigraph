@@ -83,8 +83,8 @@ should specify a serializer to ensure consistent behavior.
 
 For more info on serializers and storage backends see:
 
--   [Serializers](../serializers)
--   [Storage](../storage)
+-   [Serializers](serializers.md)
+-   [Storage](storage.md)
 
 ### Artifact Migrations
 

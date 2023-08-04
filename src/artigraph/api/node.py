@@ -1,4 +1,3 @@
-import asyncio
 from collections.abc import Collection
 from dataclasses import fields
 from typing import Any, Literal, Sequence, TypeGuard, TypeVar, overload

@@ -8,4 +8,4 @@ A library for creating interrelated graphs of artifacts.
 # Documentation
 
 Documentation is available at
-[ryanmorshead.com/artigraph/](https://ryanmorshead.com/artigraph/).
+[ryanmorshead.com/artigraph](https://ryanmorshead.com/artigraph/).

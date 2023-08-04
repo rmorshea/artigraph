@@ -33,12 +33,16 @@ T = TypeVar("T")
 
 class CustomSerializer(Serializer[T]):
 
-    name = "custom-serializer"  # this must be globally unique and stable across versions
-    types = (SomeType,)  # the types that this serializer can handle
+    def __init__(self):
+        self.name = "custom-serializer"  # this must be globally unique and stable across versions
+        self.types = (SomeType,)  # the types that this serializer can handle
 
     def serialize(self, value: T) -> bytes:
         """serialize the value to bytes"""
 
     def deserialize(self, value: bytes) -> T:
         """deserialize the value from bytes"""
+
+
+CustomSerializer().register()
 ```

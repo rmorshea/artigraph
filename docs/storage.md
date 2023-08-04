@@ -19,7 +19,8 @@ from artigraph.storage import Storage
 
 class CustomStorage(Storage):
 
-    name = "custom-storage"  # this must be globally unique and stable across versions
+    def __init__(self):
+        self.name = "custom-storage"  # this must be globally unique and stable across versions
 
     async def create(self, data: bytes) -> str:
         """Create the artifact data and return its location."""

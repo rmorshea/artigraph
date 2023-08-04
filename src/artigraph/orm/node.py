@@ -24,13 +24,15 @@ class Node(Base):
                     break
             del cls.__table_args__
 
-        if "polymorphic_identity" in cls.__dict__ or "polymorphic_identity" in cls.__mapper_args__:
-            if cls.polymorphic_identity != cls.__mapper_args__["polymorphic_identity"]:  # nocov
-                msg = (
-                    f"polymorphic_identity {cls.polymorphic_identity!r} doesn't match "
-                    f"__mapper_args__ {cls.__mapper_args__['polymorphic_identity']!r}"
-                )
-                raise ValueError(msg)
+        if "polymorphic_identity" in cls.__dict__:
+            cls.__mapper_args__ = {
+                **cls.__mapper_args__,
+                "polymorphic_identity": cls.polymorphic_identity,
+            }
+
+        if "__mapper_args__" in cls.__dict__:
+            if "polymorphic_on" in cls.__mapper_args__:
+                cls.polymorphic_identity = cls.__mapper_args__["polymorphic_on"]
 
         Node.polymorphic_identity_mapping[cls.polymorphic_identity] = cls
 

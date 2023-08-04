@@ -51,6 +51,8 @@ dependencies = [
   "aiosqlite>=0.19,<1",
   "greenlet>=2,<3",
   "moto>=4,<5",
+  "mkdocs>=1.5,<2",
+  "mkdocs-material>=9,<10",
 ]
 
 [tool.hatch.envs.default.scripts]

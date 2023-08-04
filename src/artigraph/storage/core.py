@@ -26,7 +26,7 @@ class Storage(ABC):
     name: str
     """A globally unique name for this storage.
 
-    This will typically be of the form "library_name.StorageName". You should avoid
+    This will typically be of the form "library_name-storage_name". You should avoid
     using dynamic values like `__name__` or `__qualname__` as these may change between
     versions of the library or if you move the class to a different module.
 

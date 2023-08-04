@@ -3,9 +3,10 @@ from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from datetime import datetime, timezone
 from functools import wraps
-from typing import AsyncIterator, Literal, ParamSpec, Protocol, Sequence, TypeVar, cast, overload
+from typing import AsyncIterator, Literal, Protocol, Sequence, TypeVar, cast, overload
 
 from sqlalchemy import select
+from typing_extensions import ParamSpec
 
 from artigraph.api.artifact_model import ArtifactModel
 from artigraph.api.node import read_ancestors, read_descendants, read_parent

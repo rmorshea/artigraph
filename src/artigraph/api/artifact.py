@@ -92,8 +92,15 @@ async def create_artifacts(qualified_artifacts: Sequence[QualifiedArtifact]) -> 
     async with current_session() as session:
         session.add_all(database_artifacts + remote_artifacts)
         await session.commit()
-        await asyncio.gather(*[session.refresh(a, ["node_id"]) for a, _ in qualified_artifacts])
-        return [a.node_id for a, _ in qualified_artifacts]
+
+        # We can't do this in asyncio.gather() because of issues with concurrent connections:
+        # https://docs.sqlalchemy.org/en/20/errors.html#illegalstatechangeerror-and-concurrency-exceptions
+        artifact_ids: list[int] = []
+        for a, _ in qualified_artifacts:
+            await session.refresh(a, ["node_id"])
+            artifact_ids.append(a.node_id)
+
+        return artifact_ids
 
 
 async def delete_artifacts(artifacts: Sequence[BaseArtifact]) -> None:

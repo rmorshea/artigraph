@@ -1,0 +1,33 @@
+# Site name
+site_name: Artigraph
+
+# Navigation menu
+nav:
+    - Home: index.md
+    - Usage: usage.md
+    - Storage: storage.md
+    - Serializers: serializers.md
+
+# Theme
+theme:
+    name: material
+    icon:
+        logo: material/graph
+
+# Extensions
+markdown_extensions:
+    - markdown.extensions.admonition
+    - markdown.extensions.attr_list
+    - markdown.extensions.def_list
+    - markdown.extensions.footnotes
+    - markdown.extensions.meta
+    - pymdownx.highlight:
+          anchor_linenums: true
+          line_spans: __span
+          pygments_lang_class: true
+    - pymdownx.inlinehilite
+    - pymdownx.snippets
+    - pymdownx.superfences
+
+plugins:
+    - search

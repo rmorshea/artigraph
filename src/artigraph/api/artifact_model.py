@@ -107,9 +107,9 @@ class ArtifactModel:
         cls,
         version: int,  # noqa: ARG003
         data: dict[str, Any],
-    ) -> dict[str, Any]:
+    ) -> Self:
         """Migrate the artifact model to a new version."""
-        return data
+        return cls(**data)
 
     async def create(self, label: str, parent_id: int | None = None) -> int:
         """Save the artifact model to the database."""
@@ -271,9 +271,9 @@ class ArtifactModel:
                 kwargs[node.artifact_label] = value
 
         if model_metadata["model_version"] != cls.model_version:
-            kwargs = cls.migrate(model_metadata["model_version"], kwargs)
-
-        return cls(**kwargs)
+            return cls.migrate(model_metadata["model_version"], kwargs)
+        else:
+            return cls(**kwargs)
 
 
 class ArtifactMapping(ArtifactModel, Mapping[str, A], version=1):  # type: ignore

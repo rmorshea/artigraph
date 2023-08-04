@@ -80,7 +80,10 @@ async def create_nodes(
         session.add_all(nodes)
         await session.commit()
         if refresh_attributes:
-            await asyncio.gather(*[session.refresh(n, refresh_attributes) for n in nodes])
+            # We can't do this in asyncio.gather() because of issues with concurrent connections:
+            # https://docs.sqlalchemy.org/en/20/errors.html#illegalstatechangeerror-and-concurrency-exceptions
+            for n in nodes:
+                await session.refresh(n, refresh_attributes)
     return nodes
 
 

@@ -8,7 +8,6 @@ from artigraph.api.span import (
     read_span_artifacts,
     span_context,
 )
-from artigraph.orm.span import Span
 from tests.test_api.test_artifact_model import SimpleArtifactModel
 
 

@@ -1,5 +1,5 @@
 from collections.abc import Mapping, Sequence
-from dataclasses import Field, dataclass, field, fields, replace
+from dataclasses import Field, dataclass, field, fields
 from typing import Any, ClassVar, Iterator, Literal, TypedDict, TypeVar
 from urllib.parse import quote, unquote
 
@@ -92,6 +92,7 @@ class ArtifactModel:
         *,
         version: int,
         config: "ArtifactModelConfig | None" = None,
+        **kwargs: Any,
     ) -> None:
         if cls.__name__ in ARTIFACT_MODEL_TYPES_BY_NAME:
             msg = f"Artifact model named {cls.__name__!r} already exists"
@@ -99,6 +100,7 @@ class ArtifactModel:
         ARTIFACT_MODEL_TYPES_BY_NAME[cls.__name__] = cls
         cls.model_version = version
         cls.model_config = config or ArtifactModelConfig()
+        super().__init_subclass__(**kwargs)
 
     @classmethod
     def migrate(
@@ -274,7 +276,7 @@ class ArtifactModel:
         return cls(**kwargs)
 
 
-class ArtifactMapping(ArtifactModel, Mapping[str, A], version=1):
+class ArtifactMapping(ArtifactModel, Mapping[str, A], version=1):  # type: ignore
     """A mapping whose values are other artifact models"""
 
     def __init__(self, *args: dict[str, A], **kwargs: A):
@@ -296,14 +298,14 @@ class ArtifactMapping(ArtifactModel, Mapping[str, A], version=1):
         return len(self._data)
 
 
-class ArtifactSequence(Sequence[A], ArtifactModel, version=1):
+class ArtifactSequence(Sequence[A], ArtifactModel, version=1):  # type: ignore
     """A sequence whose values are other artifact models"""
 
     def __init__(self, *args: Sequence[A], **kwargs: A) -> None:
         self._data = {str(i): v for i, v in enumerate(tuple(*args))}
         self._data.update(kwargs)
 
-    def _model_data(self):
+    def _model_data(self) -> dict[str, Any]:
         return self._data
 
     def _model_field_configs(self) -> dict[str, ArtifactFieldConfig]:

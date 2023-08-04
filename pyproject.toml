@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "artigraph"
 dynamic = ["version"]
-description = "A library for interrelated graphs of artifacts and the spans that produce them."
+description = "A library for interrelated graphs of artifacts."
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"
@@ -56,7 +56,7 @@ dependencies = [
 [tool.hatch.envs.default.scripts]
 cov = ["cov-test", "cov-report"]
 cov-report = ["- coverage combine", "coverage report"]
-cov-test = "coverage span -m pytest {args:tests}"
+cov-test = "coverage run -m pytest {args:tests}"
 format = ["black {args:.}", "ruff --fix {args:.}", "style"]
 lint = ["lint-style", "lint-typing"]
 lint-style = ["ruff {args:.}", "black --check --diff {args:.}"]
@@ -142,7 +142,7 @@ ban-relative-imports = "all"
 
 # --- Coverage -------------------------------------------------------------------------------------
 
-[tool.coverage.span]
+[tool.coverage.run]
 source_pkgs = ["artigraph"]
 branch = true
 parallel = true

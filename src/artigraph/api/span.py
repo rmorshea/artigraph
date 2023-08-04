@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from datetime import datetime, timezone
 from functools import wraps
-from typing import Any, AsyncIterator, Literal, ParamSpec, Protocol, Sequence, TypeVar, overload
+from typing import AsyncIterator, Literal, ParamSpec, Protocol, Sequence, TypeVar, cast, overload
 
 from sqlalchemy import select
 
@@ -14,7 +14,7 @@ from artigraph.orm.artifact import BaseArtifact
 from artigraph.orm.span import Span
 
 P = ParamSpec("P")
-R = TypeVar("R")
+R_co = TypeVar("R_co", covariant=True)
 S = TypeVar("S", bound=Span)
 
 _CURRENT_SPAN_ID: ContextVar[int | None] = ContextVar("CURRENT_SPAN_ID", default=None)
@@ -46,31 +46,31 @@ async def span_context(span: S | None = None) -> AsyncIterator[S]:
     If the span does not exist in the database, it will be created - its "opened at" and
     "closed at" times set at the beginning and end of the context respectively.
     """
-    span = Span(node_parent_id=None) if span is None else span
+    child_span = cast(S, Span(node_parent_id=None) if span is None else span)
     parent_span_id = _CURRENT_SPAN_ID.get()
-    existing_span = span.node_id is not None
+    existing_span = child_span.node_id is not None
     if not existing_span:
         async with session_context(expire_on_commit=False) as session:
-            span.node_parent_id = parent_span_id
-            span.span_opened_at = datetime.now(timezone.utc)
-            session.add(span)
+            child_span.node_parent_id = parent_span_id
+            child_span.span_opened_at = datetime.now(timezone.utc)
+            session.add(child_span)
             await session.commit()
-            await session.refresh(span)
-    last_span_token = _CURRENT_SPAN_ID.set(span.node_id)
+            await session.refresh(child_span)
+    last_span_token = _CURRENT_SPAN_ID.set(child_span.node_id)
     try:
-        yield span
+        yield child_span
     finally:
         _CURRENT_SPAN_ID.reset(last_span_token)
         if not existing_span:
             async with session_context(expire_on_commit=False) as session:
-                span.span_closed_at = datetime.now(timezone.utc)
-                session.add(span)
+                child_span.span_closed_at = datetime.now(timezone.utc)
+                session.add(child_span)
                 await session.commit()
 
 
-def with_current_span_id(func: "_SpanFunc[P, R]") -> "_CurrentSpanFunc[P, R]":
+def with_current_span_id(func: "_SpanFunc[P, R_co]") -> "_CurrentSpanFunc[P, R_co]":
     @wraps(func)
-    async def wrapper(span_id: int | Literal["current"], *args: Any, **kwargs: Any) -> Any:
+    async def wrapper(span_id: int | Literal["current"], *args: P.args, **kwargs: P.kwargs) -> R_co:
         return await func(
             get_current_span_id() if span_id == "current" else span_id,
             *args,
@@ -95,7 +95,7 @@ async def read_span_ancestors(span_id: int) -> Sequence[Span]:
 @with_current_span_id
 async def read_span_parent(span_id: int) -> Span | None:
     """Get the parent of a span."""
-    return read_parent(span_id, Span)
+    return await read_parent(span_id, Span)
 
 
 @with_current_span_id
@@ -146,11 +146,13 @@ async def read_span_artifacts(span_id: int) -> dict[str, ArtifactModel]:
     return artifact_models
 
 
-class _SpanFunc(Protocol[P, R]):
-    def __call__(self, span_id: int, *args: P.args, **kwargs: P.kwargs) -> R:
+class _SpanFunc(Protocol[P, R_co]):
+    async def __call__(self, span_id: int, *args: P.args, **kwargs: P.kwargs) -> R_co:
         ...
 
 
-class _CurrentSpanFunc(Protocol[P, R]):
-    def __call__(self, span_id: int | Literal["current"], *args: P.args, **kwargs: P.kwargs) -> R:
+class _CurrentSpanFunc(Protocol[P, R_co]):
+    async def __call__(
+        self, span_id: int | Literal["current"], *args: P.args, **kwargs: P.kwargs
+    ) -> R_co:
         ...

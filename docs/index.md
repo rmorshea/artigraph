@@ -21,7 +21,7 @@ To install only a select set of dependencies replace `all` with any of:
 - `polars`
 - `pyarrow`
 
-# At a Glance
+## At a Glance
 
 Below is a script that creates an artifact in a local SQLite database and reads it back.
 

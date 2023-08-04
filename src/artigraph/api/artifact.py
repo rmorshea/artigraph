@@ -36,12 +36,12 @@ async def create_artifact(artifact: RemoteArtifact | DatabaseArtifact, value: An
 
 async def read_artifact_by_id(artifact_id: int) -> QualifiedArtifact:
     """Load the artifact from the database."""
-    stmt = select(Node.node_type).where(Node.node_id == artifact_id)
+    cmd = select(Node.node_type).where(Node.node_id == artifact_id)
     async with current_session() as session:
-        result = await session.execute(stmt)
+        result = await session.execute(cmd)
         artifact_type = _get_artifact_type_by_name(result.scalar_one())
-        stmt = select(artifact_type).where(artifact_type.node_id == artifact_id)
-        result = await session.execute(stmt)
+        cmd = select(artifact_type).where(artifact_type.node_id == artifact_id)
+        result = await session.execute(cmd)
         artifact = result.scalar_one()
 
     serializer = get_serialize_by_name(artifact.artifact_serializer)

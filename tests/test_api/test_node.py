@@ -50,8 +50,8 @@ async def test_read_recursive_children_with_node_type():
     graph = await create_graph()
     root = graph.get_root()
     children = await read_descendants(root.node_id, ThingOne)
-    all_run_ids = {n.node_id for n in graph.get_all_nodes() if isinstance(n, ThingOne)}
-    expected_descendant_ids = all_run_ids - {root.node_id}
+    all_span_ids = {n.node_id for n in graph.get_all_nodes() if isinstance(n, ThingOne)}
+    expected_descendant_ids = all_span_ids - {root.node_id}
     assert {n.node_id for n in children} == expected_descendant_ids
 
 

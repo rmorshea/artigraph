@@ -12,7 +12,13 @@ R = TypeVar("R")
 SLUG_REPLACE_PATTERN = re.compile(r"[^a-z0-9]+")
 """A pattern for replacing non-alphanumeric characters in slugs"""
 
-UNDEFINED = cast(Any, type("UNDEFINED", (), {"__repr__": lambda _: "UNDEFINED"}))()
+
+def create_sentinel(name: str) -> Any:
+    """Create a sentinel object."""
+    return cast(Any, type(name, (), {"__repr__": lambda _: name}))()
+
+
+UNDEFINED = create_sentinel("UNDEFINED")
 """A sentinel for undefined values"""
 
 
@@ -22,5 +28,5 @@ def slugify(string: str) -> str:
 
 
 async def run_in_thread(func: Callable[P, R], /, *args: P.args, **kwargs: P.kwargs) -> R:
-    """Run a sync function in a thread."""
+    """Span a sync function in a thread."""
     return await to_thread.run_sync(partial(func, *args, **kwargs))  # type: ignore

@@ -11,7 +11,7 @@ from artigraph.serializer.json import json_serializer
 from artigraph.storage.file import temp_file_storage
 
 
-@dataclass
+@dataclass(frozen=True)
 class SimpleArtifactModel(ArtifactModel, version=1):
     """A simple artifact model that stores a few basic artifact."""
 
@@ -23,8 +23,8 @@ class SimpleArtifactModel(ArtifactModel, version=1):
 async def test_save_load_simple_artifact_model():
     """Test saving and loading a simple artifact model."""
     artifact = SimpleArtifactModel(some_value="test-value", remote_value={"some": "data"})
-    artifact_id = await artifact.save(None)
-    loaded_artifact = await SimpleArtifactModel.load(artifact_id)
+    artifact_id = await artifact.create(None)
+    loaded_artifact = await SimpleArtifactModel.read(artifact_id)
     assert loaded_artifact == artifact
 
 
@@ -45,12 +45,12 @@ async def test_save_load_simple_artifact_model_with_inner_model():
         inner_model=inner_artifact,
     )
 
-    artifact_id = await artifact.save(None)
-    loaded_artifact = await SimpleArtifactModel.load(artifact_id)
+    artifact_id = await artifact.create(None)
+    loaded_artifact = await SimpleArtifactModel.read(artifact_id)
     assert loaded_artifact == artifact
 
 
-@dataclass
+@dataclass(frozen=True)
 class ComplexArtifactModel(ArtifactModel, version=1):
     """A complex artifact model that stores a few basic artifact."""
 
@@ -82,6 +82,6 @@ async def test_save_load_complex_artifact_model():
         ),
     )
 
-    artifact_id = await artifact.save(None)
-    loaded_artifact = await ComplexArtifactModel.load(artifact_id)
+    artifact_id = await artifact.create(None)
+    loaded_artifact = await ComplexArtifactModel.read(artifact_id)
     assert loaded_artifact == artifact

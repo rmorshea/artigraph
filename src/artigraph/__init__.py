@@ -7,7 +7,16 @@ from artigraph.api.artifact_model import (
     ArtifactSequence,
     artifact_field,
 )
-from artigraph.api.run import RunManager, run_manager
+from artigraph.api.span import (
+    create_span_artifact,
+    create_span_artifacts,
+    read_span_ancestors,
+    read_span_artifact,
+    read_span_artifacts,
+    read_span_descendants,
+    span_context,
+)
+from artigraph.orm.span import Span
 from artigraph.serializer import Serializer
 from artigraph.storage import Storage
 
@@ -17,8 +26,14 @@ __all__ = [
     "ArtifactModel",
     "ArtifactModelConfig",
     "ArtifactSequence",
-    "run_manager",
-    "RunManager",
+    "create_span_artifact",
+    "create_span_artifacts",
+    "read_span_ancestors",
+    "read_span_artifact",
+    "read_span_artifacts",
+    "read_span_descendants",
     "Serializer",
+    "span_context",
+    "Span",
     "Storage",
 ]

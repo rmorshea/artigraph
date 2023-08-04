@@ -1,5 +1,5 @@
 from collections.abc import Mapping, Sequence
-from dataclasses import Field, dataclass, field, fields
+from dataclasses import Field, dataclass, field, fields, replace
 from typing import Any, ClassVar, Iterator, Literal, TypedDict, TypeVar
 from urllib.parse import quote, unquote
 
@@ -71,7 +71,7 @@ class ArtifactFieldConfig(TypedDict, total=False):
 
 
 @dataclass_transform(field_specifiers=(artifact_field,))
-@dataclass
+@dataclass(frozen=True)
 class ArtifactModel:
     """A collection of artifacts that are saved together."""
 
@@ -80,6 +80,12 @@ class ArtifactModel:
 
     model_config: ClassVar[ArtifactModelConfig] = ArtifactModelConfig()
     """The configuration for the artifact model."""
+
+    node_id: int | None = field(init=False, default=None, compare=False)
+    """The ID of the node for this artifact model.
+
+    This is populated when the artifact model is saved to or loaded from the database.
+    """
 
     def __init_subclass__(
         cls,
@@ -103,7 +109,7 @@ class ArtifactModel:
         """Migrate the artifact model to a new version."""
         return data
 
-    async def save(self, label: str, parent_id: int | None = None) -> int:
+    async def create(self, label: str, parent_id: int | None = None) -> int:
         """Save the artifact model to the database."""
         parent_node = None if parent_id is None else await read_node(parent_id)
 
@@ -136,10 +142,12 @@ class ArtifactModel:
                 ]
             )
 
+        object.__setattr__(self, "node_id", root_node.node_id)
+
         return root_node.node_id
 
     @classmethod  # type: ignore
-    async def load(cls, node_id: int) -> Self:
+    async def read(cls, node_id: int) -> Self:
         """Load the artifact model from the database."""
         root_qaul_artifact = await read_artifact_by_id(node_id)
         if not is_qualified_artifact_model(root_qaul_artifact):

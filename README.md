@@ -3,7 +3,7 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/artigraph.svg)](https://pypi.org/project/artigraph)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/artigraph.svg)](https://pypi.org/project/artigraph)
 
-A library for creating interrelated graphs of artifacts and the runs that produce them.
+A library for creating interrelated graphs of artifacts.
 
 ---
 
@@ -14,8 +14,8 @@ A library for creating interrelated graphs of artifacts and the runs that produc
 - [Usage](#usage)
   - [Artifact Models](#artifact-models)
     - [Nesting Artifact Models](#nesting-artifact-models)
-  - [Runs](#runs)
-    - [Custom Run Classes](#custom-run-classes)
+  - [Spans](#spans)
+    - [Custom Span Classes](#custom-span-classes)
   - [Serializers](#serializers)
   - [Storage](#storage)
 
@@ -36,7 +36,7 @@ To install only a select set of dependencies replace `all` with any of:
 ## About
 
 Artigraph is narrowly focused on managing the artifacts produced by a data pipeline. It
-does not provide any functionality for running the pipeline itself. Instead, it is meant
+does not provide any functionality for spanning the pipeline itself. Instead, it is meant
 to be used in conjunction with a pipeline runner like [Prefect](https://www.prefect.io/)
 or [Dask](https://dask.org/).
 
@@ -49,11 +49,11 @@ The core concepts in Artigraph are:
 
 - **Artifacts**: The data produced by a pipeline.
 - **Artifact Models**: A dataclass that defines the structure of an artifact.
-- **Runs**: A collection of artifacts that were produced together.
+- **Spans**: A collection of artifacts that were produced together.
 
 Under the hood all data is stored in a graph-like representation undef a single `artigraph_node`
 table that leverages single table inheritance to store different types of data. This allows
-Artigraph to support arbitrary nesting of artifacts and runs without needing to create
+Artigraph to support arbitrary nesting of artifacts and spans without needing to create
 additional tables.
 
 ## Artifact Models
@@ -164,95 +164,73 @@ artifact_id = await model.save(label="my-data-model")
 assert await MyDataModel.load(artifact_id) == model
 ```
 
-## Runs
+## Spans
 
-A run allows you to group a collection of artifacts that were produced together:
+A span allows you to group a collection of artifacts that were produced together:
 
 ```python
-from artigraph import Run, RunManager
+from artigraph import Span, span_context, create_span_artifact
 
-run = Run(node_parent_id=None)
-async with RunManager(run) as manager:
-    await manager.save_artifact("my-data-model", MyDataModel(...))
+async with span_context():
+    await create_span_artifact(span_id="current", label="my-data-model", artifact=MyDataModel(...))
 ```
 
-If you're deep in a call stack and don't want to pass the run manager around, you can
-access the currently active manager with the `run_manager()` function:
+You can use `span_id="current"`to automatically detects what the current span is attach an artifact
+to it. You can also pass in a span ID manually:
 
 ```python
-from artigraph import Run, RunManager
-
-
-async def my_function():
-    await run_manager().save_artifact("my-data-model", MyDataModel(...))
-
-
-run = Run(node_parent_id=None)
-async with RunManager(run) as manager:
-    my_function()
+await create_span_artifact(span_id=123, label="my-data-model", artifact=MyDataModel(...))
 ```
 
-Runs can be nested and they will automatically inherit the parent run's node ID:
+Spans can be nested and they will automatically inherit the parent span's node ID:
 
 ```python
-from artigraph import Run, RunManager
+from artigraph import Span, span_context
 
-run1 = Run(node_parent_id=None)
-async with RunManager(run1) as m1:
-    run2 = Run(node_parent_id=m1.run.node_id)
-    async with RunManager(run2) as m2:
-        await m2.save_artifact("my-data-model", MyDataModel(...))
-        assert m2.run.node_parent_id == m1.run.node_id
-```
-
-Artifacts from nested runs can be loaded:
-
-```python
-from artigraph import Run, RunManager
-
-run1 = Run(node_parent_id=None)
-async with RunManager(run1) as m1:
-    run2 = Run(node_parent_id=m1.run.node_id)
-    async with RunManager(run2) as m2:
-        await m2.save_artifact("my-data-model", MyDataModel(...))
-        assert m2.run.node_parent_id == m1.run.node_id
+async with span_context():
+    async with span_context():
         ...
-
-run_artifacts = m1.load_descendant_artifacts()
-assert run_artifacts == {
-    run2.node_id: {"my-data-model": MyDataModel(...)},
-    ...
-}
+    async with span_context():
+        ...
 ```
 
-### Custom Run Classes
+This will construct a graph of spans which looks like:
 
-The `Run` class and associated table is quite barebones and is meant to be subclassed.
-Beyond the standard fields defined on the `Node` it only has a `run_finished_at` field
-which is set when a `RunManager` exits. You can extend the `Run` class to add additional
-fields and relationships using [single table inheritance](https://docs.sqlalchemy.org/en/20/orm/inheritance.html#single-table-inheritance).
+```
+span1
+├── span2
+└── span3
+```
+
+### Custom Span Classes
+
+The `Span` class and associated table is quite barebones and is meant to be subclassed.
+Beyond the standard fields defined on the `Node` it only has a `span_opened_at` field
+and `span_closed_at` field which are set when a `span_context` begins and ends. You can
+extend the `Span` class to add additional fields and relationships using
+[single table inheritance](https://docs.sqlalchemy.org/en/20/orm/inheritance.html#single-table-inheritance).
 Given that fields on all subclasses of `Node` are stored in the same table, it's
 recommended that you prefix your custom fields with the name of your subclass to avoid
 collisions.
 
 ```python
 from sqlalchemy.declarative import Mapped, mapped_column
-from artigraph.orm.run import Run
+from artigraph.orm.span import Span
 
 
-class MyRun(Run):
-    __mapper_args__ = {"polymorphic_identity": "my_run"}
-    my_run_field: Mapped[str] = mapped_column()
+class MySpan(Span):
+    __mapper_args__ = {"polymorphic_identity": "my_span"}
+    my_span_field: Mapped[str] = mapped_column()
 ```
 
-You can then use this custom run class with a `RunManager`:
+You can then use this custom span class with a `span_context`:
 
 ```python
-from artigraph import Run, RunManager
+from artigraph import Span, SpanManager
 
-my_run = MyRun(node_parent_id=None, my_field="hello")
-async with RunManager(my_run) as manager:
-    await manager.save_artifact("my-data-model", MyDataModel(...))
+my_span = MySpan(node_parent_id=None, my_field="hello")
+async with span_context(my_span):
+    await create_span_artifact("current", "my-data-model", MyDataModel(...))
 ```
 
 ## Serializers

@@ -1,5 +1,6 @@
 # Site name
 site_name: Artigraph
+repo_url: https://github.com/rmorshea/artigraph
 
 # Navigation menu
 nav:
@@ -7,7 +8,6 @@ nav:
     - Usage: usage.md
     - Storage: storage.md
     - Serializers: serializers.md
-    - Source Code: https://github.com/rmorshea/artigraph
 
 # Theme
 theme:

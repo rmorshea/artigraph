@@ -1,18 +1,21 @@
 # This workflows will upload a Javscript Package using NPM to npmjs.org when a release is created
 # For more information see: https://docs.github.com/en/actions/guides/publishing-nodejs-packages
 
-name: publish
+name: publish-docs
 
 on:
-    release:
-        types: [published]
+    push:
+        branches:
+            - "main"
+        tags:
+            - "*"
 
 jobs:
-    publish:
+    publish-docs:
         uses: ./.github/workflows/.hatch-run.yml
         with:
-            job-name: "publish"
-            hatch-run: "publish"
+            job-name: "publish-docs"
+            hatch-run: "publish-docs"
         secrets:
             pypi-username: ${{ secrets.PYPI_USERNAME }}
             pypi-password: ${{ secrets.PYPI_PASSWORD }}

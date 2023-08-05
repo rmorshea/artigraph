@@ -59,11 +59,15 @@ dependencies = [
 cov = ["cov-test", "cov-report"]
 cov-report = ["- coverage combine", "coverage report"]
 cov-test = "coverage run -m pytest {args:tests}"
+docs-build = "mkdocs build"
+docs-serve = "mkdocs serve"
 format = ["black {args:.}", "ruff --fix {args:.}", "style"]
 lint = ["lint-style", "lint-typing"]
 lint-style = ["ruff {args:.}", "black --check --diff {args:.}"]
 lint-typing = "pyright {args:src}"
 test = "pytest {args:tests}"
+publish-docs = "mkdocs gh-deploy"
+publish-pypi = "hatch publish"
 
 # --- Pytest ---------------------------------------------------------------------------------------
 

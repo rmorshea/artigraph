@@ -14,7 +14,7 @@ from artigraph.api.node import read_ancestors, read_descendants, read_parent
 from artigraph.db import current_session, session_context
 from artigraph.orm.artifact import BaseArtifact
 from artigraph.orm.span import Span
-from artigraph.utils import SessionBatch
+from artigraph.utils import SessionBatch, TaskBatch
 
 P = ParamSpec("P")
 R_co = TypeVar("R_co", covariant=True)
@@ -117,9 +117,10 @@ async def create_span_artifacts(
     span_id: int, artifacts: dict[str, ArtifactModel]
 ) -> dict[str, int]:
     """Add artifacts to the span and return their IDs."""
-    return {
-        k: await create_span_artifact(span_id, label=k, artifact=a) for k, a in artifacts.items()
-    }
+    artifact_ids: TaskBatch[int] = TaskBatch()  # for some reason SessionBatch doesn't work here
+    for k, a in artifacts.items():
+        artifact_ids.add(create_span_artifact, span_id, label=k, artifact=a)
+    return dict(zip(artifacts, await artifact_ids.gather()))
 
 
 @with_current_span_id

@@ -2,23 +2,26 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import Field, dataclass, field, fields
-from typing import Any, ClassVar, Iterator, Literal, TypedDict, TypeVar
+from typing import Any, ClassVar, Iterator, Literal, TypedDict, TypeVar, cast
 from urllib.parse import quote, unquote
 
 from typing_extensions import Self, TypeGuard, dataclass_transform
 
+import artigraph
 from artigraph.api.artifact import (
     QualifiedArtifact,
     create_artifacts,
     group_artifacts_by_parent_id,
+    new_artifact,
+    new_database_artifact,
     read_artifact_by_id,
     read_descendant_artifacts,
 )
 from artigraph.api.node import create_nodes, create_parent_child_relationships, read_node
 from artigraph.db import session_context
-from artigraph.orm.artifact import DatabaseArtifact, RemoteArtifact
+from artigraph.orm.artifact import DatabaseArtifact
 from artigraph.serializer import Serializer, get_serializer_by_type
-from artigraph.serializer.json import json_serializer
+from artigraph.serializer.json import json_sorted_serializer
 from artigraph.storage import Storage
 
 T = TypeVar("T")
@@ -83,6 +86,11 @@ class ArtifactModel:
     model_config: ClassVar[ArtifactModelConfig] = ArtifactModelConfig()
     """The configuration for the artifact model."""
 
+    @classmethod
+    def model_detail(cls) -> str:
+        """A string describing the artifact model."""
+        return f"{cls.__name__}-v{cls.model_version}"
+
     def __init_subclass__(
         cls,
         *,
@@ -146,15 +154,16 @@ class ArtifactModel:
     async def read(cls, node_id: int) -> Self:
         """Load the artifact model from the database."""
         root_qaul_artifact = await read_artifact_by_id(node_id)
-        if not is_qualified_artifact_model(root_qaul_artifact):
+        model_info = get_artifact_model_info(root_qaul_artifact)
+        if model_info is None:
             msg = f"Node {node_id} is not an artifact model."
             raise ValueError(msg)
-        root_node, root_metadata = root_qaul_artifact
-        cls = get_artifact_model_type_by_name(root_metadata["model_type"])
+        root_node, model_name, model_version, _ = model_info
+        cls = get_artifact_model_type_by_name(model_name)
 
         artifacts = await read_descendant_artifacts(root_node.node_id)
         artifacts_by_parent_id = group_artifacts_by_parent_id(artifacts)
-        return await cls._load_from_artifacts(root_node, root_metadata, artifacts_by_parent_id)
+        return await cls._load_from_artifacts(root_node, model_version, artifacts_by_parent_id)
 
     def _model_data(self) -> dict[str, Any]:
         """Get the data for the artifact model.
@@ -178,37 +187,23 @@ class ArtifactModel:
             if isinstance(value, ArtifactModel):
                 continue
             field_config: ArtifactFieldConfig = field_configs.get(label, ArtifactFieldConfig())
-
-            serializer = (
-                field_config.get("serializer")
-                or self.model_config.get("default_field_serializer")
-                or get_serializer_by_type(value)
+            artifacts.append(
+                new_artifact(
+                    label,
+                    value,
+                    storage=(
+                        field_config.get("storage")
+                        or self.model_config.get("default_field_storage")
+                    ),
+                    serializer=(
+                        field_config.get("serializer")
+                        or self.model_config.get("default_field_serializer")
+                        or get_serializer_by_type(value)
+                    ),
+                    parent_id=parent.node_id,
+                    detail=self.model_detail(),
+                )
             )
-            storage = field_config.get("storage") or self.model_config.get("default_field_storage")
-
-            if storage is None:
-                artifacts.append(
-                    (
-                        DatabaseArtifact(
-                            node_parent_id=parent.node_id,
-                            artifact_label=label,
-                            artifact_serializer=serializer.name,
-                        ),
-                        value,
-                    )
-                )
-            else:
-                artifacts.append(
-                    (
-                        RemoteArtifact(
-                            node_parent_id=parent.node_id,
-                            artifact_label=label,
-                            artifact_serializer=serializer.name,
-                            remote_artifact_storage=storage.name,
-                        ),
-                        value,
-                    )
-                )
         return artifacts
 
     def _model_children(self) -> dict[str, ArtifactModel]:
@@ -229,43 +224,41 @@ class ArtifactModel:
         return children
 
     def _model_node(self, label: str) -> DatabaseArtifact:
-        return DatabaseArtifact(
-            node_parent_id=None,
-            artifact_label=label,
-            artifact_serializer=json_serializer.name,
-            database_artifact_value=json_serializer.serialize(
-                _ArtifactModelMetadata(
-                    __is_artifact_model__=True,
-                    model_type=self.__class__.__name__,
-                    model_version=self.__class__.model_version,
-                )
+        return new_database_artifact(
+            label,
+            ArtifactModelMetadata(
+                __is_artifact_model__=True,
+                lib_version=artigraph.__version__,
             ),
-        )
+            serializer=json_sorted_serializer,
+            detail=self.model_detail(),
+        )[0]
 
     @classmethod
     async def _load_from_artifacts(
         cls,
         model_node: DatabaseArtifact,
-        model_metadata: _ArtifactModelMetadata,
+        model_version: int,
         artifacts_by_parent_id: dict[int | None, list[QualifiedArtifact]],
     ) -> Self:
         """Load the artifacts from the database."""
         kwargs: dict[str, Any] = {}
         for qual_artifact in artifacts_by_parent_id[model_node.node_id]:
-            if is_qualified_artifact_model(qual_artifact):
-                node, value = qual_artifact
-                other_cls = ARTIFACT_MODEL_TYPES_BY_NAME[value["model_type"]]
+            maybe_model_info = get_artifact_model_info(qual_artifact)
+            if maybe_model_info is not None:
+                node, model_name, model_version, _ = maybe_model_info
+                other_cls = ARTIFACT_MODEL_TYPES_BY_NAME[model_name]
                 kwargs[node.artifact_label] = await other_cls._load_from_artifacts(
                     node,  # type: ignore
-                    value,
+                    model_version,
                     artifacts_by_parent_id,
                 )
             else:
                 node, value = qual_artifact
                 kwargs[node.artifact_label] = value
 
-        if model_metadata["model_version"] != cls.model_version:
-            return cls.migrate(model_metadata["model_version"], kwargs)
+        if model_version != cls.model_version:
+            return cls.migrate(model_version, kwargs)
         else:
             return cls(**kwargs)
 
@@ -312,22 +305,32 @@ class ArtifactSequence(Sequence[A], ArtifactModel, version=1):  # type: ignore
         return len(self._data)
 
 
-class _ArtifactModelMetadata(TypedDict):
+class ArtifactModelMetadata(TypedDict):
     """The metadata for an artifact model."""
 
     __is_artifact_model__: Literal[True]
     """Marker that this is an artifact model."""
 
-    model_type: str
-    """The type of the artifact model."""
+    artigraph_version: str
+    """The version of Artigraph used to generate the model"""
 
-    model_version: int
-    """The version of the artifact model."""
+
+def get_artifact_model_info(
+    qual_artifact: QualifiedArtifact,
+) -> None | tuple[DatabaseArtifact, str, int, ArtifactModelMetadata]:
+    artifact, value = qual_artifact
+    if not isinstance(value, dict) or value.get("__is_artifact_model__") is not True:
+        return None
+    artifact = cast(DatabaseArtifact, artifact)
+    metadata = cast(ArtifactModelMetadata, value)
+    model_name, class_version_str = artifact.artifact_detail.split("-")
+    model_version = int(class_version_str.lstrip("v"))
+    return artifact, model_name, model_version, metadata
 
 
 def is_qualified_artifact_model(
     qual_artifact: QualifiedArtifact,
-) -> TypeGuard[tuple[DatabaseArtifact, _ArtifactModelMetadata]]:
+) -> TypeGuard[tuple[DatabaseArtifact, ArtifactModelMetadata]]:
     """Check if the value is artifact model metadata."""
     _, value = qual_artifact
     return isinstance(value, dict) and value.get("__is_artifact_model__") is True

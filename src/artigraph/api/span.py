@@ -43,13 +43,18 @@ def get_current_span_id(*, allow_none: bool = False) -> int | None:
 
 
 @asynccontextmanager
-async def span_context(span: S | None = None) -> AsyncIterator[S]:
+async def span_context(span: S | None = None, label: str | None = None) -> AsyncIterator[S]:
     """Create a context manager for a span.
 
     If the span does not exist in the database, it will be created - its "opened at" and
     "closed at" times set at the beginning and end of the context respectively.
     """
-    child_span = cast(S, Span(node_parent_id=None) if span is None else span)
+    if span is not None and label is not None:
+        msg = "Cannot specify both span and label."
+        raise ValueError(msg)
+
+    child_span = cast(S, Span(node_parent_id=None, span_label=label) if span is None else span)
+
     parent_span_id = _CURRENT_SPAN_ID.get()
     existing_span = child_span.node_id is not None
     if not existing_span:

@@ -10,11 +10,13 @@ class JsonSerializer(Serializer[Any]):
     """A serializer for JSON."""
 
     types = (object,)
-    name = "artigraph-json"
+
+    def __init__(self, *, sort_keys: bool = False) -> None:
+        self.name = f"artigraph-json-{'sorted' if sort_keys else 'unsorted'}"
 
     def serialize(self, value: Any) -> bytes:
         """Serialize a value."""
-        return json.dumps(value).encode("utf-8")
+        return json.dumps(value, separators=(",", ":"), allow_nan=False).encode("utf-8")
 
     def deserialize(self, value: bytes) -> Any:
         """Deserialize a value."""
@@ -23,3 +25,6 @@ class JsonSerializer(Serializer[Any]):
 
 json_serializer = JsonSerializer().register()
 """A serializer for JSON."""
+
+json_sorted_serializer = JsonSerializer(sort_keys=True).register()
+"""A serializer for JSON with sorted keys"""

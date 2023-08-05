@@ -10,7 +10,8 @@ from artigraph.db import current_session
 from artigraph.orm.artifact import BaseArtifact, DatabaseArtifact, RemoteArtifact
 from artigraph.orm.node import Node
 from artigraph.serializer import get_serialize_by_name
-from artigraph.storage.core import get_storage_by_name
+from artigraph.serializer.core import Serializer, get_serializer_by_type
+from artigraph.storage.core import Storage, get_storage_by_name
 from artigraph.utils import TaskBatch
 
 T = TypeVar("T")
@@ -18,6 +19,77 @@ N = TypeVar("N", bound=Node)
 
 QualifiedArtifact: TypeAlias = tuple[RemoteArtifact | DatabaseArtifact, Any]
 """An artifact with its value."""
+
+
+def new_artifact(
+    label: str,
+    value: Any,
+    *,
+    detail: str = "",
+    storage: Storage | None = None,
+    serializer: Serializer | None = None,
+    parent_id: int | None = None,
+) -> QualifiedArtifact:
+    """Construct a new artifact and its value"""
+    return (
+        new_database_artifact(
+            label,
+            value,
+            detail=detail,
+            serializer=serializer,
+            parent_id=parent_id,
+        )
+        if storage is None
+        else new_remote_artifact(
+            label,
+            value,
+            detail=detail,
+            storage=storage,
+            serializer=serializer,
+            parent_id=parent_id,
+        )
+    )
+
+
+def new_database_artifact(
+    label: str,
+    value: T,
+    *,
+    detail: str = "",
+    serializer: Serializer | None = None,
+    parent_id: int | None = None,
+) -> tuple[DatabaseArtifact, T]:
+    """Make a new qualified database artifact"""
+    serializer = get_serializer_by_type(value) if serializer is None else serializer
+    artifact = DatabaseArtifact(
+        node_parent_id=parent_id,
+        artifact_label=label,
+        artifact_serializer=serializer.name,
+        artifact_detail=detail,
+        database_artifact_value=serializer.serialize(value),
+    )
+    return artifact, value
+
+
+def new_remote_artifact(
+    label: str,
+    value: T,
+    *,
+    detail: str = "",
+    storage: Storage,
+    serializer: Serializer | None = None,
+    parent_id: int | None = None,
+) -> tuple[RemoteArtifact, T]:
+    """Make a new qualified remote artifact"""
+    serializer = get_serializer_by_type(value) if serializer is None else serializer
+    artifact = RemoteArtifact(
+        node_parent_id=parent_id,
+        artifact_label=label,
+        artifact_detail=detail,
+        artifact_serializer=serializer.name,
+        remote_artifact_storage=storage.name,
+    )
+    return artifact, value
 
 
 def group_artifacts_by_parent_id(

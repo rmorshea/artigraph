@@ -14,11 +14,14 @@ class BaseArtifact(Node):
     __table_args__ = (UniqueConstraint("node_parent_id", "artifact_label"),)
     __mapper_args__: ClassVar[dict[str, Any]] = {"polymorphic_abstract": True}
 
-    artifact_label: Mapped[str] = mapped_column(use_existing_column=True, nullable=True)
+    artifact_label: Mapped[str] = mapped_column(nullable=True)
     """A label for the artifact."""
 
     artifact_serializer: Mapped[str] = mapped_column(nullable=True)
     """The name of the serializer used to serialize the artifact."""
+
+    artifact_detail: Mapped[str] = mapped_column(default="")
+    """Extra information about the artifact"""
 
 
 class RemoteArtifact(BaseArtifact):

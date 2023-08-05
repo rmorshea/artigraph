@@ -9,7 +9,7 @@ from sqlalchemy.orm import aliased
 from typing_extensions import TypeGuard
 
 from artigraph.db import current_session
-from artigraph.orm.node import Node
+from artigraph.orm.node import NODE_TYPE_BY_POLYMORPHIC_IDENTITY, Node
 
 T = TypeVar("T")
 N = TypeVar("N", bound=Node)
@@ -201,7 +201,7 @@ def load_nodes_from_rows(rows: Sequence[Row[Any]]) -> Sequence[Any]:
     """Load the appropriate Node instances given a sequence of SQLAlchemy rows."""
     nodes: list[Any] = []
     for r in rows:
-        node_type = Node.polymorphic_identity_mapping[r.node_type]
+        node_type = NODE_TYPE_BY_POLYMORPHIC_IDENTITY[r.node_type]
         kwargs: dict[str, Any] = {}
         attrs: dict[str, Any] = {}
         for f in fields(node_type):

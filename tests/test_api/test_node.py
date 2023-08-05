@@ -117,7 +117,7 @@ class Graph:
         self.children: list[Graph] = []
 
     def add_child(self, node_type: type[Node]):
-        node = node_type(None)
+        node = node_type(node_parent_id=None)
         graph = Graph(node)
         self.children.append(graph)
         return graph

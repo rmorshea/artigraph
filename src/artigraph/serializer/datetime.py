@@ -36,7 +36,8 @@ class TimeDeltaSerializer(Serializer):
 
 
 datetime_serializer = DatetimeSerializer().register()
-"""A serializer for datetime.datetime."""
+"""An iso8601 serializer for datetime objects."""
+
 
 timedelta_serializer = TimeDeltaSerializer().register()
 """A serializer for datetime.timedelta."""

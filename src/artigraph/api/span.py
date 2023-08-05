@@ -117,10 +117,9 @@ async def create_span_artifacts(
     span_id: int, artifacts: dict[str, ArtifactModel]
 ) -> dict[str, int]:
     """Add artifacts to the span and return their IDs."""
-    artifact_ids: SessionBatch[int] = SessionBatch()
-    for k, a in artifacts.items():
-        artifact_ids.add(create_span_artifact, span_id, label=k, artifact=a)
-    return dict(zip(artifacts, await artifact_ids.gather()))
+    return {
+        k: await create_span_artifact(span_id, label=k, artifact=a) for k, a in artifacts.items()
+    }
 
 
 @with_current_span_id

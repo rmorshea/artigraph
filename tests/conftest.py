@@ -1,6 +1,5 @@
 import moto
 import pytest
-from sqlalchemy.ext.asyncio import create_async_engine
 
 from artigraph.db import engine_context
 
@@ -10,7 +9,7 @@ def engine():
     # Need to do this in a sync fixture so context var is properly copied:
     # See: https://github.com/pytest-dev/pytest-asyncio/issues/127
     with engine_context(
-        create_async_engine("sqlite+aiosqlite:///:memory:"),
+        "sqlite+aiosqlite:///:memory:",
         create_tables=True,
     ) as eng:
         yield eng

@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import sys
 from datetime import datetime
 from typing import Any, ClassVar, Optional
 
@@ -6,43 +9,23 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from artigraph.orm.base import Base
 
+NODE_TYPE_BY_POLYMORPHIC_IDENTITY: dict[str, type[Node]] = {}
 
-class Node(Base):
+
+_node_dataclass_kwargs = {} if sys.version_info < (3, 10) else {"kw_only": True}
+
+
+class Node(Base, **_node_dataclass_kwargs):
     """A base class for describing a node in a graph."""
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
-        # Table args cannot be define on subclasses without a __tablename__ but this is
-        # inconvenient and somewhat defeats the purpose of using a base class. Instead
-        # transfer the table args to the first subclass that has a __tablename__ before
-        # SQLAlchemy complains. This is safe since we're using single table inheritance
-        # and the table args are the same for all subclasses.
-        if "__table_args__" in cls.__dict__:
-            table_args = cls.__table_args__
-            for parent_cls in cls.mro():  # nocov (this)
-                if hasattr(parent_cls, "__tablename__"):
-                    cls.__table_args__ += table_args
-                    break
-            del cls.__table_args__
-
-        if "polymorphic_identity" in cls.__dict__:
-            cls.__mapper_args__ = {
-                **cls.__mapper_args__,
-                "polymorphic_identity": cls.polymorphic_identity,
-            }
-
-        if "__mapper_args__" in cls.__dict__:
-            if "polymorphic_on" in cls.__mapper_args__:
-                cls.polymorphic_identity = cls.__mapper_args__["polymorphic_on"]
-
-        Node.polymorphic_identity_mapping[cls.polymorphic_identity] = cls
-
+        cls._shuttle_table_args()
+        cls._set_polymorphic_identity()
+        NODE_TYPE_BY_POLYMORPHIC_IDENTITY[cls.polymorphic_identity] = cls
         super().__init_subclass__(**kwargs)
 
     polymorphic_identity: ClassVar[str] = "node"
     """The type of the node - should be overridden by subclasses and passed to mapper args."""
-
-    polymorphic_identity_mapping: ClassVar[dict[str, type["Node"]]] = {}
-    """A mapping of node types to their subclasses."""
 
     __tablename__ = "artigraph_node"
     __mapper_args__: ClassVar[dict[str, Any]] = {
@@ -73,3 +56,40 @@ class Node(Base):
         init=False,
     )
     """The time that this node link was last updated."""
+
+    @classmethod
+    def _shuttle_table_args(cls: type[Node]) -> None:
+        """Transfer table args from non-table subclasses to the base which has a table.
+
+        This method exists because __table_args__ cannot be define on subclasses without
+        a __tablename__. Since we're using single table inheritance this effectively means
+        subclasses cannot specify __table_args__. To work around this, we transfer the
+        any __table_args__ defined on a subclass to the first base that has a __tablename__
+        (which is Node) before SQLAlchemy complains.
+        """
+        if "__table_args__" in cls.__dict__:
+            table_args = cls.__table_args__
+            for parent_cls in cls.mro():  # nocov (this)
+                if hasattr(parent_cls, "__tablename__"):
+                    cls.__table_args__ += table_args
+                    break
+            del cls.__table_args__
+
+    @classmethod
+    def _set_polymorphic_identity(cls: type[Node]) -> None:
+        """Sets a polymorphic identity attribute on the class for easier use."""
+        poly_id: str
+        for c in cls.mro():
+            mapper_args = getattr(c, "__mapper_args__", {})
+            if "polymorphic_identity" in mapper_args:
+                poly_id = mapper_args["polymorphic_identity"]
+                break
+        else:  # nocov
+            msg = "No polymorphic_identity found in mro"
+            raise TypeError(msg)
+        if poly_id != cls.polymorphic_identity:
+            msg = (
+                f"polymorphic_identity class attribute {cls.polymorphic_identity!r} "
+                f"does not match value from __mapper_args__ {poly_id!r}"
+            )
+            raise ValueError(msg)

@@ -1,21 +1,95 @@
-import asyncio
-from typing import Any, Coroutine, Sequence, TypeVar
+from __future__ import annotations
+
+from typing import Any, Sequence, TypeVar
 
 from sqlalchemy import select
 from typing_extensions import TypeAlias
 
-from artigraph.api.node import delete_nodes, is_node_type, read_children, read_descendants
-from artigraph.db import current_session
+from artigraph.api.node import delete_nodes, is_node_type, read_child_nodes, read_descendant_nodes
+from artigraph.db import current_session, session_context
 from artigraph.orm.artifact import BaseArtifact, DatabaseArtifact, RemoteArtifact
 from artigraph.orm.node import Node
-from artigraph.serializer import get_serialize_by_name
-from artigraph.storage.core import get_storage_by_name
+from artigraph.serializer import get_serializer_by_name
+from artigraph.serializer.core import Serializer, get_serializer_by_type
+from artigraph.storage.core import Storage, get_storage_by_name
+from artigraph.utils import TaskBatch
 
 T = TypeVar("T")
 N = TypeVar("N", bound=Node)
 
-QualifiedArtifact: TypeAlias = tuple[RemoteArtifact | DatabaseArtifact, Any]
+QualifiedArtifact: TypeAlias = "tuple[RemoteArtifact | DatabaseArtifact, Any]"
 """An artifact with its value."""
+
+
+def new_artifact(
+    label: str,
+    value: Any,
+    *,
+    detail: str = "",
+    storage: Storage | None = None,
+    serializer: Serializer | None = None,
+    parent_id: int | None = None,
+) -> QualifiedArtifact:
+    """Construct a new artifact and its value"""
+    return (
+        new_database_artifact(
+            label,
+            value,
+            detail=detail,
+            serializer=serializer,
+            parent_id=parent_id,
+        )
+        if storage is None
+        else new_remote_artifact(
+            label,
+            value,
+            detail=detail,
+            storage=storage,
+            serializer=serializer,
+            parent_id=parent_id,
+        )
+    )
+
+
+def new_database_artifact(
+    label: str,
+    value: T,
+    *,
+    detail: str = "",
+    serializer: Serializer | None = None,
+    parent_id: int | None = None,
+) -> tuple[DatabaseArtifact, T]:
+    """Make a new qualified database artifact"""
+    serializer = get_serializer_by_type(value) if serializer is None else serializer
+    artifact = DatabaseArtifact(
+        node_parent_id=parent_id,
+        artifact_label=label,
+        artifact_serializer=serializer.name,
+        artifact_detail=detail,
+        database_artifact_value=serializer.serialize(value),
+    )
+    return artifact, value
+
+
+def new_remote_artifact(
+    label: str,
+    value: T,
+    *,
+    detail: str = "",
+    storage: Storage,
+    serializer: Serializer | None = None,
+    parent_id: int | None = None,
+) -> tuple[RemoteArtifact, T]:
+    """Make a new qualified remote artifact"""
+    serializer = get_serializer_by_type(value) if serializer is None else serializer
+    artifact = RemoteArtifact(
+        node_parent_id=parent_id,
+        artifact_label=label,
+        artifact_detail=detail,
+        artifact_serializer=serializer.name,
+        remote_artifact_storage=storage.name,
+    )
+    return artifact, value
 
 
 def group_artifacts_by_parent_id(
@@ -44,7 +118,7 @@ async def read_artifact_by_id(artifact_id: int) -> QualifiedArtifact:
         result = await session.execute(cmd)
         artifact = result.scalar_one()
 
-    serializer = get_serialize_by_name(artifact.artifact_serializer)
+    serializer = get_serializer_by_name(artifact.artifact_serializer)
     if isinstance(artifact, RemoteArtifact):
         storage = get_storage_by_name(artifact.remote_artifact_storage)
         value = serializer.deserialize(await storage.read(artifact.remote_artifact_location))
@@ -70,26 +144,24 @@ async def create_artifacts(qualified_artifacts: Sequence[QualifiedArtifact]) -> 
         if isinstance(artifact, RemoteArtifact):
             qualified_storage_artifacts.append((artifact, value))
         else:
-            serializer = get_serialize_by_name(artifact.artifact_serializer)
+            serializer = get_serializer_by_name(artifact.artifact_serializer)
             artifact.database_artifact_value = serializer.serialize(value)
             database_artifacts.append(artifact)
 
     # Save values to storage first
     remote_artifacts: list[RemoteArtifact] = []
-    storage_create_coros: list[Coroutine[None, None, str]] = []
+    storage_locations: TaskBatch[str] = TaskBatch()
     for artifact, value in qualified_storage_artifacts:
         storage = get_storage_by_name(artifact.remote_artifact_storage)
-        serializer = get_serialize_by_name(artifact.artifact_serializer)
+        serializer = get_serializer_by_name(artifact.artifact_serializer)
         remote_artifacts.append(artifact)
-        storage_create_coros.append(storage.create(serializer.serialize(value)))
+        storage_locations.add(storage.create, serializer.serialize(value))
 
-    storage_locations = await asyncio.gather(*storage_create_coros)
-
-    for artifact, location in zip(remote_artifacts, storage_locations):
+    for artifact, location in zip(remote_artifacts, await storage_locations.gather()):
         artifact.remote_artifact_location = location
 
     # Save records in the database
-    async with current_session() as session:
+    async with session_context() as session:
         session.add_all(database_artifacts + remote_artifacts)
         await session.commit()
 
@@ -111,22 +183,22 @@ async def delete_artifacts(artifacts: Sequence[BaseArtifact]) -> None:
             remote_artifacts.append(artifact)
 
     # Delete values from storage first
-    storage_delete_coros: list[Coroutine[None, None, None]] = []
+    storage_deletions: TaskBatch[None] = TaskBatch()
     for artifact in remote_artifacts:
         storage = get_storage_by_name(artifact.remote_artifact_storage)
-        storage_delete_coros.append(storage.delete(artifact.remote_artifact_location))
+        storage_deletions.add(storage.delete, artifact.remote_artifact_location)
+    await storage_deletions.gather()
 
-    await asyncio.gather(*storage_delete_coros)
     await delete_nodes([a.node_id for a in artifacts])
 
 
 async def read_child_artifacts(root_node_id: int) -> Sequence[QualifiedArtifact]:
-    return await _read_qualified_artifacts(await read_children(root_node_id))
+    return await _read_qualified_artifacts(await read_child_nodes(root_node_id))
 
 
 async def read_descendant_artifacts(root_node_id: int) -> Sequence[QualifiedArtifact]:
     """Load the artifacts from the database."""
-    return await _read_qualified_artifacts(await read_descendants(root_node_id))
+    return await _read_qualified_artifacts(await read_descendant_nodes(root_node_id))
 
 
 async def _read_qualified_artifacts(all_artifacts: Sequence[Any]) -> Sequence[QualifiedArtifact]:
@@ -148,20 +220,18 @@ async def _read_qualified_artifacts(all_artifacts: Sequence[Any]) -> Sequence[Qu
         value = (
             None
             if raw_value is None
-            else get_serialize_by_name(d_artifact.artifact_serializer).deserialize(raw_value)
+            else get_serializer_by_name(d_artifact.artifact_serializer).deserialize(raw_value)
         )
         qualified_artifacts.append((d_artifact, value))
 
     # Load values from storage
-    storage_read_coros: list[Coroutine[None, None, Any]] = []
+    storage_data: TaskBatch[Any] = TaskBatch()
     for r_artifact in remote_artifacts:
         storage = get_storage_by_name(r_artifact.remote_artifact_storage)
-        storage_read_coros.append(storage.read(r_artifact.remote_artifact_location))
+        storage_data.add(storage.read, r_artifact.remote_artifact_location)
 
-    storage_data = await asyncio.gather(*storage_read_coros)
-
-    for r_artifact, data in zip(remote_artifacts, storage_data):
-        serializer = get_serialize_by_name(r_artifact.artifact_serializer)
+    for r_artifact, data in zip(remote_artifacts, await storage_data.gather()):
+        serializer = get_serializer_by_name(r_artifact.artifact_serializer)
         qualified_artifacts.append((r_artifact, serializer.deserialize(data)))
 
     return qualified_artifacts

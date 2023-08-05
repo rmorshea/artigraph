@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from abc import ABC, abstractmethod
 from inspect import isclass
@@ -9,13 +11,13 @@ T = TypeVar("T")
 S = TypeVar("S", bound="Serializer[Any]")
 
 WRAPPER_VERSION = 1
-SERIALIZERS_BY_TYPE: dict[type[Any], "Serializer[Any]"] = {}
-SERIALIZERS_BY_NAME: dict[str, "Serializer[Any]"] = {}
+SERIALIZERS_BY_TYPE: dict[type[Any], Serializer[Any]] = {}
+SERIALIZERS_BY_NAME: dict[str, Serializer[Any]] = {}
 
 logger = logging.getLogger(__name__)
 
 
-def get_serialize_by_name(name: str) -> "Serializer[Any]":
+def get_serializer_by_name(name: str) -> Serializer[Any]:
     """Get a serializer by name."""
     if name not in SERIALIZERS_BY_NAME:  # nocov
         msg = f"No serializer named {name!r}"
@@ -23,7 +25,7 @@ def get_serialize_by_name(name: str) -> "Serializer[Any]":
     return SERIALIZERS_BY_NAME[name]
 
 
-def get_serializer_by_type(value: type[T] | T) -> "Serializer[T]":
+def get_serializer_by_type(value: type[T] | T) -> Serializer[T]:
     """Get a serializer for a value."""
     for cls in (value if isclass(value) else type(value)).mro():
         if cls in SERIALIZERS_BY_TYPE:

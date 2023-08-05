@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from typing import Any, AsyncIterator, Callable, Iterator, TypeVar
@@ -28,8 +30,7 @@ def engine_context(
     create_tables: bool = False,
 ) -> Iterator[AsyncEngine]:
     """Define which engine to use in the context."""
-    if isinstance(engine, str):
-        engine = create_async_engine(engine)
+    engine = create_async_engine(engine) if isinstance(engine, str) else engine
     reset = set_engine(engine, create_tables=create_tables)
     try:
         yield engine
@@ -69,8 +70,7 @@ async def current_session() -> AsyncIterator[AsyncSession]:
 
 def set_engine(engine: AsyncEngine | str, *, create_tables: bool = False) -> Callable[[], None]:
     """Set the current engine and whether to try creating tables if they don't exist."""
-    if isinstance(engine, str):
-        engine = create_async_engine(engine)
+    engine = create_async_engine(engine) if isinstance(engine, str) else engine
     current_engine_token = _CURRENT_ENGINE.set(engine)
     create_tables_token = _CREATE_TABLES.set(create_tables)
 
@@ -81,14 +81,14 @@ def set_engine(engine: AsyncEngine | str, *, create_tables: bool = False) -> Cal
     return reset
 
 
-async def get_engine() -> AsyncEngine:
+async def get_engine(*, create_tables: bool = False) -> AsyncEngine:
     """Get the current engine."""
     try:
         engine = _CURRENT_ENGINE.get()
     except LookupError:  # nocov
         msg = "No current asynchronous engine"
         raise LookupError(msg) from None
-    if _CREATE_TABLES.get():
+    if create_tables or _CREATE_TABLES.get():  # nocov (FIXME: actually covered but not detected)
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
     return engine

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -17,7 +19,7 @@ class SimpleArtifactModel(ArtifactModel, version=1):
 
     some_value: str
     remote_value: Any = artifact_field(serializer=json_serializer, storage=temp_file_storage)
-    inner_model: "None | SimpleArtifactModel" = None
+    inner_model: None | SimpleArtifactModel = None
 
 
 async def test_save_load_simple_artifact_model():
@@ -55,8 +57,8 @@ class ComplexArtifactModel(ArtifactModel, version=1):
     """A complex artifact model that stores a few basic artifact."""
 
     simple: SimpleArtifactModel
-    mapping: ArtifactMapping["ComplexArtifactModel"] = field(default_factory=dict)
-    sequence: ArtifactSequence["ComplexArtifactModel"] = field(default_factory=dict)
+    mapping: ArtifactMapping[ComplexArtifactModel] = field(default_factory=dict)
+    sequence: ArtifactSequence[ComplexArtifactModel] = field(default_factory=dict)
 
 
 async def test_save_load_complex_artifact_model():

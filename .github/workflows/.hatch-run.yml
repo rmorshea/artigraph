@@ -1,0 +1,46 @@
+name: hatch-run
+
+on:
+    workflow_call:
+        inputs:
+            job-name:
+                required: true
+                type: string
+            hatch-run:
+                required: true
+                type: string
+            runs-on-array:
+                required: false
+                type: string
+                default: '["ubuntu-latest"]'
+            python-version-array:
+                required: false
+                type: string
+                default: '["3.x"]'
+        secrets:
+            pypi-username:
+                required: false
+            pypi-password:
+                required: false
+
+jobs:
+    hatch:
+        name: ${{ format(inputs.job-name, matrix.python-version, matrix.runs-on) }}
+        strategy:
+            matrix:
+                python-version: ${{ fromJson(inputs.python-version-array) }}
+                runs-on: ${{ fromJson(inputs.runs-on-array) }}
+        runs-on: ${{ matrix.runs-on }}
+        steps:
+            - uses: actions/checkout@v2
+            - name: Setup Python ${{ matrix.python-version }}
+              uses: actions/setup-python@v2
+              with:
+                  python-version: ${{ matrix.python-version }}
+            - name: PIP Install
+              run: pip install hatch poetry
+            - name: Run Script
+              env:
+                  HATCH_INDEX_USER: ${{ secrets.pypi-username }}
+                  HATCH_INDEX_AUTH: ${{ secrets.pypi-password }}
+              run: hatch run ${{ inputs.hatch-run }}

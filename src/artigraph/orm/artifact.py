@@ -1,4 +1,6 @@
-from typing import Any, ClassVar
+from __future__ import annotations
+
+from typing import Any, ClassVar, Optional
 
 from sqlalchemy import UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
@@ -12,11 +14,14 @@ class BaseArtifact(Node):
     __table_args__ = (UniqueConstraint("node_parent_id", "artifact_label"),)
     __mapper_args__: ClassVar[dict[str, Any]] = {"polymorphic_abstract": True}
 
-    artifact_label: Mapped[str] = mapped_column(use_existing_column=True, nullable=True)
+    artifact_label: Mapped[str] = mapped_column(nullable=True)
     """A label for the artifact."""
 
     artifact_serializer: Mapped[str] = mapped_column(nullable=True)
     """The name of the serializer used to serialize the artifact."""
+
+    artifact_detail: Mapped[str] = mapped_column(nullable=True)
+    """Extra information about the artifact"""
 
 
 class RemoteArtifact(BaseArtifact):
@@ -38,5 +43,5 @@ class DatabaseArtifact(BaseArtifact):
     polymorphic_identity = "database_artifact"
     __mapper_args__: ClassVar[dict[str, Any]] = {"polymorphic_identity": polymorphic_identity}
 
-    database_artifact_value: Mapped[bytes | None] = mapped_column(default=None)
+    database_artifact_value: Mapped[Optional[bytes]] = mapped_column(default=None)
     """The data of the artifact."""

@@ -137,7 +137,7 @@ from artigraph import span_context, create_span_artifact
 
 
 async def main():
-    async with span_context("my-span"):
+    async with span_context(label="training"):
         await create_span_artifact(
             "current", label="data", data=TrainingDataset(...)
         )
@@ -153,7 +153,7 @@ from artigraph import read_span_artifact
 
 
 async def main():
-    async with span_context() as span:
+    async with span_context(label="training") as span:
         await create_span_artifact(
             "current", label="data", data=TrainingDataset(...)
         )
@@ -174,12 +174,12 @@ from artigraph import span_context
 
 
 async def main():
-    async with span_context() as parent:
-        async with span_context() as span:
-            async with span_context() as child1:
-                async with span_context() as grandchild:
+    async with span_context(label="parent"):
+        async with span_context(label="span"):
+            async with span_context(label="child1"):
+                async with span_context(label="grandchild"):
                     pass
-            async with span_context() as child2:
+            async with span_context(label="child2"):
                 pass
 ```
 
@@ -211,17 +211,17 @@ class MyDataModel(ArtifactModel, version=1):
 
 
 async def main():
-    async with span_context() as parent:
-        async with span_context() as span:
+    async with span_context(label="parent"):
+        async with span_context(label="span"):
             await create_span_artifact(
                 "current", label="model1", data=MyDataModel(...)
             )
-            async with span_context() as child1:
-                async with span_context() as grandchild:
+            async with span_context(label="child1"):
+                async with span_context(label="grandchild"):
                     await create_span_artifact(
                         "current", label="model2", data=MyDataModel(...)
                     )
-            async with span_context() as child2:
+            async with span_context(label="child2"):
                 await create_span_artifact(
                     "current", label="model3", data=MyDataModel(...)
                 )
@@ -503,7 +503,7 @@ from artigraph import span_context, create_span_artifacts, read_parent_span
 def spanned(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
-        async with span_context():
+        async with span_context(label=func.__name__):
             parent_span = await read_parent_span("current")
             result = await func(parent_span, *args, **kwargs)
             await create_span_artifacts("current", result)

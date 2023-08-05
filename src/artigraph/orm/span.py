@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Any, ClassVar, Optional
 
@@ -11,6 +13,9 @@ class Span(Node):
 
     polymorphic_identity = "span"
     __mapper_args__: ClassVar[dict[str, Any]] = {"polymorphic_identity": polymorphic_identity}
+
+    span_label: Mapped[Optional[str]] = mapped_column(default=None)
+    """The label of this span."""
 
     span_opened_at: Mapped[Optional[datetime]] = mapped_column(default=None)
     """The time that this span opened."""

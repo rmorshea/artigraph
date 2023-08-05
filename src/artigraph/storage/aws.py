@@ -1,4 +1,5 @@
 """S3 storage backend for Artigraph."""
+from __future__ import annotations
 
 import hashlib
 from contextlib import contextmanager

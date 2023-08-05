@@ -8,10 +8,10 @@ class IntSerializer(Serializer[int]):
     name = "artigraph-int"
 
     def serialize(self, value: int) -> bytes:
-        return value.to_bytes()
+        return str(value).encode()
 
     def deserialize(self, value: bytes) -> int:
-        return int.from_bytes(value)
+        return int(value.decode())
 
 
 int_serializer = IntSerializer().register()
@@ -30,3 +30,17 @@ def test_get_serilizer_by_type():
         is_super_special = True
 
     assert get_serializer_by_type(SpecialInt) is int_serializer
+
+
+def test_serialize_bytes():
+    """This is a no-op"""
+    bytes_serializer = get_serializer_by_type(bytes)
+    assert bytes_serializer.serialize(b"hello") == b"hello"
+    assert bytes_serializer.deserialize(b"hello") == b"hello"
+
+
+def test_string_serializer():
+    """Test that the string serializer works."""
+    string_serializer = get_serializer_by_type(str)
+    assert string_serializer.serialize("hello") == b"hello"
+    assert string_serializer.deserialize(b"hello") == "hello"

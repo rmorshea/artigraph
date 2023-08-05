@@ -6,8 +6,12 @@ AWS S3.
 
 # Built-in Storage Backends
 
--   `artigraph.storage.file.FileSystem` - Local filesystem
--   `artigraph.storage.aws.S3Storage` - AWS [S3](https://aws.amazon.com/s3/)
+All built-in serializers can be found under `artigraph.storage`:
+
+| Storage                             | Description                          |
+| ----------------------------------- | ------------------------------------ |
+| `artigraph.storage.file.FileSystem` | Local filesystem                     |
+| `artigraph.storage.aws.S3Storage`   | AWS [S3](https://aws.amazon.com/s3/) |
 
 # Custom Storage Backends
 

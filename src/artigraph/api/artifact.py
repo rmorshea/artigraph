@@ -6,10 +6,10 @@ from sqlalchemy import select
 from typing_extensions import TypeAlias
 
 from artigraph.api.node import delete_nodes, is_node_type, read_child_nodes, read_descendant_nodes
-from artigraph.db import current_session
+from artigraph.db import current_session, session_context
 from artigraph.orm.artifact import BaseArtifact, DatabaseArtifact, RemoteArtifact
 from artigraph.orm.node import Node
-from artigraph.serializer import get_serialize_by_name
+from artigraph.serializer import get_serializer_by_name
 from artigraph.serializer.core import Serializer, get_serializer_by_type
 from artigraph.storage.core import Storage, get_storage_by_name
 from artigraph.utils import TaskBatch
@@ -118,7 +118,7 @@ async def read_artifact_by_id(artifact_id: int) -> QualifiedArtifact:
         result = await session.execute(cmd)
         artifact = result.scalar_one()
 
-    serializer = get_serialize_by_name(artifact.artifact_serializer)
+    serializer = get_serializer_by_name(artifact.artifact_serializer)
     if isinstance(artifact, RemoteArtifact):
         storage = get_storage_by_name(artifact.remote_artifact_storage)
         value = serializer.deserialize(await storage.read(artifact.remote_artifact_location))
@@ -144,7 +144,7 @@ async def create_artifacts(qualified_artifacts: Sequence[QualifiedArtifact]) -> 
         if isinstance(artifact, RemoteArtifact):
             qualified_storage_artifacts.append((artifact, value))
         else:
-            serializer = get_serialize_by_name(artifact.artifact_serializer)
+            serializer = get_serializer_by_name(artifact.artifact_serializer)
             artifact.database_artifact_value = serializer.serialize(value)
             database_artifacts.append(artifact)
 
@@ -153,7 +153,7 @@ async def create_artifacts(qualified_artifacts: Sequence[QualifiedArtifact]) -> 
     storage_locations: TaskBatch[str] = TaskBatch()
     for artifact, value in qualified_storage_artifacts:
         storage = get_storage_by_name(artifact.remote_artifact_storage)
-        serializer = get_serialize_by_name(artifact.artifact_serializer)
+        serializer = get_serializer_by_name(artifact.artifact_serializer)
         remote_artifacts.append(artifact)
         storage_locations.add(storage.create, serializer.serialize(value))
 
@@ -161,7 +161,7 @@ async def create_artifacts(qualified_artifacts: Sequence[QualifiedArtifact]) -> 
         artifact.remote_artifact_location = location
 
     # Save records in the database
-    async with current_session() as session:
+    async with session_context() as session:
         session.add_all(database_artifacts + remote_artifacts)
         await session.commit()
 
@@ -220,7 +220,7 @@ async def _read_qualified_artifacts(all_artifacts: Sequence[Any]) -> Sequence[Qu
         value = (
             None
             if raw_value is None
-            else get_serialize_by_name(d_artifact.artifact_serializer).deserialize(raw_value)
+            else get_serializer_by_name(d_artifact.artifact_serializer).deserialize(raw_value)
         )
         qualified_artifacts.append((d_artifact, value))
 
@@ -231,7 +231,7 @@ async def _read_qualified_artifacts(all_artifacts: Sequence[Any]) -> Sequence[Qu
         storage_data.add(storage.read, r_artifact.remote_artifact_location)
 
     for r_artifact, data in zip(remote_artifacts, await storage_data.gather()):
-        serializer = get_serialize_by_name(r_artifact.artifact_serializer)
+        serializer = get_serializer_by_name(r_artifact.artifact_serializer)
         qualified_artifacts.append((r_artifact, serializer.deserialize(data)))
 
     return qualified_artifacts

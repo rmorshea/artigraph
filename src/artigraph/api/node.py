@@ -74,11 +74,16 @@ async def delete_nodes(node_ids: Sequence[int]) -> None:
         await session.commit()
 
 
+async def create_node(node: Node, refresh_attributes: Sequence[str]) -> Node:
+    """Create a node."""
+    return (await create_nodes([node], refresh_attributes))[0]
+
+
 async def create_nodes(
     nodes: Collection[Node], refresh_attributes: Sequence[str]
 ) -> Collection[Node]:
     """Create nodes and, if given, refresh their attributes."""
-    async with current_session() as session:
+    async with current_session() as session:  # nocov (FIXME: actually covered but not detected)
         session.add_all(nodes)
         await session.commit()
         if refresh_attributes:
@@ -183,7 +188,7 @@ async def read_ancestor_nodes(node_id: int, *node_types: type[N]) -> Sequence[N]
         .where(node_cte.c.ancestor_id != node_id)  # Exclude the root node itself
     )
 
-    if node_types:
+    if node_types:  # nocov (FIXME: actually covered but not detected)
         ancestors_cmd = ancestors_cmd.where(
             Node.node_type.in_([n.polymorphic_identity for n in node_types])
         )

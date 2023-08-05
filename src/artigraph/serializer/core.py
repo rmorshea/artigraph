@@ -17,7 +17,7 @@ SERIALIZERS_BY_NAME: dict[str, Serializer[Any]] = {}
 logger = logging.getLogger(__name__)
 
 
-def get_serialize_by_name(name: str) -> Serializer[Any]:
+def get_serializer_by_name(name: str) -> Serializer[Any]:
     """Get a serializer by name."""
     if name not in SERIALIZERS_BY_NAME:  # nocov
         msg = f"No serializer named {name!r}"

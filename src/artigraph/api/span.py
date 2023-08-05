@@ -19,7 +19,7 @@ from artigraph.api.node import (
 from artigraph.db import current_session, session_context
 from artigraph.orm.artifact import BaseArtifact
 from artigraph.orm.span import Span
-from artigraph.utils import SessionBatch, TaskBatch
+from artigraph.utils import SessionBatch
 
 P = ParamSpec("P")
 R_co = TypeVar("R_co", covariant=True)
@@ -128,10 +128,12 @@ async def create_span_artifacts(
     span_id: int, artifacts: dict[str, ArtifactModel]
 ) -> dict[str, int]:
     """Add artifacts to the span and return their IDs."""
-    artifact_ids: TaskBatch[int] = TaskBatch()  # for some reason SessionBatch doesn't work here
-    for k, a in artifacts.items():
-        artifact_ids.add(create_span_artifact, span_id, label=k, artifact=a)
-    return dict(zip(artifacts, await artifact_ids.gather()))
+    return {
+        # FIXME: Not really sure why we can't do this concurrently.
+        # If we do, we sometimes don't write all records.
+        k: await create_span_artifact(span_id, label=k, artifact=a)
+        for k, a in artifacts.items()
+    }
 
 
 @with_current_span_id

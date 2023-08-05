@@ -41,6 +41,7 @@ Source = "https://github.com/rmorshea/artigraph"
 path = "src/artigraph/__init__.py"
 
 [tool.hatch.envs.default]
+features = ["all"]
 dependencies = [
   "coverage[toml]>=6.5",
   "pytest>=7",

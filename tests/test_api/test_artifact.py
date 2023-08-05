@@ -11,6 +11,7 @@ async def test_create_read_delete_database_artifact():
         node_parent_id=None,
         artifact_label="test-label",
         artifact_serializer=json_serializer.name,
+        artifact_detail="something",
     )
     artifact_id = await create_artifact(artifact, {"some": "data"})
 
@@ -29,6 +30,7 @@ async def test_create_read_delete_remote_artifact():
         artifact_label="test-label",
         remote_artifact_storage=temp_file_storage.name,
         artifact_serializer=json_serializer.name,
+        artifact_detail="something",
     )
     artifact_id = await create_artifact(artifact, {"some": "data"})
 

@@ -109,7 +109,7 @@ async def read_span_parent(span_id: int) -> Span | None:
 @with_current_span_id
 async def create_span_artifact(span_id: int, *, label: str, artifact: ArtifactModel) -> int:
     """Add an artifact to the span and return its ID"""
-    return await artifact.create(label, span_id)
+    return await artifact.create(label, parent_id=span_id)
 
 
 @with_current_span_id

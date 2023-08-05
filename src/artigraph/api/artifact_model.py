@@ -115,7 +115,7 @@ class ArtifactModel:
         """Migrate the artifact model to a new version."""
         return cls(**data)
 
-    async def create(self, label: str, parent_id: int | None = None) -> int:
+    async def create(self, label: str, *, parent_id: int | None = None) -> int:
         """Save the artifact model to the database."""
         parent_node = None if parent_id is None else await read_node(parent_id)
 

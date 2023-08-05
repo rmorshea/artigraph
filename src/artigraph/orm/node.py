@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from datetime import datetime
 from typing import Any, ClassVar, Optional
 
@@ -11,7 +12,10 @@ from artigraph.orm.base import Base
 NODE_TYPE_BY_POLYMORPHIC_IDENTITY: dict[str, type[Node]] = {}
 
 
-class Node(Base, kw_only=True):
+_node_dataclass_kwargs = {} if sys.version_info < (3, 10) else {"kw_only": True}
+
+
+class Node(Base, **_node_dataclass_kwargs):
     """A base class for describing a node in a graph."""
 
     def __init_subclass__(cls, **kwargs: Any) -> None:

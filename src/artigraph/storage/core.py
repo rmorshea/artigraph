@@ -6,7 +6,7 @@ from typing import TypeVar
 
 from typing_extensions import Self
 
-B = TypeVar("B", bound=str | bytes)
+B = TypeVar("B", bound="str | bytes")
 S = TypeVar("S", bound="Storage")
 
 WRAPPER_VERSION = 1

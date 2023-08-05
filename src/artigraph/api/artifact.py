@@ -17,7 +17,7 @@ from artigraph.utils import TaskBatch
 T = TypeVar("T")
 N = TypeVar("N", bound=Node)
 
-QualifiedArtifact: TypeAlias = tuple[RemoteArtifact | DatabaseArtifact, Any]
+QualifiedArtifact: TypeAlias = "tuple[RemoteArtifact | DatabaseArtifact, Any]"
 """An artifact with its value."""
 
 

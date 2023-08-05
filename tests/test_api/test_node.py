@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from artigraph.api.node import (
     create_parent_child_relationships,
     group_nodes_by_parent_id,
@@ -81,7 +83,7 @@ async def create_node(parent=None):
     return node
 
 
-async def create_graph() -> "Graph":
+async def create_graph() -> Graph:
     """Create a simple tree of nodes.
 
     The tree looks like this:

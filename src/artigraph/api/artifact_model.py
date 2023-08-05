@@ -228,7 +228,7 @@ class ArtifactModel:
             label,
             ArtifactModelMetadata(
                 __is_artifact_model__=True,
-                lib_version=artigraph.__version__,
+                artigraph_version=artigraph.__version__,
             ),
             serializer=json_sorted_serializer,
             detail=self.model_detail(),

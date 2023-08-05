@@ -79,7 +79,10 @@ class Node(Base, kw_only=True):
         poly_id_from_args: str | None = mapper_args.get("polymorphic_identity")
         if poly_id_from_attr and poly_id_from_args:
             if poly_id_from_attr != poly_id_from_args:
-                msg = f"polymorphic_identity defined on class and in __mapper_args__ but with different values: {poly_id_from_attr} != {poly_id_from_args}"
+                msg = (
+                    "polymorphic_identity defined on class and in __mapper_args__ but "
+                    f"with different values: {poly_id_from_attr} != {poly_id_from_args}"
+                )
                 raise ValueError(msg)
         elif poly_id_from_attr:
             cls.__mapper_args__ = {

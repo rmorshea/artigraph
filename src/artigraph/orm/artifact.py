@@ -20,7 +20,7 @@ class BaseArtifact(Node):
     artifact_serializer: Mapped[str] = mapped_column(nullable=True)
     """The name of the serializer used to serialize the artifact."""
 
-    artifact_detail: Mapped[str] = mapped_column(default="")
+    artifact_detail: Mapped[str] = mapped_column(nullable=True)
     """Extra information about the artifact"""
 
 

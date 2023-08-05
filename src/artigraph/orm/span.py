@@ -14,7 +14,7 @@ class Span(Node):
     polymorphic_identity = "span"
     __mapper_args__: ClassVar[dict[str, Any]] = {"polymorphic_identity": polymorphic_identity}
 
-    span_label: Mapped[str] = mapped_column(nullable=True)
+    span_label: Mapped[str | None] = mapped_column(default=None)
     """The label of this span."""
 
     span_opened_at: Mapped[Optional[datetime]] = mapped_column(default=None)

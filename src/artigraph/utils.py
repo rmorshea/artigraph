@@ -55,7 +55,7 @@ class TaskBatch(Generic[R]):
 
     def map(  # noqa: A003
         self,
-        func: Callable[..., R],
+        func: Callable[..., Coroutine[None, None, R]],
         *mapped_args: Sequence[Any],
     ) -> Self:
         """Map the given function to each set of arguments"""

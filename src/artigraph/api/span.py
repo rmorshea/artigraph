@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from datetime import datetime, timezone
@@ -113,10 +112,10 @@ async def create_span_artifacts(
     span_id: int, artifacts: dict[str, ArtifactModel]
 ) -> dict[str, int]:
     """Add artifacts to the span and return their IDs."""
-    batch = SessionBatch()
+    artifact_ids: SessionBatch[int] = SessionBatch()
     for k, a in artifacts.items():
-        batch.add(create_span_artifact, span_id, label=k, artifact=a)
-    return await batch.gather()
+        artifact_ids.add(create_span_artifact, span_id, label=k, artifact=a)
+    return dict(zip(artifacts, await artifact_ids.gather()))
 
 
 @with_current_span_id

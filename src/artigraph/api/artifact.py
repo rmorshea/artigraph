@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import asyncio
-from typing import Any, Coroutine, Sequence, TypeVar
+from typing import Any, Sequence, TypeVar
 
 from sqlalchemy import select
 from typing_extensions import TypeAlias

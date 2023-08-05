@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from abc import ABC, abstractmethod
 from typing import TypeVar
@@ -8,12 +10,12 @@ B = TypeVar("B", bound=str | bytes)
 S = TypeVar("S", bound="Storage")
 
 WRAPPER_VERSION = 1
-STORAGE_BY_NAME: dict[str, "Storage"] = {}
+STORAGE_BY_NAME: dict[str, Storage] = {}
 
 logger = logging.getLogger(__name__)
 
 
-def get_storage_by_name(name: str) -> "Storage":
+def get_storage_by_name(name: str) -> Storage:
     if name not in STORAGE_BY_NAME:  # nocov
         msg = f"No storage named {name!r} exists."
         raise ValueError(msg)

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
@@ -69,7 +71,7 @@ async def span_context(span: S | None = None) -> AsyncIterator[S]:
                 await session.commit()
 
 
-def with_current_span_id(func: "_SpanFunc[P, R_co]") -> "_CurrentSpanFunc[P, R_co]":
+def with_current_span_id(func: _SpanFunc[P, R_co]) -> _CurrentSpanFunc[P, R_co]:
     @wraps(func)
     async def wrapper(span_id: int | Literal["current"], *args: P.args, **kwargs: P.kwargs) -> R_co:
         return await func(

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Any, ClassVar, Optional
 
@@ -41,7 +43,7 @@ class Node(Base):
     polymorphic_identity: ClassVar[str] = "node"
     """The type of the node - should be overridden by subclasses and passed to mapper args."""
 
-    polymorphic_identity_mapping: ClassVar[dict[str, type["Node"]]] = {}
+    polymorphic_identity_mapping: ClassVar[dict[str, type[Node]]] = {}
     """A mapping of node types to their subclasses."""
 
     __tablename__ = "artigraph_node"
@@ -50,7 +52,7 @@ class Node(Base):
         "polymorphic_on": "node_type",
     }
 
-    node_parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("artigraph_node.node_id"))
+    node_parent_id: Mapped[int | None] = mapped_column(ForeignKey("artigraph_node.node_id"))
     """The ID of the parent node."""
 
     node_id: Mapped[int] = mapped_column(primary_key=True, init=False)

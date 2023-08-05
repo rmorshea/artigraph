@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections.abc import Mapping, Sequence
 from dataclasses import Field, dataclass, field, fields
 from typing import Any, ClassVar, Iterator, Literal, TypedDict, TypeVar
@@ -23,10 +25,10 @@ T = TypeVar("T")
 A = TypeVar("A", bound="ArtifactModel | ArtifactMapping | ArtifactSequence")
 ArtifactFieldValues = dict[str, tuple["ArtifactFieldConfig", Any]]
 
-ARTIFACT_MODEL_TYPES_BY_NAME: dict[str, type["ArtifactModel"]] = {}
+ARTIFACT_MODEL_TYPES_BY_NAME: dict[str, type[ArtifactModel]] = {}
 
 
-def get_artifact_model_type_by_name(name: str) -> type["ArtifactModel"]:
+def get_artifact_model_type_by_name(name: str) -> type[ArtifactModel]:
     """Get an artifact model type by its name."""
     try:
         return ARTIFACT_MODEL_TYPES_BY_NAME[name]
@@ -91,7 +93,7 @@ class ArtifactModel:
         cls,
         *,
         version: int,
-        config: "ArtifactModelConfig | None" = None,
+        config: ArtifactModelConfig | None = None,
         **kwargs: Any,
     ) -> None:
         if cls.__name__ in ARTIFACT_MODEL_TYPES_BY_NAME:
@@ -217,7 +219,7 @@ class ArtifactModel:
                 )
         return artifacts
 
-    def _model_children(self) -> dict[str, "ArtifactModel"]:
+    def _model_children(self) -> dict[str, ArtifactModel]:
         children: dict[str, ArtifactModel] = {}
         for f in fields(self):
             if not f.init:
@@ -252,7 +254,7 @@ class ArtifactModel:
     async def _load_from_artifacts(
         cls,
         model_node: DatabaseArtifact,
-        model_metadata: "_ArtifactModelMetadata",
+        model_metadata: _ArtifactModelMetadata,
         artifacts_by_parent_id: dict[int | None, list[QualifiedArtifact]],
     ) -> Self:
         """Load the artifacts from the database."""

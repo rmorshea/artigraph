@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import atexit
 from pathlib import Path
 from tempfile import TemporaryDirectory

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections.abc import Collection
 from dataclasses import fields
 from typing import Any, Literal, Sequence, TypeVar, overload

@@ -81,7 +81,7 @@ async def create_node(node: Node, refresh_attributes: Sequence[str]) -> Node:
 
 async def create_nodes(
     nodes: Collection[Node], refresh_attributes: Sequence[str]
-) -> Collection[Node]:
+) -> Sequence[Node]:
     """Create nodes and, if given, refresh their attributes."""
     async with current_session() as session:  # nocov (FIXME: actually covered but not detected)
         session.add_all(nodes)
@@ -91,7 +91,7 @@ async def create_nodes(
             # https://docs.sqlalchemy.org/en/20/errors.html#illegalstatechangeerror-and-concurrency-exceptions
             for n in nodes:
                 await session.refresh(n, refresh_attributes)
-    return nodes
+    return tuple(nodes)
 
 
 async def create_parent_child_relationships(

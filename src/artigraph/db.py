@@ -30,6 +30,7 @@ def engine_context(
     create_tables: bool = False,
 ) -> Iterator[AsyncEngine]:
     """Define which engine to use in the context."""
+    engine = create_async_engine(engine) if isinstance(engine, str) else engine
     reset = set_engine(engine, create_tables=create_tables)
     try:
         yield engine

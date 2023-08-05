@@ -8,10 +8,10 @@ class IntSerializer(Serializer[int]):
     name = "artigraph-int"
 
     def serialize(self, value: int) -> bytes:
-        return value.to_bytes()
+        return str(value).encode()
 
     def deserialize(self, value: bytes) -> int:
-        return int.from_bytes(value)
+        return int(value.decode())
 
 
 int_serializer = IntSerializer().register()

@@ -138,8 +138,12 @@ from artigraph import span_context, create_span_artifact
 
 async def main():
     async with span_context("my-span"):
-        await create_span_artifact("current", label="model", data=TrainedModel(...))
-        await create_span_artifact("current", label="dataset", data=TrainingDataset(...))
+        await create_span_artifact(
+            "current", label="data", data=TrainingDataset(...)
+        )
+        await create_span_artifact(
+            "current", label="model", data=TrainedModel(...)
+        )
 ```
 
 You can then retrieve artifacts from a spans using `read_span_artifact()`:
@@ -150,9 +154,13 @@ from artigraph import read_span_artifact
 
 async def main():
     async with span_context() as span:
-        await create_span_artifact("current", label="model", data=TrainedModel(...))
-        await create_span_artifact("current", label="dataset", data=TrainingDataset(...))
-
+        await create_span_artifact(
+            "current", label="data", data=TrainingDataset(...)
+        )
+        await create_span_artifact(
+            "current", label="model", data=TrainedModel(...)
+        )
+    # read the data back from the spans
     model = await read_span_artifact(span.node_id, label="model")
     dataset = await read_span_artifact(span.node_id, label="dataset")
 ```
@@ -166,21 +174,28 @@ from artigraph import span_context
 
 
 async def main():
-    async with span_context() as parent1:
-        async with span_context() as child1:
-            async with span_context() as grandchild1:
+    async with span_context() as parent:
+        async with span_context() as span:
+            async with span_context() as child1:
+                async with span_context() as grandchild:
+                    pass
+            async with span_context() as child2:
                 pass
-        async with span_context() as child2:
-            pass
 ```
 
 Will create a span hierarchy like this:
 
 ```mermaid
 graph LR
-    parent1 --> child1
-    parent1 --> child2
-    child1 --> grandchild1
+    p([parent])
+    s([span])
+    c1([child1])
+    c2([child2])
+    g([grandchild])
+    p --> s
+    s --> c1
+    s --> c2
+    c1 --> g
 ```
 
 Attaching artifacts to those nested spans:
@@ -196,14 +211,20 @@ class MyDataModel(ArtifactModel, version=1):
 
 
 async def main():
-    async with span_context() as parent1:
-        async with span_context() as child1:
-            await create_span_artifact("current", label="model1", data=MyDataModel(...))
-            async with span_context() as grandchild1:
-                pass
-        async with span_context() as child2:
-            pass
-        await create_span_artifact("current", label="model2", data=MyDataModel(...))
+    async with span_context() as parent:
+        async with span_context() as span:
+            await create_span_artifact(
+                "current", label="model1", data=MyDataModel(...)
+            )
+            async with span_context() as child1:
+                async with span_context() as grandchild:
+                    await create_span_artifact(
+                        "current", label="model2", data=MyDataModel(...)
+                    )
+            async with span_context() as child2:
+                await create_span_artifact(
+                    "current", label="model3", data=MyDataModel(...)
+                )
 ```
 
 Would then extend the graph:
@@ -212,11 +233,21 @@ Would then extend the graph:
 
 ```mermaid
 graph LR
-    parent1 --> child1
-    parent1 --> child2
-    child1 --> grandchild1
-    child1 --> |model1| model1[MyDataModel]
-    parent1 --> |model3| model3[MyDataModel]
+    p([parent])
+    s([span])
+    c1([child1])
+    c2([child2])
+    g([grandchild])
+    m1[MyDataModel]
+    m2[MyDataModel]
+    m3[MyDataModel]
+    p --> s
+    s --> |model1| m1
+    s --> c1
+    s --> c2
+    c1 --> g
+    g --> |model2| m2
+    c2 --> |model3| m3
 ```
 
 ### Querying Spans
@@ -230,18 +261,30 @@ would in the [graph above](#span-graph) return by highlighting them in red.
 #### Child Spans
 
 ```python
-parent1_children = await read_child_spans(parent1.node_id)
+span_children = await read_child_spans(span.node_id)
 ```
 
 ```mermaid
 graph LR
-    style child1 stroke:red,stroke-width:2px
-    style child2 stroke:red,stroke-width:2px
-    parent1 --> child1
-    parent1 --> child2
-    child1 --> grandchild1
-    child1 --> |model1| model1[MyDataModel]
-    parent1 --> |model3| model3[MyDataModel]
+    p([parent])
+    s([span])
+    c1([child1])
+    c2([child2])
+    g([grandchild])
+    m1[MyDataModel]
+    m2[MyDataModel]
+    m3[MyDataModel]
+
+    style c1 stroke:red,stroke-width:2px
+    style c2 stroke:red,stroke-width:2px
+
+    p --> s
+    s --> |model1| m1
+    s --> c1
+    s --> c2
+    c1 --> g
+    g --> |model2| m2
+    c2 --> |model3| m3
 ```
 
 ---
@@ -249,17 +292,29 @@ graph LR
 #### Child Artifacts
 
 ```python
-parent1_child_artifacts = await read_child_artifacts(parent1.node_id)
+span_child_artifacts = await read_child_artifacts(span.node_id)
 ```
 
 ```mermaid
 graph LR
-    parent1 --> child1
-    parent1 --> child2
-    child1 --> grandchild1
-    child1 --> |model1| model1[MyDataModel]
-    parent1 --> |model3| model3[MyDataModel]
-    style model3 stroke:red,stroke-width:2px
+    p([parent])
+    s([span])
+    c1([child1])
+    c2([child2])
+    g([grandchild])
+    m1[MyDataModel]
+    m2[MyDataModel]
+    m3[MyDataModel]
+
+    style m1 stroke:red,stroke-width:2px
+
+    p --> s
+    s --> |model1| m1
+    s --> c1
+    s --> c2
+    c1 --> g
+    g --> |model2| m2
+    c2 --> |model3| m3
 ```
 
 ---
@@ -267,19 +322,31 @@ graph LR
 #### Descendant Spans
 
 ```python
-parent1_descendants = await read_descendant_spans(parent1.node_id)
+span_descendants = await read_descendant_spans(span.node_id)
 ```
 
 ```mermaid
 graph LR
-    style child1 stroke:red,stroke-width:2px
-    style child2 stroke:red,stroke-width:2px
-    style grandchild1 stroke:red,stroke-width:2px
-    parent1 --> child1
-    parent1 --> child2
-    child1 --> grandchild1
-    child1 --> |model1| model1[MyDataModel]
-    parent1 --> |model3| model3[MyDataModel]
+    p([parent])
+    s([span])
+    c1([child1])
+    c2([child2])
+    g([grandchild])
+    m1[MyDataModel]
+    m2[MyDataModel]
+    m3[MyDataModel]
+
+    style c1 stroke:red,stroke-width:2px
+    style c2 stroke:red,stroke-width:2px
+    style g stroke:red,stroke-width:2px
+
+    p --> s
+    s --> |model1| m1
+    s --> c1
+    s --> c2
+    c1 --> g
+    g --> |model2| m2
+    c2 --> |model3| m3
 ```
 
 ---
@@ -287,18 +354,31 @@ graph LR
 #### Descendant Artifacts
 
 ```python
-parent1_descendant_artifacts = await read_descendant_artifacts(parent1.node_id)
+span_descendant_artifacts = await read_descendant_artifacts(span.node_id)
 ```
 
 ```mermaid
 graph LR
-    parent1 --> child1
-    parent1 --> child2
-    child1 --> grandchild1
-    child1 --> |model1| model1[MyDataModel]
-    parent1 --> |model3| model3[MyDataModel]
-    style model1 stroke:red,stroke-width:2px
-    style model3 stroke:red,stroke-width:2px
+    p([parent])
+    s([span])
+    c1([child1])
+    c2([child2])
+    g([grandchild])
+    m1[MyDataModel]
+    m2[MyDataModel]
+    m3[MyDataModel]
+
+    style m1 stroke:red,stroke-width:2px
+    style m2 stroke:red,stroke-width:2px
+    style m3 stroke:red,stroke-width:2px
+
+    p --> s
+    s --> |model1| m1
+    s --> c1
+    s --> c2
+    c1 --> g
+    g --> |model2| m2
+    c2 --> |model3| m3
 ```
 
 ---
@@ -306,17 +386,29 @@ graph LR
 #### Parent Span
 
 ```python
-child1_parent = await read_parent_span(child1.node_id)
+span_parent = await read_parent_span(span.node_id)
 ```
 
 ```mermaid
 graph LR
-    style parent1 stroke:red,stroke-width:2px
-    parent1 --> child1
-    parent1 --> child2
-    child1 --> grandchild1
-    child1 --> |model1| model1[MyDataModel]
-    parent1 --> |model3| model3[MyDataModel]
+    p([parent])
+    s([span])
+    c1([child1])
+    c2([child2])
+    g([grandchild])
+    m1[MyDataModel]
+    m2[MyDataModel]
+    m3[MyDataModel]
+
+    style p stroke:red,stroke-width:2px
+
+    p --> s
+    s --> |model1| m1
+    s --> c1
+    s --> c2
+    c1 --> g
+    g --> |model2| m2
+    c2 --> |model3| m3
 ```
 
 ---
@@ -324,18 +416,31 @@ graph LR
 #### Ancestor Spans
 
 ```python
-grandchild1_ancestors = await read_ancestor_spans(grandchild1.node_id)
+grandchild_ancestors = await read_ancestor_spans(grandchild.node_id)
 ```
 
 ```mermaid
 graph LR
-    style parent1 stroke:red,stroke-width:2px
-    style child1 stroke:red,stroke-width:2px
-    parent1 --> child1
-    parent1 --> child2
-    child1 --> grandchild1
-    child1 --> |model1| model1[MyDataModel]
-    parent1 --> |model3| model3[MyDataModel]
+    p([parent])
+    s([span])
+    c1([child1])
+    c2([child2])
+    g([grandchild])
+    m1[MyDataModel]
+    m2[MyDataModel]
+    m3[MyDataModel]
+
+    style p stroke:red,stroke-width:2px
+    style s stroke:red,stroke-width:2px
+    style c1 stroke:red,stroke-width:2px
+
+    p --> s
+    s --> |model1| m1
+    s --> c1
+    s --> c2
+    c1 --> g
+    g --> |model2| m2
+    c2 --> |model3| m3
 ```
 
 ### Customizing Spans

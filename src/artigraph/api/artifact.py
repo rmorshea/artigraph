@@ -12,6 +12,7 @@ from artigraph.orm.artifact import BaseArtifact, DatabaseArtifact, RemoteArtifac
 from artigraph.orm.node import Node
 from artigraph.serializer import get_serialize_by_name
 from artigraph.storage.core import get_storage_by_name
+from artigraph.utils import TaskBatch
 
 T = TypeVar("T")
 N = TypeVar("N", bound=Node)
@@ -78,16 +79,14 @@ async def create_artifacts(qualified_artifacts: Sequence[QualifiedArtifact]) -> 
 
     # Save values to storage first
     remote_artifacts: list[RemoteArtifact] = []
-    storage_create_coros: list[Coroutine[None, None, str]] = []
+    storage_locations: TaskBatch[str] = TaskBatch()
     for artifact, value in qualified_storage_artifacts:
         storage = get_storage_by_name(artifact.remote_artifact_storage)
         serializer = get_serialize_by_name(artifact.artifact_serializer)
         remote_artifacts.append(artifact)
-        storage_create_coros.append(storage.create(serializer.serialize(value)))
+        storage_locations.add(storage.create, serializer.serialize(value))
 
-    storage_locations = await asyncio.gather(*storage_create_coros)
-
-    for artifact, location in zip(remote_artifacts, storage_locations):
+    for artifact, location in zip(remote_artifacts, await storage_locations.gather()):
         artifact.remote_artifact_location = location
 
     # Save records in the database
@@ -113,12 +112,12 @@ async def delete_artifacts(artifacts: Sequence[BaseArtifact]) -> None:
             remote_artifacts.append(artifact)
 
     # Delete values from storage first
-    storage_delete_coros: list[Coroutine[None, None, None]] = []
+    storage_deletions: TaskBatch[None] = TaskBatch()
     for artifact in remote_artifacts:
         storage = get_storage_by_name(artifact.remote_artifact_storage)
-        storage_delete_coros.append(storage.delete(artifact.remote_artifact_location))
+        storage_deletions.add(storage.delete, artifact.remote_artifact_location)
+    await storage_deletions.gather()
 
-    await asyncio.gather(*storage_delete_coros)
     await delete_nodes([a.node_id for a in artifacts])
 
 
@@ -155,14 +154,12 @@ async def _read_qualified_artifacts(all_artifacts: Sequence[Any]) -> Sequence[Qu
         qualified_artifacts.append((d_artifact, value))
 
     # Load values from storage
-    storage_read_coros: list[Coroutine[None, None, Any]] = []
+    storage_data: TaskBatch[Any] = TaskBatch()
     for r_artifact in remote_artifacts:
         storage = get_storage_by_name(r_artifact.remote_artifact_storage)
-        storage_read_coros.append(storage.read(r_artifact.remote_artifact_location))
+        storage_data.add(storage.read, r_artifact.remote_artifact_location)
 
-    storage_data = await asyncio.gather(*storage_read_coros)
-
-    for r_artifact, data in zip(remote_artifacts, storage_data):
+    for r_artifact, data in zip(remote_artifacts, await storage_data.gather()):
         serializer = get_serialize_by_name(r_artifact.artifact_serializer)
         qualified_artifacts.append((r_artifact, serializer.deserialize(data)))
 

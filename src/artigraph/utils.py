@@ -37,28 +37,55 @@ async def run_in_thread(func: Callable[P, R], /, *args: P.args, **kwargs: P.kwar
     return await to_thread.run_sync(partial(func, *args, **kwargs))  # type: ignore
 
 
-class SessionBatch(Generic[R]):
+class TaskBatch(Generic[R]):
     """A batch of coroutines that are each executed with their own session"""
 
-    def __init__(self, **session_kwargs: Any) -> None:
-        self._tasks: list[Callable[[], Coroutine[None, None, R]]] = []
-        self._session_kwargs = session_kwargs
+    def __init__(self) -> None:
+        self._funcs: list[Callable[[], Coroutine[None, None, R]]] = []
 
-    def add(self, func: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> Self:
+    def add(
+        self,
+        func: Callable[P, Coroutine[None, None, R]],
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> Self:
         """Add a new task to the batch"""
-
-        async def wrapper():
-            async with session_context(**self._session_kwargs):
-                return await func(*args, **kwargs)
-
-        self._tasks.append(wrapper)
+        self._funcs.append(self._wrap_func(lambda: func(*args, **kwargs)))
         return self
 
-    def map(self, func: Callable[..., R], *arg_sequences: Sequence[Any]) -> Self:  # noqa: A003
+    def map(  # noqa: A003
+        self,
+        func: Callable[..., R],
+        *mapped_args: Sequence[Any],
+    ) -> Self:
         """Map the given function to each set of arguments"""
-        for args in zip(*arg_sequences):
+        for args in zip(*mapped_args):
             self.add(func, *args)
         return self
 
+    def _wrap_func(
+        self,
+        func: Callable[[], Coroutine[None, None, R]],
+    ) -> Callable[[], Coroutine[None, None, R]]:
+        return func
+
     async def gather(self) -> Sequence[R]:
-        return await asyncio.gather(*[t() for t in self._tasks])
+        return await asyncio.gather(*[t() for t in self._funcs])
+
+
+class SessionBatch(TaskBatch[R]):
+    """A batch of coroutines that are each executed with their own session"""
+
+    def __init__(self, **session_kwargs: Any) -> None:
+        self._session_kwargs = session_kwargs
+        super().__init__()
+
+    def _wrap_func(
+        self,
+        func: Callable[[], Coroutine[None, None, R]],
+    ) -> Callable[[], Coroutine[None, None, R]]:
+        async def wrapper():
+            async with session_context(**self._session_kwargs):
+                return await func()
+
+        return wrapper

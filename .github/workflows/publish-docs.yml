@@ -16,6 +16,3 @@ jobs:
         with:
             job-name: "publish-docs"
             hatch-run: "publish-docs"
-        secrets:
-            pypi-username: ${{ secrets.PYPI_USERNAME }}
-            pypi-password: ${{ secrets.PYPI_PASSWORD }}

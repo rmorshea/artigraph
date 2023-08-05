@@ -74,20 +74,18 @@ class Node(Base, kw_only=True):
     @classmethod
     def _set_polymorphic_identity(cls: type[Node]) -> None:
         """Sets a polymorphic identity attribute on the class for easier use."""
-        mapper_args = getattr(cls, "__mapper_args__", {})
-        poly_id_from_attr: str | None = cls.__dict__.get("polymorphic_identity")
-        poly_id_from_args: str | None = mapper_args.get("polymorphic_identity")
-        if poly_id_from_attr and poly_id_from_args:
-            if poly_id_from_attr != poly_id_from_args:
-                msg = (
-                    "polymorphic_identity defined on class and in __mapper_args__ but "
-                    f"with different values: {poly_id_from_attr} != {poly_id_from_args}"
-                )
-                raise ValueError(msg)
-        elif poly_id_from_attr:
-            cls.__mapper_args__ = {
-                **cls.__mapper_args__,
-                "polymorphic_identity": cls.polymorphic_identity,
-            }
-        elif poly_id_from_args:
-            cls.polymorphic_identity = poly_id_from_args
+        poly_id: str
+        for c in cls.mro():
+            mapper_args = getattr(c, "__mapper_args__", {})
+            if "polymorphic_identity" in mapper_args:
+                poly_id = mapper_args["polymorphic_identity"]
+                break
+        else:  # nocov
+            msg = "No polymorphic_identity found in mro"
+            raise TypeError(msg)
+        if poly_id != cls.polymorphic_identity:
+            msg = (
+                f"polymorphic_identity class attribute {cls.polymorphic_identity!r} "
+                f"does not match value from __mapper_args__ {poly_id!r}"
+            )
+            raise ValueError(msg)

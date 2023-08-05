@@ -1,8 +1,8 @@
 from artigraph.api.node import (
     create_parent_child_relationships,
     group_nodes_by_parent_id,
-    read_children,
-    read_descendants,
+    read_child_nodes,
+    read_descendant_nodes,
     read_node,
 )
 from artigraph.db import current_session, session_context
@@ -23,7 +23,7 @@ async def test_read_direct_children():
     """Test reading the direct children of a node."""
     graph = await create_graph()
     root = graph.get_root()
-    children = await read_children(root.node_id)
+    children = await read_child_nodes(root.node_id)
     assert {n.node_id for n in children} == {n.node_id for n in graph.get_children(root.node_id)}
 
 
@@ -31,7 +31,7 @@ async def test_read_direct_children_with_node_types():
     """Test reading the direct children of a node with node types."""
     graph = await create_graph()
     root = graph.get_root()
-    children = await read_children(root.node_id, ThingOne)
+    children = await read_child_nodes(root.node_id, ThingOne)
     expected_ids = {n.node_id for n in graph.get_children(root.node_id) if isinstance(n, ThingOne)}
     assert {n.node_id for n in children} == expected_ids
 
@@ -40,7 +40,7 @@ async def test_read_recursive_children():
     """Test reading the recursive children of a node."""
     graph = await create_graph()
     root = graph.get_root()
-    children = await read_descendants(root.node_id)
+    children = await read_descendant_nodes(root.node_id)
     expected_descendant_ids = {n.node_id for n in graph.get_all_nodes()} - {root.node_id}
     assert {n.node_id for n in children} == expected_descendant_ids
 
@@ -49,7 +49,7 @@ async def test_read_recursive_children_with_node_type():
     """Test reading the recursive children of a node with node types."""
     graph = await create_graph()
     root = graph.get_root()
-    children = await read_descendants(root.node_id, ThingOne)
+    children = await read_descendant_nodes(root.node_id, ThingOne)
     all_span_ids = {n.node_id for n in graph.get_all_nodes() if isinstance(n, ThingOne)}
     expected_descendant_ids = all_span_ids - {root.node_id}
     assert {n.node_id for n in children} == expected_descendant_ids

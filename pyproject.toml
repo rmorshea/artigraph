@@ -152,6 +152,7 @@ ban-relative-imports = "all"
 # --- Coverage -------------------------------------------------------------------------------------
 
 [tool.coverage.run]
+concurrency = ["greenlet", "thread"]
 source_pkgs = ["artigraph"]
 branch = true
 parallel = true

@@ -5,7 +5,7 @@ from typing import Any, Sequence, TypeVar
 from sqlalchemy import select
 from typing_extensions import TypeAlias
 
-from artigraph.api.node import delete_nodes, is_node_type, read_children, read_descendants
+from artigraph.api.node import delete_nodes, is_node_type, read_child_nodes, read_descendant_nodes
 from artigraph.db import current_session
 from artigraph.orm.artifact import BaseArtifact, DatabaseArtifact, RemoteArtifact
 from artigraph.orm.node import Node
@@ -193,12 +193,12 @@ async def delete_artifacts(artifacts: Sequence[BaseArtifact]) -> None:
 
 
 async def read_child_artifacts(root_node_id: int) -> Sequence[QualifiedArtifact]:
-    return await _read_qualified_artifacts(await read_children(root_node_id))
+    return await _read_qualified_artifacts(await read_child_nodes(root_node_id))
 
 
 async def read_descendant_artifacts(root_node_id: int) -> Sequence[QualifiedArtifact]:
     """Load the artifacts from the database."""
-    return await _read_qualified_artifacts(await read_descendants(root_node_id))
+    return await _read_qualified_artifacts(await read_descendant_nodes(root_node_id))
 
 
 async def _read_qualified_artifacts(all_artifacts: Sequence[Any]) -> Sequence[QualifiedArtifact]:

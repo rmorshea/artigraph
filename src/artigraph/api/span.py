@@ -10,7 +10,12 @@ from sqlalchemy import select
 from typing_extensions import ParamSpec
 
 from artigraph.api.artifact_model import ArtifactModel
-from artigraph.api.node import read_ancestors, read_descendants, read_parent
+from artigraph.api.node import (
+    read_ancestor_nodes,
+    read_child_nodes,
+    read_descendant_nodes,
+    read_parent_node,
+)
 from artigraph.db import current_session, session_context
 from artigraph.orm.artifact import BaseArtifact
 from artigraph.orm.span import Span
@@ -57,7 +62,7 @@ async def span_context(span: S | None = None, label: str | None = None) -> Async
 
     parent_span_id = _CURRENT_SPAN_ID.get()
     existing_span = child_span.node_id is not None
-    if not existing_span:
+    if not existing_span:  # nocov (FIXME: actually covered but not detected)
         async with session_context(expire_on_commit=False) as session:
             child_span.node_parent_id = parent_span_id
             child_span.span_opened_at = datetime.now(timezone.utc)
@@ -69,7 +74,7 @@ async def span_context(span: S | None = None, label: str | None = None) -> Async
         yield child_span
     finally:
         _CURRENT_SPAN_ID.reset(last_span_token)
-        if not existing_span:
+        if not existing_span:  # nocov (FIXME: actually covered but not detected)
             async with session_context(expire_on_commit=False) as session:
                 child_span.span_closed_at = datetime.now(timezone.utc)
                 session.add(child_span)
@@ -89,21 +94,27 @@ def with_current_span_id(func: _SpanFunc[P, R_co]) -> _CurrentSpanFunc[P, R_co]:
 
 
 @with_current_span_id
-async def read_span_descendants(span_id: int) -> Sequence[Span]:
+async def read_child_spans(span_id: int) -> Sequence[Span]:
+    """Get direct children of a span."""
+    return await read_child_nodes(span_id, Span)
+
+
+@with_current_span_id
+async def read_descendant_spans(span_id: int) -> Sequence[Span]:
     """Get all descendants of a span."""
-    return await read_descendants(span_id, Span)
+    return await read_descendant_nodes(span_id, Span)
 
 
 @with_current_span_id
-async def read_span_ancestors(span_id: int) -> Sequence[Span]:
+async def read_ancestor_spans(span_id: int) -> Sequence[Span]:
     """Get all ancestors of a span."""
-    return await read_ancestors(span_id, Span)
+    return await read_ancestor_nodes(span_id, Span)
 
 
 @with_current_span_id
-async def read_span_parent(span_id: int) -> Span | None:
+async def read_parent_span(span_id: int) -> Span | None:
     """Get the parent of a span."""
-    return await read_parent(span_id, Span)
+    return await read_parent_node(span_id, Span)
 
 
 @with_current_span_id

@@ -10,10 +10,11 @@ from artigraph.api.artifact_model import (
 from artigraph.api.span import (
     create_span_artifact,
     create_span_artifacts,
-    read_span_ancestors,
+    read_ancestor_spans,
+    read_child_spans,
+    read_descendant_spans,
     read_span_artifact,
     read_span_artifacts,
-    read_span_descendants,
     span_context,
 )
 from artigraph.orm.span import Span
@@ -28,10 +29,11 @@ __all__ = [
     "ArtifactSequence",
     "create_span_artifact",
     "create_span_artifacts",
-    "read_span_ancestors",
+    "read_ancestor_spans",
+    "read_child_spans",
+    "read_descendant_spans",
     "read_span_artifact",
     "read_span_artifacts",
-    "read_span_descendants",
     "Serializer",
     "span_context",
     "Span",

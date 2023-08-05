@@ -100,19 +100,17 @@ async def create_parent_child_relationships(
         await session.commit()
 
 
-async def read_children(node_id: int, *node_types: type[N]) -> Sequence[N]:
+async def read_child_nodes(node_id: int, *node_types: type[N]) -> Sequence[N]:
     """Read the direct children of a node."""
-    cmd = select(Node).where(Node.node_parent_id == node_id)
+    cmd = select(Node.__table__).where(Node.node_parent_id == node_id)
     if node_types:
         cmd = cmd.where(Node.node_type.in_([n.polymorphic_identity for n in node_types]))
     async with current_session() as session:
         result = await session.execute(cmd)
-        children = result.scalars().all()
-    # we know we've filtered appropriately, so we can ignore the type check
-    return children  # type: ignore
+        return load_nodes_from_rows(result.all())
 
 
-async def read_parent(node_id: int, node_type: type[N] = Node) -> N | None:
+async def read_parent_node(node_id: int, node_type: type[N] = Node) -> N | None:
     """Read the direct parent of a node."""
     async with current_session() as session:
         node_cmd = select(node_type).where(node_type.node_id == node_id)
@@ -123,7 +121,7 @@ async def read_parent(node_id: int, node_type: type[N] = Node) -> N | None:
         return result.scalar_one_or_none()
 
 
-async def read_descendants(node_id: int, *node_types: type[N]) -> Sequence[N]:
+async def read_descendant_nodes(node_id: int, *node_types: type[N]) -> Sequence[N]:
     """Read all descendants of this node."""
 
     # Create a CTE to get the descendants recursively
@@ -160,7 +158,7 @@ async def read_descendants(node_id: int, *node_types: type[N]) -> Sequence[N]:
     return load_nodes_from_rows(descendants)
 
 
-async def read_ancestors(node_id: int, *node_types: type[N]) -> Sequence[N]:
+async def read_ancestor_nodes(node_id: int, *node_types: type[N]) -> Sequence[N]:
     """Read all ancestors of this node."""
 
     # Create a CTE to get the ancestors recursively

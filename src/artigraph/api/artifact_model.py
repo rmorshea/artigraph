@@ -83,12 +83,6 @@ class ArtifactModel:
     model_config: ClassVar[ArtifactModelConfig] = ArtifactModelConfig()
     """The configuration for the artifact model."""
 
-    node_id: int | None = field(init=False, default=None, compare=False)
-    """The ID of the node for this artifact model.
-
-    This is populated when the artifact model is saved to or loaded from the database.
-    """
-
     def __init_subclass__(
         cls,
         *,
@@ -145,8 +139,6 @@ class ArtifactModel:
                     for fn in model._model_field_artifacts(nodes_by_path[path])
                 ]
             )
-
-        object.__setattr__(self, "node_id", root_node.node_id)
 
         return root_node.node_id
 

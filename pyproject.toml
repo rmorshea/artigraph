@@ -115,6 +115,8 @@ select = [
   "YTT",
 ]
 ignore = [
+  # SQLAlchemy in Python 3.9 does not support the newest typing syntax
+  "UP007",
   # Ignore function call in class definition (see: https://github.com/astral-sh/ruff/issues/4171)
   "RUF009",
   # Allow non-abstract empty methods in abstract base classes

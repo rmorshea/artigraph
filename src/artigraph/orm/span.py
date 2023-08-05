@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Optional
 
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -14,8 +14,8 @@ class Span(Node):
     polymorphic_identity = "span"
     __mapper_args__: ClassVar[dict[str, Any]] = {"polymorphic_identity": polymorphic_identity}
 
-    span_opened_at: Mapped[datetime | None] = mapped_column(default=None)
+    span_opened_at: Mapped[Optional[datetime]] = mapped_column(default=None)
     """The time that this span opened."""
 
-    span_closed_at: Mapped[datetime | None] = mapped_column(default=None)
+    span_closed_at: Mapped[Optional[datetime]] = mapped_column(default=None)
     """The time that this span closed."""

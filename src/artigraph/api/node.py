@@ -1,9 +1,10 @@
 from collections.abc import Collection
 from dataclasses import fields
-from typing import Any, Literal, Sequence, TypeGuard, TypeVar, overload
+from typing import Any, Literal, Sequence, TypeVar, overload
 
 from sqlalchemy import Row, delete, join, select
 from sqlalchemy.orm import aliased
+from typing_extensions import TypeGuard
 
 from artigraph.db import current_session
 from artigraph.orm.node import Node

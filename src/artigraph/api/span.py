@@ -15,6 +15,7 @@ from artigraph.api.node import read_ancestors, read_descendants, read_parent
 from artigraph.db import current_session, session_context
 from artigraph.orm.artifact import BaseArtifact
 from artigraph.orm.span import Span
+from artigraph.utils import SessionBatch
 
 P = ParamSpec("P")
 R_co = TypeVar("R_co", covariant=True)
@@ -112,8 +113,10 @@ async def create_span_artifacts(
     span_id: int, artifacts: dict[str, ArtifactModel]
 ) -> dict[str, int]:
     """Add artifacts to the span and return their IDs."""
-    coros = [create_span_artifact(span_id, label=k, artifact=a) for k, a in artifacts.items()]
-    return dict(zip(artifacts.keys(), await asyncio.gather(*coros)))
+    batch = SessionBatch()
+    for k, a in artifacts.items():
+        batch.add(create_span_artifact, span_id, label=k, artifact=a)
+    return await batch.gather()
 
 
 @with_current_span_id
@@ -141,11 +144,18 @@ async def read_span_artifacts(span_id: int) -> dict[str, ArtifactModel]:
             .where(BaseArtifact.node_parent_id == span_id)
         )
         result = await session.execute(cmd)
-        node_ids, artifact_labels = zip(*list(result.all()))
-        for label, model in zip(
-            artifact_labels, await asyncio.gather(*[ArtifactModel.read(n) for n in node_ids])
-        ):
-            artifact_models[label] = model
+        node_ids_and_labels = list(result.all())
+
+    if not node_ids_and_labels:
+        return artifact_models
+
+    node_ids, artifact_labels = zip(*node_ids_and_labels)
+    for label, model in zip(
+        artifact_labels,
+        await SessionBatch().map(ArtifactModel.read, node_ids).gather(),
+    ):
+        artifact_models[label] = model
+
     return artifact_models
 
 

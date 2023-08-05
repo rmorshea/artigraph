@@ -23,7 +23,7 @@ _CURRENT_SESSION: ContextVar[AsyncSession] = ContextVar("CURRENT_ASYNC_SESSION")
 
 @contextmanager
 def engine_context(
-    engine: AsyncEngine | str,
+    engine: "AsyncEngine | str",
     *,
     create_tables: bool = False,
 ) -> Iterator[AsyncEngine]:

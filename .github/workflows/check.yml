@@ -31,5 +31,5 @@ jobs:
     docs:
         uses: ./.github/workflows/.hatch-run.yml
         with:
-            job-name: "docs-{0}"
+            job-name: "docs"
             hatch-run: "docs-build"

@@ -126,16 +126,16 @@ directly in the database. It defines a single column for that purpose:
 
 ## Artifact Model
 
-The [dataclass-like usage of `ArtifactModel`](usage.md#artifact-models) belies the fact
-that its underlying implementation builds atop [remote](#remote-artifact) and
-[database](#database-artifact) artifacts. Under the hood, the hierarchy of
-`ArtifactModel`s and their fields is replicated in the database.
+The [dataclass-like usage of `DataModel`](usage.md#artifact-models) belies the fact that
+its underlying implementation builds atop [remote](#remote-artifact) and
+[database](#database-artifact) artifacts. Under the hood, the hierarchy of `DataModel`s
+and their fields is replicated in the database.
 
-Given an `ArtifactModel` like
+Given an `DataModel` like
 
 ```python
 @dataclass
-class MyDataModel(ArtifactModel, version=1):
+class MyDataModel(DataModel, version=1):
     some_value: int
     inner_model: MyDataModel | None = None
 ```

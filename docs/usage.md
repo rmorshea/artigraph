@@ -2,8 +2,8 @@
 
 There are two main concepts in Artigraph:
 
--   **Artifact Models**: A dataclass that defines the structure of an artifact.
--   **Spans**: A context used to group artifacts that were produced together.
+-   **Models**: Structured data.
+-   **Spans**: A context for grouping models.
 
 !!! note
 
@@ -21,19 +21,18 @@ There are two main concepts in Artigraph:
         asyncio.run(main())
     ```
 
-## Artifact Models
+## Data Models
 
-An `ArtifactModel` is a dataclass that describes the structure of an artifact. It is
-defined by subclassing `ArtifactModel` and a version number that can be used to
-[migrate](#artifact-migrations) from one version of the model to another.
+A `DataModel` is a frozen dataclass that describes the structure of an artifact. Instead
+of using the `@dataclass` decorator, you subclass `DataModel` and declare the version of
+your model.
 
 ```python
-from dataclasses import dataclass, field
-from artigraph import ArtifactModel
+from dataclasses import field
+from artigraph import DataModel
 
 
-@dataclass
-class MyDataModel(ArtifactModel, version=1):
+class MyDataModel(DataModel, version=1):
     some_value: int
     another_value: dict[str, str] = field(default_factory=dict)
 ```
@@ -48,29 +47,35 @@ async def main():
     artifact_id = await artifact.create(label="my-data")
 ```
 
-### Artifact Fields
+Instead of using the `@dataclass` decorator to declare dataclass behavior, pass kwargs
+in the class declartion:
 
-Artifacts can have any number of fields of any type. By default, so long as the field is
-JSON serializable, you don't need to take any special action to save it to the database.
-However, you may need to store a field in a different format or in a separate location
-outside the database. To do this, you can use an `artifact_field()`.
+```python
+class MyDataModel(DataModel, version=1, repr=False, kw_only=True):
+    ...
+```
 
-An `artifact_field` allows you to specify a serializer and/or a storage location for a
+### Model Fields
+
+Data models can have any number of fields of any type. By default, so long as the field
+is JSON serializable, you don't need to take any special action to save it to the
+database. However, you may need to store a field in a different format or in a separate
+location outside the database. To do this, you can use an `model_field()`.
+
+An `model_field` allows you to specify a serializer and/or a storage location for a
 field's value. For example, you might have a Pandas DataFrame that you want to store in
 S3. This can be done like so:
 
 ```python
-from dataclasses import dataclass
-from artigraph import ArtifactModel, artifact_field
+from artigraph import DataModel, model_field
 from artigraph.storage.aws import S3Storage
 from artigraph.serializer.pandas import dataframe_serializer
 
 s3_storage = S3Storage("my-bucket")
 
 
-@dataclass
-class MyDataModel(ArtifactModel, version=1):
-    dataframe: pd.DataFrame = artifact_field(
+class MyDataModel(DataModel, version=1):
+    dataframe: pd.DataFrame = model_field(
         serializer=dataframe_serializer,
         storage=s3_storage,
     )
@@ -86,15 +91,15 @@ For more info on serializers and storage backends see:
 -   [Serializers](serializers.md)
 -   [Storage](storage.md)
 
-### Artifact Migrations
+### Model Migrations
 
-Artifacts are versioned and can be migrated from one version to another. This is useful
+Models are versioned and can be migrated from one version to another. This is useful
 when the structure of an artifact changes over time. For example, if you have a model
 like this:
 
 ```python
 @dataclass
-class MyDataModel(ArtifactModel, version=1):
+class MyDataModel(DataModel, version=1):
     some_value: int
 ```
 
@@ -102,7 +107,7 @@ And you want to change it to this:
 
 ```python
 @dataclass
-class MyDataModel(ArtifactModel, version=2):
+class MyDataModel(DataModel, version=2):
     renamed_value: int
 ```
 
@@ -110,7 +115,7 @@ You can define a migration function like this:
 
 ```python
 @dataclass
-class MyDataModel(ArtifactModel, version=2):
+class MyDataModel(DataModel, version=2):
     renamed_value: int
 
     @classmethod
@@ -205,7 +210,7 @@ from artigraph import span_context
 
 
 @dataclass
-class MyDataModel(ArtifactModel, version=1):
+class MyDataModel(DataModel, version=1):
     some_value: int
     another_value: str
 

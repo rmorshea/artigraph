@@ -61,7 +61,7 @@ You can then create an instance of the model and save it to the database:
 # construct an artifact
 artifact = MyDataModel(some_value=42, another_value={"foo": "bar"})
 # save it to the database
-artifact_id = await create_model(label="my-data")
+artifact_id = await write_model(label="my-data")
 ```
 
 Instead of using the `@dataclass` decorator to declare dataclass behavior, pass kwargs
@@ -166,58 +166,56 @@ deleting the old data.
 Nodes provide a way to group models together. For example, if you have a model that was
 trained on a dataset, you might want to group the model and the dataset together under a
 common node. To do so just declare the `current_node()` and add models to it with
-`create_node_models`
+`write_node_models`
 
 ```python
-from artigraph import current_node
+from artigraph import current_node, write_node_models
 
 
-async def main():
-    async with current_node():
-        await create_node_model("current", label="data", data=TrainingDataset(...))
-
-        await create_span_artifact(
-            "current", label="data", data=TrainingDataset(...)
-        )
-        await create_span_artifact(
-            "current", label="model", data=TrainedModel(...)
-        )
+async with current_node(node_label="training") as node:
+    await write_node_models(
+        "current",
+        {
+            "training_dataset": Dataset(...),
+            "test_dataset": Dataset(...),
+            "trained_model": TrainedModel(...),
+        },
+    )
 ```
 
-You can then retrieve artifacts from a spans using `read_span_artifact()`:
+You can then retrieve artifacts from a spans using `read_node_models()`:
 
 ```python
-from artigraph import read_span_artifact
+from artigraph import read_node_models
 
+async with current_node(node_label="training") as node:
+    await write_node_models(
+        "current",
+        {
+            "training_dataset": Dataset(...),
+            "test_dataset": Dataset(...),
+            "trained_model": TrainedModel(...),
+        },
+    )
 
-async def main():
-    async with span_context(label="training") as span:
-        await create_span_artifact(
-            "current", label="data", data=TrainingDataset(...)
-        )
-        await create_span_artifact(
-            "current", label="model", data=TrainedModel(...)
-        )
-    # read the data back from the spans
-    model = await read_span_artifact(span.node_id, label="model")
-    dataset = await read_span_artifact(span.node_id, label="dataset")
+models = await read_node_models(node.node_id)
 ```
 
-### Nesting Spans
+### Nesting Nodes
 
-Spans can be nested to create a hierarchy of spans. For example the following code
+Nodes can be nested to create a hierarchy. For example the following code
 
 ```python
-from artigraph import span_context
+from artigraph import Node, create_current
 
 
 async def main():
-    async with span_context(label="parent"):
-        async with span_context(label="span"):
-            async with span_context(label="child1"):
-                async with span_context(label="grandchild"):
+    async with create_current(Node) as parent:
+        async with create_current(Node) as node:
+            async with create_current(Node) as child1:
+                async with create_current(Node) as grandchild:
                     pass
-            async with span_context(label="child2"):
+            async with create_current(Node) as child2:
                 pass
 ```
 
@@ -239,7 +237,7 @@ graph LR
 Attaching artifacts to those nested spans:
 
 ```python
-from artigraph import span_context
+from artigraph import write_node_models
 
 
 @dataclass
@@ -249,20 +247,14 @@ class MyDataModel(DataModel, version=1):
 
 
 async def main():
-    async with span_context(label="parent"):
-        async with span_context(label="span"):
-            await create_span_artifact(
-                "current", label="model1", data=MyDataModel(...)
-            )
-            async with span_context(label="child1"):
-                async with span_context(label="grandchild"):
-                    await create_span_artifact(
-                        "current", label="model2", data=MyDataModel(...)
-                    )
-            async with span_context(label="child2"):
-                await create_span_artifact(
-                    "current", label="model3", data=MyDataModel(...)
-                )
+    async with create_current(Node) as parent:
+        async with create_current(Node) as node:
+            await write_node_models("current", {"model1": MyDataModel(...)})
+            async with create_current(Node) as child1:
+                async with create_current(Node) as grandchild:
+                    await write_node_models("current", {"model2": MyDataModel(...)})
+            async with create_current(Node) as child2:
+                await write_node_models("current", {"model2": MyDataModel(...)})
 ```
 
 Would then extend the graph:
@@ -272,23 +264,24 @@ Would then extend the graph:
 ```mermaid
 graph LR
     p([parent])
-    s([span])
+    n([node])
     c1([child1])
     c2([child2])
     g([grandchild])
     m1[MyDataModel]
     m2[MyDataModel]
     m3[MyDataModel]
-    p --> s
-    s --> |model1| m1
-    s --> c1
-    s --> c2
+
+    p --> n
+    n --> |model1| m1
+    n --> c1
+    n --> c2
     c1 --> g
     g --> |model2| m2
     c2 --> |model3| m3
 ```
 
-### Querying Spans
+### Querying Nodes
 
 Artigraph provides a number of utilities that allow you to traverse the span hierarchy
 and retrieve artifacts from the spans. The examples below show what nodes each query
@@ -299,13 +292,13 @@ would in the [graph above](#span-graph) return by highlighting them in red.
 #### Child Spans
 
 ```python
-span_children = await read_child_spans(span.node_id)
+await read_child_nodes(span.node_id)
 ```
 
 ```mermaid
 graph LR
     p([parent])
-    s([span])
+    n([node])
     c1([child1])
     c2([child2])
     g([grandchild])
@@ -316,10 +309,10 @@ graph LR
     style c1 stroke:red,stroke-width:2px
     style c2 stroke:red,stroke-width:2px
 
-    p --> s
-    s --> |model1| m1
-    s --> c1
-    s --> c2
+    p --> n
+    n --> |model1| m1
+    n --> c1
+    n --> c2
     c1 --> g
     g --> |model2| m2
     c2 --> |model3| m3
@@ -330,13 +323,13 @@ graph LR
 #### Child Artifacts
 
 ```python
-span_child_artifacts = await read_child_artifacts(span.node_id)
+await read_child_artifacts(span.node_id)
 ```
 
 ```mermaid
 graph LR
     p([parent])
-    s([span])
+    n([node])
     c1([child1])
     c2([child2])
     g([grandchild])
@@ -346,10 +339,10 @@ graph LR
 
     style m1 stroke:red,stroke-width:2px
 
-    p --> s
-    s --> |model1| m1
-    s --> c1
-    s --> c2
+    p --> n
+    n --> |model1| m1
+    n --> c1
+    n --> c2
     c1 --> g
     g --> |model2| m2
     c2 --> |model3| m3
@@ -366,7 +359,7 @@ span_descendants = await read_descendant_spans(span.node_id)
 ```mermaid
 graph LR
     p([parent])
-    s([span])
+    n([node])
     c1([child1])
     c2([child2])
     g([grandchild])
@@ -378,10 +371,10 @@ graph LR
     style c2 stroke:red,stroke-width:2px
     style g stroke:red,stroke-width:2px
 
-    p --> s
-    s --> |model1| m1
-    s --> c1
-    s --> c2
+    p --> n
+    n --> |model1| m1
+    n --> c1
+    n --> c2
     c1 --> g
     g --> |model2| m2
     c2 --> |model3| m3
@@ -398,7 +391,7 @@ span_descendant_artifacts = await read_descendant_artifacts(span.node_id)
 ```mermaid
 graph LR
     p([parent])
-    s([span])
+    n([node])
     c1([child1])
     c2([child2])
     g([grandchild])
@@ -410,10 +403,10 @@ graph LR
     style m2 stroke:red,stroke-width:2px
     style m3 stroke:red,stroke-width:2px
 
-    p --> s
-    s --> |model1| m1
-    s --> c1
-    s --> c2
+    p --> n
+    n --> |model1| m1
+    n --> c1
+    n --> c2
     c1 --> g
     g --> |model2| m2
     c2 --> |model3| m3
@@ -430,7 +423,7 @@ span_parent = await read_parent_span(span.node_id)
 ```mermaid
 graph LR
     p([parent])
-    s([span])
+    n([node])
     c1([child1])
     c2([child2])
     g([grandchild])
@@ -440,10 +433,10 @@ graph LR
 
     style p stroke:red,stroke-width:2px
 
-    p --> s
-    s --> |model1| m1
-    s --> c1
-    s --> c2
+    p --> n
+    n --> |model1| m1
+    n --> c1
+    n --> c2
     c1 --> g
     g --> |model2| m2
     c2 --> |model3| m3
@@ -460,7 +453,7 @@ grandchild_ancestors = await read_ancestor_spans(grandchild.node_id)
 ```mermaid
 graph LR
     p([parent])
-    s([span])
+    n([node])
     c1([child1])
     c2([child2])
     g([grandchild])
@@ -472,10 +465,10 @@ graph LR
     style s stroke:red,stroke-width:2px
     style c1 stroke:red,stroke-width:2px
 
-    p --> s
-    s --> |model1| m1
-    s --> c1
-    s --> c2
+    p --> n
+    n --> |model1| m1
+    n --> c1
+    n --> c2
     c1 --> g
     g --> |model2| m2
     c2 --> |model3| m3
@@ -535,7 +528,7 @@ values as artifacts:
 
 ```python
 from functools import wraps
-from artigraph import span_context, create_span_artifacts, read_parent_span
+from artigraph import span_context, write_node_models, read_parent_span
 
 
 def spanned(func):
@@ -544,7 +537,7 @@ def spanned(func):
         async with span_context(label=func.__name__):
             parent_span = await read_parent_span("current")
             result = await func(parent_span, *args, **kwargs)
-            await create_span_artifacts("current", result)
+            await write_node_models("current", result)
             return result
 
     return wrapper

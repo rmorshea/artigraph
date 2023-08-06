@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from artigraph.api.node import (
-    create_parent_child_relationships,
     group_nodes_by_parent_id,
     read_child_nodes,
     read_descendant_nodes,
     read_node,
+    write_parent_child_relationships,
 )
 from artigraph.db import current_session, session_context
 from artigraph.orm.node import Node
@@ -63,7 +63,7 @@ async def test_create_parent_child_relationships():
         grandparent = await create_node()
         parent = await create_node(grandparent)
         child = await create_node(parent)
-        await create_parent_child_relationships([(grandparent, parent), (parent, child)])
+        await write_parent_child_relationships([(grandparent, parent), (parent, child)])
 
         db_parent = await read_node(parent.node_id)
         db_child = await read_node(child.node_id)

@@ -5,7 +5,13 @@ from typing import Any, Sequence, TypeVar
 from sqlalchemy import select
 from typing_extensions import TypeAlias
 
-from artigraph.api.node import delete_nodes, is_node_type, read_child_nodes, read_descendant_nodes
+from artigraph.api.node import (
+    delete_node,
+    is_node_type,
+    read_child_nodes,
+    read_descendant_nodes,
+    read_node,
+)
 from artigraph.db import current_session, session_context
 from artigraph.orm.artifact import BaseArtifact, DatabaseArtifact, RemoteArtifact
 from artigraph.orm.node import Node
@@ -102,9 +108,9 @@ def group_artifacts_by_parent_id(
     return artifacts_by_parent_id
 
 
-async def create_artifact(artifact: RemoteArtifact | DatabaseArtifact, value: Any) -> int:
+async def write_artifact(artifact: RemoteArtifact | DatabaseArtifact, value: Any) -> int:
     """Save the artifact to the database."""
-    result = await create_artifacts([(artifact, value)])
+    result = await write_artifacts([(artifact, value)])
     return result[0]
 
 
@@ -135,7 +141,7 @@ async def read_artifact_by_id(artifact_id: int) -> QualifiedArtifact:
     return artifact, value
 
 
-async def create_artifacts(qualified_artifacts: Sequence[QualifiedArtifact]) -> Sequence[int]:
+async def write_artifacts(qualified_artifacts: Sequence[QualifiedArtifact]) -> Sequence[int]:
     """Save the artifacts to the database."""
     qualified_storage_artifacts: list[tuple[RemoteArtifact, Any]] = []
     database_artifacts: list[DatabaseArtifact] = []
@@ -175,21 +181,15 @@ async def create_artifacts(qualified_artifacts: Sequence[QualifiedArtifact]) -> 
         return artifact_ids
 
 
-async def delete_artifacts(artifacts: Sequence[BaseArtifact]) -> None:
+async def delete_artifact(artifact_id: int) -> None:
     """Delete the artifacts from the database."""
-    remote_artifacts: list[RemoteArtifact] = []
-    for artifact in artifacts:
-        if isinstance(artifact, RemoteArtifact):
-            remote_artifacts.append(artifact)
+    artifact = await read_node(artifact_id)
 
-    # Delete values from storage first
-    storage_deletions: TaskBatch[None] = TaskBatch()
-    for artifact in remote_artifacts:
+    if isinstance(artifact, RemoteArtifact):
         storage = get_storage_by_name(artifact.remote_artifact_storage)
-        storage_deletions.add(storage.delete, artifact.remote_artifact_location)
-    await storage_deletions.gather()
+        await storage.delete(artifact.remote_artifact_location)
 
-    await delete_nodes([a.node_id for a in artifacts])
+    await delete_node(artifact_id, descendants=True)
 
 
 async def read_child_artifacts(root_node_id: int) -> Sequence[QualifiedArtifact]:

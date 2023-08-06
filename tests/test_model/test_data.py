@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from artigraph.model.base import create_model, read_model
+from artigraph.model.base import read_model, write_model
 from artigraph.model.data import DataModel, model_field
 from artigraph.serializer.json import json_serializer
 from artigraph.storage.file import temp_file_storage
@@ -19,7 +19,7 @@ class SimpleModel(DataModel, version=1):
 async def test_save_load_simple_artifact_model():
     """Test saving and loading a simple artifact model."""
     artifact = SimpleModel(some_value="test-value", remote_value={"some": "data"})
-    artifact_id = await create_model("some-label", artifact)
+    artifact_id = await write_model("some-label", artifact)
     loaded_artifact = await read_model(artifact_id)
     assert loaded_artifact == artifact
 
@@ -41,6 +41,6 @@ async def test_save_load_simple_artifact_model_with_inner_model():
         inner_model=inner_artifact,
     )
 
-    artifact_id = await create_model("some-label", artifact)
+    artifact_id = await write_model("some-label", artifact)
     loaded_artifact = await read_model(artifact_id)
     assert loaded_artifact == artifact

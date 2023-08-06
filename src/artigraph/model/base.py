@@ -9,18 +9,18 @@ from typing_extensions import Self
 import artigraph
 from artigraph.api.artifact import (
     QualifiedArtifact,
-    create_artifacts,
     group_artifacts_by_parent_id,
     new_artifact,
     new_database_artifact,
     read_artifact_by_id,
     read_descendant_artifacts,
+    write_artifacts,
 )
 from artigraph.api.node import (
-    create_nodes,
-    create_parent_child_relationships,
     read_node,
     with_current_node_id,
+    write_nodes,
+    write_parent_child_relationships,
 )
 from artigraph.db import current_session, session_context
 from artigraph.orm.artifact import BaseArtifact, DatabaseArtifact
@@ -42,21 +42,21 @@ def get_model_type_by_name(name: str) -> type[BaseModel]:
 
 
 @with_current_node_id
-async def create_node_models(node_id: int, *, models: dict[str, BaseModel]) -> dict[str, int]:
-    """Add an artifact to the span and return its ID"""
+async def write_child_models(node_id: int, models: dict[str, BaseModel]) -> dict[str, int]:
+    """Add artifacts that are linked to the given node"""
     ids: dict[str, int] = {}
     for k, v in models.items():
-        ids[k] = await create_model(k, v, parent_id=node_id)
+        ids[k] = await write_model(k, v, parent_id=node_id)
     return ids
 
 
 @with_current_node_id
-async def read_node_models(span_id: int, *, labels: Sequence[str] = ()) -> dict[str, BaseModel]:
-    """Load all artifacts for this span."""
+async def read_child_models(node_id: int, labels: Sequence[str] = ()) -> dict[str, BaseModel]:
+    """Read artifacts that are directly linked to the given node"""
     artifact_models: dict[str, BaseModel] = {}
     async with current_session() as session:
         cmd = select(BaseArtifact.node_id, BaseArtifact.artifact_label).where(
-            BaseArtifact.node_parent_id == span_id
+            BaseArtifact.node_parent_id == node_id
         )
         if labels:
             cmd = cmd.where(BaseArtifact.artifact_label.in_(labels))
@@ -76,7 +76,7 @@ async def read_node_models(span_id: int, *, labels: Sequence[str] = ()) -> dict[
     return artifact_models
 
 
-async def create_model(label: str, model: BaseModel, parent_id: int | None = None) -> int:
+async def write_model(label: str, model: BaseModel, parent_id: int | None = None) -> int:
     parent_node = None if parent_id is None else await read_node(parent_id)
 
     models_by_path = _get_model_paths(model)
@@ -90,17 +90,17 @@ async def create_model(label: str, model: BaseModel, parent_id: int | None = Non
     root_node.artifact_label = label
 
     async with session_context(expire_on_commit=False):
-        await create_nodes(
+        await write_nodes(
             list(nodes_by_path.values()),
             refresh_attributes=["node_id"],
         )
-        await create_parent_child_relationships(
+        await write_parent_child_relationships(
             [
                 (nodes_by_path.get(_get_model_parent_path(path), parent_node), node)
                 for path, node in nodes_by_path.items()
             ]
         )
-        await create_artifacts(
+        await write_artifacts(
             [
                 fn
                 for path, model in models_by_path.items()

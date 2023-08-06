@@ -5,7 +5,16 @@ from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from dataclasses import fields
 from functools import wraps
-from typing import Any, AsyncIterator, Callable, Literal, Protocol, Sequence, TypeVar, overload
+from typing import (
+    Any,
+    AsyncIterator,
+    Callable,
+    Literal,
+    Protocol,
+    Sequence,
+    TypeVar,
+    overload,
+)
 
 from sqlalchemy import Row, delete, join, select
 from sqlalchemy.orm import aliased
@@ -42,9 +51,9 @@ def current_node_id(*, allow_none: bool = False) -> int | None:
 
 def with_current_node_id(func: _NodeFunc[P, R_co]) -> _CurrentNodeFunc[P, R_co]:
     @wraps(func)
-    async def wrapper(span_id: int | Literal["current"], *args: P.args, **kwargs: P.kwargs) -> R_co:
+    async def wrapper(node_id: int | Literal["current"], *args: P.args, **kwargs: P.kwargs) -> R_co:
         return await func(
-            current_node_id() if span_id == "current" else span_id,
+            current_node_id() if node_id == "current" else node_id,
             *args,
             **kwargs,
         )
@@ -53,12 +62,12 @@ def with_current_node_id(func: _NodeFunc[P, R_co]) -> _CurrentNodeFunc[P, R_co]:
 
 
 @asynccontextmanager
-async def current_node(
+async def create_current(
     node_type: Callable[P, N],
     *args: P.args,
     **kwargs: P.kwargs,
 ) -> AsyncIterator[N]:
-    """Create a context manager for a group."""
+    """Create a new node and set it as the current node."""
     kwargs.setdefault("node_parent_id", current_node_id(allow_none=True))
     node = node_type(*args, **kwargs)
     async with session_context(expire_on_commit=False) as session:
@@ -115,30 +124,34 @@ async def read_node(
         return result.scalar_one_or_none() if allow_none else result.scalar_one()
 
 
-async def node_exists(node_id: int, node_type: type[Node] = Node) -> bool:
+async def node_exists(node_id: int) -> bool:
     """Check if a node exists."""
-    cmd = select(node_type.node_id).where(node_type.node_id == node_id)
+    return await nodes_exist([node_id])
+
+
+async def nodes_exist(node_ids: Sequence[int]) -> bool:
+    """Check if nodes exist."""
+    cmd = select(Node.node_id).where(Node.node_id.in_(node_ids))
     async with current_session() as session:
         result = await session.execute(cmd)
-        return bool(result.one_or_none())
+        return len(result.all()) == len(node_ids)
 
 
-async def delete_nodes(node_ids: Sequence[int]) -> None:
-    """Delete nodes."""
+async def delete_node(node_id: int, *, descendants: bool = True) -> None:
+    """Delete a node and optionally their descendants."""
+    nodes_ids = [node_id]
+    if descendants:
+        nodes_ids.extend(n.node_id for n in await read_descendant_nodes(node_id))
     async with current_session() as session:
-        cmd = delete(Node).where(Node.node_id.in_(node_ids))
-        await session.execute(cmd)
-        await session.commit()
+        await session.execute(delete(Node).where(Node.node_id.in_(nodes_ids)))
 
 
-async def create_node(node: Node, refresh_attributes: Sequence[str]) -> Node:
+async def write_node(node: Node, refresh_attributes: Sequence[str]) -> Node:
     """Create a node."""
-    return (await create_nodes([node], refresh_attributes))[0]
+    return (await write_nodes([node], refresh_attributes))[0]
 
 
-async def create_nodes(
-    nodes: Collection[Node], refresh_attributes: Sequence[str]
-) -> Sequence[Node]:
+async def write_nodes(nodes: Collection[Node], refresh_attributes: Sequence[str]) -> Sequence[Node]:
     """Create nodes and, if given, refresh their attributes."""
     async with current_session() as session:  # nocov (FIXME: actually covered but not detected)
         session.add_all(nodes)
@@ -151,7 +164,7 @@ async def create_nodes(
     return tuple(nodes)
 
 
-async def create_parent_child_relationships(
+async def write_parent_child_relationships(
     parent_child_pairs: Sequence[tuple[Node | None, Node]]
 ) -> None:
     """Create parent-to-child links between nodes."""

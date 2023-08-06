@@ -11,7 +11,6 @@ from artigraph.api.artifact import (
     QualifiedArtifact,
     group_artifacts_by_parent_id,
     new_artifact,
-    new_database_artifact,
     read_artifact_by_id,
     read_descendant_artifacts,
     write_artifacts,
@@ -25,7 +24,7 @@ from artigraph.api.node import (
 from artigraph.db import current_session, session_context
 from artigraph.orm.artifact import BaseArtifact, DatabaseArtifact
 from artigraph.serializer import Serializer
-from artigraph.serializer.json import json_serializer, json_sorted_serializer
+from artigraph.serializer.json import json_sorted_serializer
 from artigraph.storage import Storage
 from artigraph.utils import SessionBatch
 
@@ -126,16 +125,6 @@ async def read_model(node_id: int) -> BaseModel:
     return await _load_from_artifacts(cls, root_node, model_version, artifacts_by_parent_id)
 
 
-class ModelConfig(TypedDict, total=False):
-    """Configure the behavior of an artifact model class."""
-
-    default_field_serializer: Serializer | None
-    """The default serializer for fields on this model"""
-
-    default_field_storage: Storage | None
-    """The default storage for fields on this model"""
-
-
 class FieldConfig(TypedDict, total=False):
     """The metadata for an artifact model field."""
 
@@ -151,9 +140,6 @@ class BaseModel:
 
     model_version: ClassVar[int] = 1
     """The version of the artifact model."""
-
-    model_config: ClassVar[ModelConfig] = ModelConfig()
-    """The configuration for the artifact model."""
 
     @classmethod
     def model_migrate(cls, version: int, kwargs: dict[str, Any], /) -> Self:
@@ -193,7 +179,7 @@ def _get_artifact_model_info(
 
 
 def _get_model_artifact(label: str, model: BaseModel) -> DatabaseArtifact:
-    return new_database_artifact(
+    return new_artifact(
         label,
         ModelMetadata(artigraph_version=artigraph.__version__),
         serializer=json_sorted_serializer,
@@ -222,11 +208,11 @@ def _model_field_artifacts(
             continue
 
         storage = config.get("storage") or model.model_config.get("default_field_storage")
-        serializer = (
-            config.get("serializer")
-            or model.model_config.get("default_field_serializer")
-            or json_serializer
-        )
+        serializer = config.get("serializer") or model.model_config.get("default_field_serializer")
+
+        if serializer is None:
+            msg = f"Serializer for field {label!r} on model {model.__class__.__name__} not found"
+            raise RuntimeError(msg)
 
         artifacts.append(
             new_artifact(

@@ -35,9 +35,9 @@ async def test_create_read_delete_remote_artifact():
     artifact, value = new_artifact(
         label="test-label",
         value={"some": "data"},
+        serializer=json_serializer,
         detail="something",
         storage=temp_file_storage,
-        serializer=json_serializer,
     )
     artifact_id = await write_artifact(artifact, value)
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Sequence, TypeVar
+from typing import Any, Sequence, TypeVar, overload
 
 from sqlalchemy import select
 from typing_extensions import TypeAlias
@@ -16,7 +16,7 @@ from artigraph.db import current_session, session_context
 from artigraph.orm.artifact import BaseArtifact, DatabaseArtifact, RemoteArtifact
 from artigraph.orm.node import Node
 from artigraph.serializer import get_serializer_by_name
-from artigraph.serializer.core import Serializer, get_serializer_by_type
+from artigraph.serializer.core import Serializer
 from artigraph.storage.core import Storage, get_storage_by_name
 from artigraph.utils import TaskBatch
 
@@ -27,75 +27,60 @@ QualifiedArtifact: TypeAlias = "tuple[RemoteArtifact | DatabaseArtifact, Any]"
 """An artifact with its value."""
 
 
+@overload
 def new_artifact(
     label: str,
     value: Any,
+    serializer: Serializer,
+    *,
+    detail: str = ...,
+    storage: Storage = ...,
+    parent_id: int | None = ...,
+) -> tuple[RemoteArtifact, Any]:
+    ...
+
+
+@overload
+def new_artifact(
+    label: str,
+    value: Any,
+    serializer: Serializer,
+    *,
+    detail: str = ...,
+    storage: None = ...,
+    parent_id: int | None = ...,
+) -> tuple[DatabaseArtifact, Any]:
+    ...
+
+
+def new_artifact(
+    label: str,
+    value: Any,
+    serializer: Serializer,
     *,
     detail: str = "",
     storage: Storage | None = None,
-    serializer: Serializer | None = None,
     parent_id: int | None = None,
 ) -> QualifiedArtifact:
     """Construct a new artifact and its value"""
     return (
-        new_database_artifact(
-            label,
-            value,
-            detail=detail,
-            serializer=serializer,
-            parent_id=parent_id,
+        DatabaseArtifact(
+            node_parent_id=parent_id,
+            artifact_label=label,
+            artifact_serializer=serializer.name,
+            artifact_detail=detail,
+            database_artifact_value=serializer.serialize(value),
         )
         if storage is None
-        else new_remote_artifact(
-            label,
-            value,
-            detail=detail,
-            storage=storage,
-            serializer=serializer,
-            parent_id=parent_id,
-        )
+        else RemoteArtifact(
+            node_parent_id=parent_id,
+            artifact_label=label,
+            artifact_detail=detail,
+            artifact_serializer=serializer.name,
+            remote_artifact_storage=storage.name,
+        ),
+        value,
     )
-
-
-def new_database_artifact(
-    label: str,
-    value: T,
-    *,
-    detail: str = "",
-    serializer: Serializer | None = None,
-    parent_id: int | None = None,
-) -> tuple[DatabaseArtifact, T]:
-    """Make a new qualified database artifact"""
-    serializer = get_serializer_by_type(value) if serializer is None else serializer
-    artifact = DatabaseArtifact(
-        node_parent_id=parent_id,
-        artifact_label=label,
-        artifact_serializer=serializer.name,
-        artifact_detail=detail,
-        database_artifact_value=serializer.serialize(value),
-    )
-    return artifact, value
-
-
-def new_remote_artifact(
-    label: str,
-    value: T,
-    *,
-    detail: str = "",
-    storage: Storage,
-    serializer: Serializer | None = None,
-    parent_id: int | None = None,
-) -> tuple[RemoteArtifact, T]:
-    """Make a new qualified remote artifact"""
-    serializer = get_serializer_by_type(value) if serializer is None else serializer
-    artifact = RemoteArtifact(
-        node_parent_id=parent_id,
-        artifact_label=label,
-        artifact_detail=detail,
-        artifact_serializer=serializer.name,
-        remote_artifact_storage=storage.name,
-    )
-    return artifact, value
 
 
 def group_artifacts_by_parent_id(

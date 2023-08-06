@@ -1,34 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import Field, dataclass, field, fields
-from typing import TYPE_CHECKING, Any, ClassVar
+from dataclasses import dataclass, fields
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, get_args, get_origin
 
 from typing_extensions import Self, dataclass_transform
 
-from artigraph.model.base import BaseModel, FieldConfig, ModelConfig
-from artigraph.serializer import Serializer
-from artigraph.storage import Storage
+from artigraph.model.base import BaseModel, FieldConfig
+from artigraph.serializer.core import Serializer
+from artigraph.storage.core import Storage
 
 
-def model_field(
-    *,
-    serializer: Serializer[Any] | None = None,
-    storage: Storage | None = None,
-    **kwargs: Any,
-) -> Field:
-    """A dataclass field with a serializer and storage."""
-    metadata = kwargs.get("metadata", {})
-    metadata = {
-        "artifact_model_field_config": FieldConfig(
-            serializer=serializer,
-            storage=storage,
-        ),
-        **metadata,
-    }
-    return field(**kwargs)
-
-
-@dataclass_transform(field_specifiers=(model_field,))
+@dataclass_transform
 class _DataModelMeta(type):
     def __new__(
         cls,
@@ -36,14 +18,22 @@ class _DataModelMeta(type):
         bases: tuple[type[Any, ...]],
         namespace: dict[str, Any],
         *,
-        version: int = 1,
-        config: ModelConfig | None = None,
+        version: int,
         **kwargs: Any,
     ):
         namespace["model_version"] = version
-        namespace["model_config"] = config or ModelConfig()
+        model_field_configs = namespace["model_field_configs"] = {}
         self = super().__new__(cls, name, bases, namespace, **kwargs)
         self = dataclass(frozen=True, **kwargs)(self)
+        for f in fields(self):
+            if get_origin(f.type) is Annotated:
+                f_config = FieldConfig()
+                for a in get_args(f.type):
+                    if isinstance(a, Serializer):
+                        f_config["serializer"] = a
+                    elif isinstance(a, Storage):
+                        f_config["storage"] = a
+                model_field_configs[f.name] = f_config
         return self
 
 
@@ -52,14 +42,11 @@ _cast_dataclass = dataclass if TYPE_CHECKING else lambda c: c
 
 
 @_cast_dataclass
-class DataModel(BaseModel, metaclass=_DataModelMeta):
-    """A collection of artifacts that are saved together."""
+class DataModel(BaseModel, metaclass=_DataModelMeta, version=1):
+    """Describes a structure of data that can be saved as artifacts."""
 
-    model_version: ClassVar[int] = 1
-    """The version of the artifact model."""
-
-    model_config: ClassVar[ModelConfig] = ModelConfig()
-    """The configuration for the artifact model."""
+    model_field_configs: ClassVar[dict[str, FieldConfig]] = {}
+    """The configuration for the data model fields."""
 
     @classmethod
     def model_migrate(
@@ -67,16 +54,13 @@ class DataModel(BaseModel, metaclass=_DataModelMeta):
         version: int,  # noqa: ARG003
         kwargs: dict[str, Any],
     ) -> Self:
-        """Migrate the artifact model to a new version."""
+        """Migrate the data model to a new version."""
         return cls(**kwargs)
 
     def model_data(self) -> dict[str, tuple[Any, FieldConfig]]:
-        """The data for the artifact model."""
+        """The data for the data model."""
         return {
-            f.name: (
-                getattr(self, f.name),
-                f.metadata.get("artifact_model_field_config", FieldConfig()),
-            )
+            f.name: (getattr(self, f.name), self.model_field_configs.get(f.name, FieldConfig()))
             for f in fields(self)
             if f.init
         }

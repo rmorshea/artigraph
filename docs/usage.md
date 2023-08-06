@@ -7,9 +7,10 @@ There are two main concepts in Artigraph:
 
 ## Setup
 
-First, you need to set up an SQLAlchemy engine and create the Artigraph tables. The
+First, you need to set up a SQLAlchemy engine and create the Artigraph tables. The
 quickest way to do this is to use the `set_engine` function, pass it a conntection
-string a set `create_tables=True`.
+string, and set `create_tables=True`. You won't need `create_tables=True` if you're
+using a database that already has the tables created.
 
 ```python
 from artigraph import set_engine
@@ -74,16 +75,13 @@ class MyDataModel(DataModel, version=1, repr=False, kw_only=True):
 
 ### Model Fields
 
-Data models can have any number of fields of any type. By default, so long as the field
-is JSON serializable, you don't need to take any special action to save it to the
-database. However, you may need to store a field in a different format or in a separate
-location outside the database. To do this, you can use an `model_field()`.
-
-An `model_field` allows you to specify a serializer and/or a storage location for a
-field's value. For example, you might have a Pandas DataFrame that you want to store in
-S3. This can be done like so:
+By default the fields of a `DataModel` must be JSON serializable. However, you can
+annotated fields in order to indicate other methods for [serializing](serilizers.md) or
+[storing](storage.md) them. As an example, you can declare a `pandas.DataFrame`` field
+that should be stored in S3:
 
 ```python
+from typing import Annotated
 from artigraph import DataModel, model_field
 from artigraph.storage.aws import S3Storage
 from artigraph.serializer.pandas import dataframe_serializer
@@ -92,32 +90,38 @@ s3_storage = S3Storage("my-bucket")
 
 
 class MyDataModel(DataModel, version=1):
-    df: pd.DataFrame = model_field(
-        serializer=dataframe_serializer,
-        storage=s3_storage
-    )
+    frame: Annotated[pd.DataFrame, dataframe_serializer, s3_storage]
 ```
 
-If you leave out the `storage` argument, the serialized value will be stored in the
-database as normal. If you leave out the `serializer` argument, `artigraph` will do its
-best to infer how to serialize the value based on its type. In general, if in doubt, you
-should specify a serializer to ensure consistent behavior.
+You can use this to declare reusable `Annotated` types that can be composed together:
+
+```python
+from typing import Annotated, TypeVar
+
+import pandas as pd
+
+from artigraph.storage.aws import S3Storage
+from artigraph.serializer.pandas import dataframe_serializer
+from artigraph.serializer.numpy import numpy_serializer
+
+s3_bucket = S3Storage("my-bucket")
+
+T = TypeVar("T")
+S3 = Annotated[T, s3_bucket]
+PandasDataframe = Annotated[pd.DataFrame, dataframe_serializer]
+
+class MyDataModel(DataModel, version=1):
+    db_frame: PandasDataframe
+    s3_frame: S3[PandasDataframe]
+```
+
+In the above example, the `db_frame` field will be serialized and stored in the database
+as normal. The `s3_frame` field will instead be serialized and stored in S3.
 
 For more info on serializers and storage backends see:
 
 -   [Serializers](serializers.md)
 -   [Storage](storage.md)
-
-You can also pass `model_field` other standard `dataclass.field` arguments as well:
-
-```python
-class MyDataModel(DataModel, version=1):
-    df: pd.DataFrame = model_field(
-        default_factory=pd.DataFrame,
-        serializer=dataframe_serializer,
-        storage=s3_storage
-    )
-```
 
 ### Model Migrations
 
@@ -165,14 +169,14 @@ deleting the old data.
 
 Nodes provide a way to group models together. For example, if you have a model that was
 trained on a dataset, you might want to group the model and the dataset together under a
-common node. To do so just declare the `current_node()` and add models to it with
-`write_node_models`
+common node. To do so just establish the node you want to group them under using
+`create_current()`:
 
 ```python
-from artigraph import current_node, write_node_models
+from artigraph import Node, create_current, write_node_models
 
 
-async with current_node(node_label="training") as node:
+async with create_current(Node):
     await write_node_models(
         "current",
         {
@@ -188,7 +192,7 @@ You can then retrieve artifacts from a spans using `read_node_models()`:
 ```python
 from artigraph import read_node_models
 
-async with current_node(node_label="training") as node:
+async with create_current(Node) as node:
     await write_node_models(
         "current",
         {
@@ -219,18 +223,18 @@ async def main():
                 pass
 ```
 
-Will create a span hierarchy like this:
+Will create a node hierarchy like this:
 
 ```mermaid
 graph LR
     p([parent])
-    s([span])
+    n([node])
     c1([child1])
     c2([child2])
     g([grandchild])
-    p --> s
-    s --> c1
-    s --> c2
+    p --> n
+    n --> c1
+    n --> c2
     c1 --> g
 ```
 

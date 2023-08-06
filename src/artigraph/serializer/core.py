@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from inspect import isclass
-from typing import Any, Generic, Sequence, TypedDict, TypeVar
+from typing import Any, Generic, TypedDict, TypeVar
 
 from typing_extensions import Self
 
@@ -25,15 +24,6 @@ def get_serializer_by_name(name: str) -> Serializer[Any]:
     return SERIALIZERS_BY_NAME[name]
 
 
-def get_serializer_by_type(value: type[T] | T) -> Serializer[T]:
-    """Get a serializer for a value."""
-    for cls in (value if isclass(value) else type(value)).mro():
-        if cls in SERIALIZERS_BY_TYPE:
-            return SERIALIZERS_BY_TYPE[cls]
-    msg = f"No serializer exists for {value!r}"  # nocov
-    raise ValueError(msg)  # nocov
-
-
 class Serializer(ABC, Generic[T]):
     """A type of artifact that can be serialized to a string or bytes."""
 
@@ -49,9 +39,6 @@ class Serializer(ABC, Generic[T]):
     change the name, you should create and register a subclass with the new name and
     deprecate the old one.
     """
-
-    types: Sequence[type[T]]
-    """The type or types of values that can be serialized."""
 
     def register(self) -> Self:
         """Register a serializer.

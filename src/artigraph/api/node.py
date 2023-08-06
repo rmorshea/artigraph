@@ -1,18 +1,75 @@
 from __future__ import annotations
 
 from collections.abc import Collection
+from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from dataclasses import fields
-from typing import Any, Literal, Sequence, TypeVar, overload
+from functools import wraps
+from typing import Any, AsyncIterator, Callable, Literal, Protocol, Sequence, TypeVar, overload
 
 from sqlalchemy import Row, delete, join, select
 from sqlalchemy.orm import aliased
-from typing_extensions import TypeGuard
+from typing_extensions import ParamSpec, TypeGuard
 
-from artigraph.db import current_session
+from artigraph.db import current_session, session_context
 from artigraph.orm.node import NODE_TYPE_BY_POLYMORPHIC_IDENTITY, Node
 
-T = TypeVar("T")
+P = ParamSpec("P")
+R_co = TypeVar("R_co", covariant=True)
 N = TypeVar("N", bound=Node)
+
+_CURRENT_NODE_ID: ContextVar[int | None] = ContextVar("CURRENT_NODE_ID", default=None)
+
+
+@overload
+def current_node_id(*, allow_none: Literal[True]) -> int | None:
+    ...
+
+
+@overload
+def current_node_id(*, allow_none: Literal[False] = ...) -> int:
+    ...
+
+
+def current_node_id(*, allow_none: bool = False) -> int | None:
+    """Get the current span ID."""
+    span_id = _CURRENT_NODE_ID.get()
+    if span_id is None and not allow_none:
+        msg = "No span is currently active."
+        raise RuntimeError(msg)
+    return span_id
+
+
+def with_current_node_id(func: _NodeFunc[P, R_co]) -> _CurrentNodeFunc[P, R_co]:
+    @wraps(func)
+    async def wrapper(span_id: int | Literal["current"], *args: P.args, **kwargs: P.kwargs) -> R_co:
+        return await func(
+            current_node_id() if span_id == "current" else span_id,
+            *args,
+            **kwargs,
+        )
+
+    return wrapper
+
+
+@asynccontextmanager
+async def current_node(
+    node_type: Callable[P, N],
+    *args: P.args,
+    **kwargs: P.kwargs,
+) -> AsyncIterator[N]:
+    """Create a context manager for a group."""
+    kwargs.setdefault("node_parent_id", current_node_id(allow_none=True))
+    node = node_type(*args, **kwargs)
+    async with session_context(expire_on_commit=False) as session:
+        session.add(node)
+        await session.commit()
+        await session.refresh(node)
+    last_span_token = _CURRENT_NODE_ID.set(node.node_id)
+    try:
+        yield node
+    finally:
+        _CURRENT_NODE_ID.reset(last_span_token)
 
 
 def group_nodes_by_parent_id(nodes: Sequence[N]) -> dict[int | None, list[N]]:
@@ -216,3 +273,25 @@ def load_nodes_from_rows(rows: Sequence[Row[Any]]) -> Sequence[Any]:
         node_obj.__dict__.update(attrs)
         nodes.append(node_obj)
     return nodes
+
+
+class _NodeFunc(Protocol[P, R_co]):
+    async def __call__(
+        self,
+        node_id: int,
+        /,
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> R_co:
+        ...
+
+
+class _CurrentNodeFunc(Protocol[P, R_co]):
+    async def __call__(
+        self,
+        node_id: int | Literal["current"],
+        /,
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> R_co:
+        ...

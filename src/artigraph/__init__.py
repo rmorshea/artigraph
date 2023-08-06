@@ -1,6 +1,6 @@
 __version__ = "0.0.5"
 
-from artigraph.api.span import (
+from artigraph.api.branch import (
     read_ancestor_spans,
     read_child_spans,
     read_descendant_spans,

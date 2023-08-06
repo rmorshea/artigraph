@@ -1,19 +1,19 @@
 from sqlalchemy import select
 
-from artigraph.api.span import with_group_id
+from artigraph.api.branch import with_node_id
 from artigraph.db import current_session
 from artigraph.model.base import BaseModel, create_model, read_model
 from artigraph.orm.artifact import BaseArtifact
 from artigraph.utils import SessionBatch
 
 
-@with_group_id
+@with_node_id
 async def add_span_model(span_id: int, *, label: str, artifact: BaseModel) -> int:
     """Add an artifact to the span and return its ID"""
     return await create_model(label, artifact, parent_id=span_id)
 
 
-@with_group_id
+@with_node_id
 async def add_span_models(span_id: int, artifacts: dict[str, BaseModel]) -> dict[str, int]:
     """Add artifacts to the span and return their IDs."""
     return {
@@ -24,7 +24,7 @@ async def add_span_models(span_id: int, artifacts: dict[str, BaseModel]) -> dict
     }
 
 
-@with_group_id
+@with_node_id
 async def get_span_model(span_id: int, *, label: str) -> BaseModel:
     """Load an artifact for this span."""
     async with current_session() as session:
@@ -38,7 +38,7 @@ async def get_span_model(span_id: int, *, label: str) -> BaseModel:
         return await read_model(node_id)
 
 
-@with_group_id
+@with_node_id
 async def read_span_models(span_id: int) -> dict[str, BaseModel]:
     """Load all artifacts for this span."""
     artifact_models: dict[str, BaseModel] = {}

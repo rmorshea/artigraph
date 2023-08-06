@@ -1,7 +1,7 @@
 import pytest
 
-from artigraph.api.span import (
-    current_group_id,
+from artigraph.api.branch import (
+    current_node_id,
     read_ancestor_spans,
     read_child_spans,
     read_descendant_spans,
@@ -13,36 +13,36 @@ from artigraph.orm.group import Group
 
 async def test_span_context():
     """Test the span context."""
-    assert current_group_id(allow_none=True) is None
+    assert current_node_id(allow_none=True) is None
     async with span_context(label="something"):
-        assert current_group_id() is not None
-    assert current_group_id(allow_none=True) is None
+        assert current_node_id() is not None
+    assert current_node_id(allow_none=True) is None
 
 
 async def test_span_context_nested():
     """Test the span context."""
-    assert current_group_id(allow_none=True) is None
+    assert current_node_id(allow_none=True) is None
     async with span_context(label="outer"):
-        outer_span_id = current_group_id()
+        outer_span_id = current_node_id()
         async with span_context(label="inner"):
-            assert current_group_id() != outer_span_id
-        assert current_group_id() == outer_span_id
-    assert current_group_id(allow_none=True) is None
+            assert current_node_id() != outer_span_id
+        assert current_node_id() == outer_span_id
+    assert current_node_id(allow_none=True) is None
 
 
 async def test_span_context_nested_exception():
     """Test the span context."""
-    assert current_group_id(allow_none=True) is None
+    assert current_node_id(allow_none=True) is None
     with pytest.raises(RuntimeError):
         async with span_context(label="something"):
-            assert current_group_id() is not None
+            assert current_node_id() is not None
             raise RuntimeError()
-    assert current_group_id(allow_none=True) is None
+    assert current_node_id(allow_none=True) is None
 
 
 def test_get_current_span_id_error_if_no_span():
     with pytest.raises(RuntimeError):
-        current_group_id()
+        current_node_id()
 
 
 async def test_cannot_specify_span_and_label():

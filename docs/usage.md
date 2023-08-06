@@ -3,33 +3,51 @@
 There are two main concepts in Artigraph:
 
 -   **Models**: Structured data.
--   **Spans**: A context for grouping models.
+-   **Nodes**: Things models can be attached to.
+
+## Setup
+
+First, you need to set up an SQLAlchemy engine and create the Artigraph tables. The
+quickest way to do this is to use the `set_engine` function, pass it a conntection
+string a set `create_tables=True`.
+
+```python
+from artigraph import set_engine
+
+set_engine("sqlite+aiosqlite:///example.db", create_tables=True)
+```
 
 !!! note
 
-    All examples in this section assume they're running in a script like this one
+    You'll need to install `aiosqlite` for the above code to work.
 
-    ```python
-    import asyncio
-    from artigraph import set_engine
+Then, you'll need to start up an async event loop. If you're using Jupyter, then you
+should already have one running. Otherwise, you can start one like this:
 
-    set_engine("sqlite+aiosqlite:///example.db", create_tables=True)
+```python
+import asyncio
+from artigraph import set_engine
 
-    ...  # the example code
+set_engine("sqlite+aiosqlite:///example.db", create_tables=True)
 
-    if __name__ == "__main__":
-        asyncio.run(main())
-    ```
+async def main():
+    # your code here
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+All the examples below assume this setup has already been performed.
 
 ## Data Models
 
-A `DataModel` is a frozen dataclass that describes the structure of an artifact. Instead
-of using the `@dataclass` decorator, you subclass `DataModel` and declare the version of
-your model.
+A `DataModel` is a frozen dataclass that describes the structure of data you want to
+save. Instead of using the `@dataclass` decorator, you subclass `DataModel` and declare
+the version of your model.
 
 ```python
 from dataclasses import field
-from artigraph import DataModel
+from artigraph import DataModel, create_model
 
 
 class MyDataModel(DataModel, version=1):
@@ -40,11 +58,10 @@ class MyDataModel(DataModel, version=1):
 You can then create an instance of the model and save it to the database:
 
 ```python
-async def main():
-    # construct an artifact
-    artifact = MyDataModel(some_value=42, another_value={"foo": "bar"})
-    # save it to the database
-    artifact_id = await artifact.create(label="my-data")
+# construct an artifact
+artifact = MyDataModel(some_value=42, another_value={"foo": "bar"})
+# save it to the database
+artifact_id = await create_model(label="my-data")
 ```
 
 Instead of using the `@dataclass` decorator to declare dataclass behavior, pass kwargs
@@ -75,9 +92,9 @@ s3_storage = S3Storage("my-bucket")
 
 
 class MyDataModel(DataModel, version=1):
-    dataframe: pd.DataFrame = model_field(
+    df: pd.DataFrame = model_field(
         serializer=dataframe_serializer,
-        storage=s3_storage,
+        storage=s3_storage
     )
 ```
 
@@ -91,11 +108,21 @@ For more info on serializers and storage backends see:
 -   [Serializers](serializers.md)
 -   [Storage](storage.md)
 
+You can also pass `model_field` other standard `dataclass.field` arguments as well:
+
+```python
+class MyDataModel(DataModel, version=1):
+    df: pd.DataFrame = model_field(
+        default_factory=pd.DataFrame,
+        serializer=dataframe_serializer,
+        storage=s3_storage
+    )
+```
+
 ### Model Migrations
 
 Models are versioned and can be migrated from one version to another. This is useful
-when the structure of an artifact changes over time. For example, if you have a model
-like this:
+when the structure of you model changes. For example, if you have a model like this:
 
 ```python
 @dataclass
@@ -111,7 +138,7 @@ class MyDataModel(DataModel, version=2):
     renamed_value: int
 ```
 
-You can define a migration function like this:
+You can define a migration function like so:
 
 ```python
 @dataclass
@@ -119,30 +146,36 @@ class MyDataModel(DataModel, version=2):
     renamed_value: int
 
     @classmethod
-    def migrate(cls, version: int, data: dict[str, Any]) -> "MyDataModel":
+    def model_migrate(cls, version: int, data: dict[str, Any]) -> "MyDataModel":
         if version == 1:
             return cls(renamed_value=data["some_value"])
         else:
             raise ValueError(f"Unknown version: {version}")
 ```
 
-Now, when you read an artifact with version 1, it will be automatically converted to the
-new version. You can also use this to implement migration scripts by reading a series of
-old artifacts into the new version, saving them back to the database, and deleting the
-old artifacts.
+Now, when you read a model with version 1, it will be automatically converted to the new
+version when its read.
 
-## Spans
+Note that this does not write the migrated data to the database. With that said you
+could use `model_migrate` to write a migration scripts by reading a series of old models
+into the new class definition, saving the migrated data back to the database, and
+deleting the old data.
 
-Spans are a way to group artifacts that were produced together. For example, if you have
-a model that was trained on a dataset, you might want to group the model and the dataset
-together in a span. Spans can be created using the `span_context()` manager:
+## Nodes
+
+Nodes provide a way to group models together. For example, if you have a model that was
+trained on a dataset, you might want to group the model and the dataset together under a
+common node. To do so just declare the `current_node()` and add models to it with
+`create_node_models`
 
 ```python
-from artigraph import span_context, create_span_artifact
+from artigraph import current_node
 
 
 async def main():
-    async with span_context(label="training"):
+    async with current_node():
+        await create_node_model("current", label="data", data=TrainingDataset(...))
+
         await create_span_artifact(
             "current", label="data", data=TrainingDataset(...)
         )

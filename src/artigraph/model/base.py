@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, ClassVar, Sequence, TypedDict, cast
 from urllib.parse import quote, unquote
 
+from sqlalchemy import select
 from typing_extensions import Self
 
 import artigraph
@@ -15,12 +16,18 @@ from artigraph.api.artifact import (
     read_artifact_by_id,
     read_descendant_artifacts,
 )
-from artigraph.api.node import create_nodes, create_parent_child_relationships, read_node
-from artigraph.db import session_context
-from artigraph.orm.artifact import DatabaseArtifact
+from artigraph.api.node import (
+    create_nodes,
+    create_parent_child_relationships,
+    read_node,
+    with_current_node_id,
+)
+from artigraph.db import current_session, session_context
+from artigraph.orm.artifact import BaseArtifact, DatabaseArtifact
 from artigraph.serializer import Serializer
 from artigraph.serializer.json import json_serializer, json_sorted_serializer
 from artigraph.storage import Storage
+from artigraph.utils import SessionBatch
 
 MODEL_TYPES_BY_NAME: dict[str, type[BaseModel]] = {}
 
@@ -32,6 +39,41 @@ def get_model_type_by_name(name: str) -> type[BaseModel]:
     except KeyError:
         msg = f"Unknown artifact model type {name!r}"
         raise ValueError(msg) from None
+
+
+@with_current_node_id
+async def create_node_models(node_id: int, *, models: dict[str, BaseModel]) -> dict[str, int]:
+    """Add an artifact to the span and return its ID"""
+    ids: dict[str, int] = {}
+    for k, v in models.items():
+        ids[k] = await create_model(k, v, parent_id=node_id)
+    return ids
+
+
+@with_current_node_id
+async def read_node_models(span_id: int, *, labels: Sequence[str] = ()) -> dict[str, BaseModel]:
+    """Load all artifacts for this span."""
+    artifact_models: dict[str, BaseModel] = {}
+    async with current_session() as session:
+        cmd = select(BaseArtifact.node_id, BaseArtifact.artifact_label).where(
+            BaseArtifact.node_parent_id == span_id
+        )
+        if labels:
+            cmd = cmd.where(BaseArtifact.artifact_label.in_(labels))
+        result = await session.execute(cmd)
+        node_ids_and_labels = list(result.all())
+
+    if not node_ids_and_labels:
+        return artifact_models
+
+    node_ids, artifact_labels = zip(*node_ids_and_labels)
+    for label, model in zip(
+        artifact_labels,
+        await SessionBatch().map(read_model, node_ids).gather(),
+    ):
+        artifact_models[label] = model
+
+    return artifact_models
 
 
 async def create_model(label: str, model: BaseModel, parent_id: int | None = None) -> int:

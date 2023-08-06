@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
 from artigraph.model.base import read_model, write_model
-from artigraph.model.data import DataModel, model_field
+from artigraph.model.data import DataModel
 from artigraph.serializer.json import json_serializer
 from artigraph.storage.file import temp_file_storage
 
@@ -12,7 +12,7 @@ class SimpleModel(DataModel, version=1):
     """A simple artifact model that stores a few basic artifact."""
 
     some_value: str
-    remote_value: Any = model_field(serializer=json_serializer, storage=temp_file_storage)
+    remote_value: Annotated[Any, json_serializer, temp_file_storage]
     inner_model: None | SimpleModel = None
 
 

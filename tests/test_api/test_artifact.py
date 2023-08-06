@@ -53,7 +53,9 @@ async def test_create_read_delete_remote_artifact():
 
 async def test_read_child_artifacts():
     node = await write_node(Node(node_parent_id=None), refresh_attributes=["node_id"])
-    qual_artifacts = [new_artifact(str(i), i, parent_id=node.node_id) for i in range(10)]
+    qual_artifacts = [
+        new_artifact(str(i), i, json_serializer, parent_id=node.node_id) for i in range(10)
+    ]
     artifact_ids = set(await write_artifacts(qual_artifacts))
     db_artifact_ids = {a.node_id for a, _ in await read_child_artifacts(node.node_id)}
     assert db_artifact_ids == artifact_ids

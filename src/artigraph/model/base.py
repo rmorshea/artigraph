@@ -207,8 +207,8 @@ def _model_field_artifacts(
         if isinstance(value, BaseModel):
             continue
 
-        storage = config.get("storage") or model.model_config.get("default_field_storage")
-        serializer = config.get("serializer") or model.model_config.get("default_field_serializer")
+        storage = config.get("storage")
+        serializer = config.get("serializer")
 
         if serializer is None:
             msg = f"Serializer for field {label!r} on model {model.__class__.__name__} not found"

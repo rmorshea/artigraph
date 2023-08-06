@@ -7,10 +7,11 @@ from typing_extensions import Self, dataclass_transform
 
 from artigraph.model.base import BaseModel, FieldConfig
 from artigraph.serializer.core import Serializer
+from artigraph.serializer.json import json_serializer
 from artigraph.storage.core import Storage
 
 
-@dataclass_transform
+@dataclass_transform()
 class _DataModelMeta(type):
     def __new__(
         cls,
@@ -25,15 +26,15 @@ class _DataModelMeta(type):
         model_field_configs = namespace["model_field_configs"] = {}
         self = super().__new__(cls, name, bases, namespace, **kwargs)
         self = dataclass(frozen=True, **kwargs)(self)
-        for f in fields(self):
+        for f in filter(lambda f: f.init, fields(self)):
+            f_config = FieldConfig(serializer=json_serializer)
             if get_origin(f.type) is Annotated:
-                f_config = FieldConfig()
-                for a in get_args(f.type):
-                    if isinstance(a, Serializer):
-                        f_config["serializer"] = a
-                    elif isinstance(a, Storage):
-                        f_config["storage"] = a
-                model_field_configs[f.name] = f_config
+                for f_type_arg in get_args(f.type):
+                    if isinstance(f_type_arg, Serializer):
+                        f_config["serializer"] = f_type_arg
+                    elif isinstance(f_type_arg, Storage):
+                        f_config["storage"] = f_type_arg
+            model_field_configs[f.name] = f_config
         return self
 
 
@@ -60,7 +61,7 @@ class DataModel(BaseModel, metaclass=_DataModelMeta, version=1):
     def model_data(self) -> dict[str, tuple[Any, FieldConfig]]:
         """The data for the data model."""
         return {
-            f.name: (getattr(self, f.name), self.model_field_configs.get(f.name, FieldConfig()))
+            f.name: (getattr(self, f.name), self.model_field_configs[f.name])
             for f in fields(self)
             if f.init
         }

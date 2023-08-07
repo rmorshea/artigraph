@@ -41,7 +41,7 @@ def try_convert_value_to_modeled_type(value: Any) -> BaseModel | Any:
     """Try to convert a value to a modeled type."""
     modeled_type = MODELED_TYPES.get(type(value))
     if modeled_type is not None:
-        return modeled_type(value)
+        return modeled_type(value)  # type: ignore
     return value
 
 
@@ -139,10 +139,10 @@ async def read_model(node_id: int) -> BaseModel:
 class FieldConfig(TypedDict, total=False):
     """The metadata for an artifact model field."""
 
-    serializer: Serializer | None
+    serializer: Serializer
     """The serializer for the artifact model field."""
 
-    storage: Storage | None
+    storage: Storage
     """The storage for the artifact model field."""
 
     annotation: Any
@@ -268,7 +268,7 @@ async def _load_from_artifacts(
     model_node: DatabaseArtifact,
     model_version: int,
     artifacts_by_parent_id: dict[int | None, list[QualifiedArtifact]],
-) -> Self:
+) -> BaseModel:
     """Load the artifacts from the database."""
     kwargs: dict[str, Any] = {}
     for qual_artifact in artifacts_by_parent_id[model_node.node_id]:

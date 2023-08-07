@@ -106,7 +106,7 @@ async def read_nodes_exist(node_ids: Sequence[int]) -> bool:
 
 
 @overload
-async def read_node(node_id: int, *, allow_none: Literal[True]) -> Node | None:
+async def read_node(node_id: int, *, allow_none: bool) -> Node | None:
     ...
 
 
@@ -121,9 +121,7 @@ async def read_node(node_id: int, *, allow_none: bool = False) -> Node | None:
 
 
 @overload
-async def read_nodes(
-    node_ids: Sequence[int], *, allow_none: Literal[True]
-) -> Sequence[Node | None]:
+async def read_nodes(node_ids: Sequence[int], *, allow_none: bool) -> Sequence[Node | None]:
     ...
 
 
@@ -134,7 +132,7 @@ async def read_nodes(
     ...
 
 
-async def read_nodes(node_ids: Sequence[int], *, allow_none: bool = False) -> Sequence[Node]:
+async def read_nodes(node_ids: Sequence[int], *, allow_none: bool = False) -> Sequence[Node | None]:
     """Read nodes by their IDs."""
     cmd = select(Node.__table__).where(Node.node_id.in_(node_ids))
     async with current_session() as session:
@@ -146,7 +144,7 @@ async def read_nodes(node_ids: Sequence[int], *, allow_none: bool = False) -> Se
         msg = f"Could not find node IDs: {list(missing)}"
         raise RuntimeError(msg)
 
-    return [nodes.get(node_id) for node_id in node_ids]
+    return [nodes.get(node_id) for node_id in node_ids]  # type: ignore
 
 
 async def delete_node(node_id: int, *, descendants: bool = True) -> None:

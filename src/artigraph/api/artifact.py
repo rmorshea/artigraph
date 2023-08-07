@@ -47,6 +47,19 @@ def new_artifact(
     serializer: Serializer,
     *,
     detail: str = ...,
+    storage: Storage | None,
+    parent_id: int | None = ...,
+) -> tuple[DatabaseArtifact | RemoteArtifact, Any]:
+    ...
+
+
+@overload
+def new_artifact(
+    label: str,
+    value: Any,
+    serializer: Serializer,
+    *,
+    detail: str = ...,
     storage: None = ...,
     parent_id: int | None = ...,
 ) -> tuple[DatabaseArtifact, Any]:

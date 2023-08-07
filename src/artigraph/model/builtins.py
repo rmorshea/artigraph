@@ -28,7 +28,7 @@ class FrozenSetModel(BaseModel, frozenset[T]):
         return cls(data.values())
 
     def model_data(self) -> ModelData:
-        return {hash(v): (v, FieldConfig()) for v in self}
+        return {str(i): (v, FieldConfig()) for i, v in enumerate(self)}
 
 
 class ListModel(list[T], BaseModel):

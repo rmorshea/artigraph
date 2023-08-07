@@ -27,7 +27,7 @@ class _DataModelMeta(type):
         self = super().__new__(cls, name, bases, namespace, **kwargs)
         self = dataclass(frozen=True, **kwargs)(self)
 
-        for f in filter(lambda f: f.init, fields(self)):
+        for f in filter(lambda f: f.init, fields(self)):  # type: ignore
             f_config = FieldConfig()
             if get_origin(f.type) is Annotated:
                 for f_type_arg in get_args(f.type):

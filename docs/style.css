@@ -1,3 +1,7 @@
 :root>* {
     --md-mermaid-font-family: Roboto Mono;
 }
+
+.md-grid {
+    max-width: 83%;
+}

@@ -137,6 +137,8 @@ ignore = [
 unfixable = [
   # Don't touch unused expressions
   "F841",
+  # Leave unused loop variables
+  "B007",
 ]
 
 [tool.ruff.isort]

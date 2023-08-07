@@ -2,38 +2,56 @@
 
 There are two main concepts in Artigraph:
 
--   **Artifact Models**: A dataclass that defines the structure of an artifact.
--   **Spans**: A context used to group artifacts that were produced together.
+-   **Models**: Structured data.
+-   **Nodes**: Things models can be attached to.
+
+## Setup
+
+First, you need to set up a SQLAlchemy engine and create the Artigraph tables. The
+quickest way to do this is to use the `set_engine` function, pass it a conntection
+string, and set `create_tables=True`. You won't need `create_tables=True` if you're
+using a database that already has the tables created.
+
+```python
+from artigraph import set_engine
+
+set_engine("sqlite+aiosqlite:///example.db", create_tables=True)
+```
 
 !!! note
 
-    All examples in this section assume they're running in a script like this one
+    You'll need to install `aiosqlite` for the above code to work.
 
-    ```python
-    import asyncio
-    from artigraph import set_engine
-
-    set_engine("sqlite+aiosqlite:///example.db", create_tables=True)
-
-    ...  # the example code
-
-    if __name__ == "__main__":
-        asyncio.run(main())
-    ```
-
-## Artifact Models
-
-An `ArtifactModel` is a dataclass that describes the structure of an artifact. It is
-defined by subclassing `ArtifactModel` and a version number that can be used to
-[migrate](#artifact-migrations) from one version of the model to another.
+Then, you'll need to start up an async event loop. If you're using Jupyter, then you
+should already have one running. Otherwise, you can start one like this:
 
 ```python
-from dataclasses import dataclass, field
-from artigraph import ArtifactModel
+import asyncio
+from artigraph import set_engine
+
+set_engine("sqlite+aiosqlite:///example.db", create_tables=True)
+
+async def main():
+    # your code here
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+All the examples below assume this setup has already been performed.
+
+## Data Models
+
+A `DataModel` is a frozen dataclass that describes the structure of data you want to
+save. Instead of using the `@dataclass` decorator, you subclass `DataModel` and declare
+the version of your model.
+
+```python
+from dataclasses import field
+from artigraph import DataModel, create_model
 
 
-@dataclass
-class MyDataModel(ArtifactModel, version=1):
+class MyDataModel(DataModel, version=1):
     some_value: int
     another_value: dict[str, str] = field(default_factory=dict)
 ```
@@ -41,60 +59,78 @@ class MyDataModel(ArtifactModel, version=1):
 You can then create an instance of the model and save it to the database:
 
 ```python
-async def main():
-    # construct an artifact
-    artifact = MyDataModel(some_value=42, another_value={"foo": "bar"})
-    # save it to the database
-    artifact_id = await artifact.create(label="my-data")
+# construct an artifact
+artifact = MyDataModel(some_value=42, another_value={"foo": "bar"})
+# save it to the database
+artifact_id = await write_model(label="my-data")
 ```
 
-### Artifact Fields
-
-Artifacts can have any number of fields of any type. By default, so long as the field is
-JSON serializable, you don't need to take any special action to save it to the database.
-However, you may need to store a field in a different format or in a separate location
-outside the database. To do this, you can use an `artifact_field()`.
-
-An `artifact_field` allows you to specify a serializer and/or a storage location for a
-field's value. For example, you might have a Pandas DataFrame that you want to store in
-S3. This can be done like so:
+Instead of using the `@dataclass` decorator to declare dataclass behavior, pass kwargs
+in the class declartion:
 
 ```python
-from dataclasses import dataclass
-from artigraph import ArtifactModel, artifact_field
+class MyDataModel(DataModel, version=1, repr=False, kw_only=True):
+    ...
+```
+
+### Model Fields
+
+By default the fields of a `DataModel` must be JSON serializable. However, you can
+annotated fields in order to indicate other methods for [serializing](serilizers.md) or
+[storing](storage.md) them. As an example, you can declare a `pandas.DataFrame`` field
+that should be stored in S3:
+
+```python
+from typing import Annotated
+from artigraph import DataModel, model_field
 from artigraph.storage.aws import S3Storage
 from artigraph.serializer.pandas import dataframe_serializer
 
 s3_storage = S3Storage("my-bucket")
 
 
-@dataclass
-class MyDataModel(ArtifactModel, version=1):
-    dataframe: pd.DataFrame = artifact_field(
-        serializer=dataframe_serializer,
-        storage=s3_storage,
-    )
+class MyDataModel(DataModel, version=1):
+    frame: Annotated[pd.DataFrame, dataframe_serializer, s3_storage]
 ```
 
-If you leave out the `storage` argument, the serialized value will be stored in the
-database as normal. If you leave out the `serializer` argument, `artigraph` will do its
-best to infer how to serialize the value based on its type. In general, if in doubt, you
-should specify a serializer to ensure consistent behavior.
+You can use this to declare reusable `Annotated` types that can be composed together:
+
+```python
+from typing import Annotated, TypeVar
+
+import pandas as pd
+
+from artigraph.storage.aws import S3Storage
+from artigraph.serializer.pandas import dataframe_serializer
+from artigraph.serializer.numpy import numpy_serializer
+
+s3_bucket = S3Storage("my-bucket")
+
+T = TypeVar("T")
+S3 = Annotated[T, s3_bucket]
+PandasDataframe = Annotated[pd.DataFrame, dataframe_serializer]
+
+class MyDataModel(DataModel, version=1):
+    db_frame: PandasDataframe
+    s3_frame: S3[PandasDataframe]
+```
+
+In the above example, the `db_frame` field will be serialized and stored in the database
+as normal. The `s3_frame` field will instead be serialized and stored in S3.
 
 For more info on serializers and storage backends see:
 
 -   [Serializers](serializers.md)
 -   [Storage](storage.md)
 
-### Artifact Migrations
+### Model Migrations
 
-Artifacts are versioned and can be migrated from one version to another. This is useful
-when the structure of an artifact changes over time. For example, if you have a model
-like this:
+Models are versioned and can be migrated from one version to another. This is useful
+when the structure of you model changes. For example, if you have a model like this:
 
 ```python
 @dataclass
-class MyDataModel(ArtifactModel, version=1):
+class MyDataModel(DataModel, version=1):
     some_value: int
 ```
 
@@ -102,129 +138,127 @@ And you want to change it to this:
 
 ```python
 @dataclass
-class MyDataModel(ArtifactModel, version=2):
+class MyDataModel(DataModel, version=2):
     renamed_value: int
 ```
 
-You can define a migration function like this:
+You can define a migration function like so:
 
 ```python
 @dataclass
-class MyDataModel(ArtifactModel, version=2):
+class MyDataModel(DataModel, version=2):
     renamed_value: int
 
     @classmethod
-    def migrate(cls, version: int, data: dict[str, Any]) -> "MyDataModel":
+    def model_migrate(cls, version: int, data: dict[str, Any]) -> "MyDataModel":
         if version == 1:
             return cls(renamed_value=data["some_value"])
         else:
             raise ValueError(f"Unknown version: {version}")
 ```
 
-Now, when you read an artifact with version 1, it will be automatically converted to the
-new version. You can also use this to implement migration scripts by reading a series of
-old artifacts into the new version, saving them back to the database, and deleting the
-old artifacts.
+Now, when you read a model with version 1, it will be automatically converted to the new
+version when its read.
 
-## Spans
+Note that this does not write the migrated data to the database. With that said you
+could use `model_migrate` to write a migration scripts by reading a series of old models
+into the new class definition, saving the migrated data back to the database, and
+deleting the old data.
 
-Spans are a way to group artifacts that were produced together. For example, if you have
-a model that was trained on a dataset, you might want to group the model and the dataset
-together in a span. Spans can be created using the `span_context()` manager:
+## Nodes
+
+Nodes provide a way to group models together. For example, if you have a model that was
+trained on a dataset, you might want to group the model and the dataset together under a
+common node. To do so just establish the node you want to group them under using
+`create_current()`:
 
 ```python
-from artigraph import span_context, create_span_artifact
+from artigraph import Node, create_current, write_node_models
 
 
-async def main():
-    async with span_context(label="training"):
-        await create_span_artifact(
-            "current", label="data", data=TrainingDataset(...)
-        )
-        await create_span_artifact(
-            "current", label="model", data=TrainedModel(...)
-        )
+async with create_current(Node):
+    await write_node_models(
+        "current",
+        {
+            "training_dataset": Dataset(...),
+            "test_dataset": Dataset(...),
+            "trained_model": TrainedModel(...),
+        },
+    )
 ```
 
-You can then retrieve artifacts from a spans using `read_span_artifact()`:
+You can then retrieve artifacts from a spans using `read_node_models()`:
 
 ```python
-from artigraph import read_span_artifact
+from artigraph import read_node_models
 
+async with create_current(Node) as node:
+    await write_node_models(
+        "current",
+        {
+            "training_dataset": Dataset(...),
+            "test_dataset": Dataset(...),
+            "trained_model": TrainedModel(...),
+        },
+    )
 
-async def main():
-    async with span_context(label="training") as span:
-        await create_span_artifact(
-            "current", label="data", data=TrainingDataset(...)
-        )
-        await create_span_artifact(
-            "current", label="model", data=TrainedModel(...)
-        )
-    # read the data back from the spans
-    model = await read_span_artifact(span.node_id, label="model")
-    dataset = await read_span_artifact(span.node_id, label="dataset")
+models = await read_node_models(node.node_id)
 ```
 
-### Nesting Spans
+### Nesting Nodes
 
-Spans can be nested to create a hierarchy of spans. For example the following code
+Nodes can be nested to create a hierarchy. For example the following code
 
 ```python
-from artigraph import span_context
+from artigraph import Node, create_current
 
 
 async def main():
-    async with span_context(label="parent"):
-        async with span_context(label="span"):
-            async with span_context(label="child1"):
-                async with span_context(label="grandchild"):
+    async with create_current(Node) as parent:
+        async with create_current(Node) as node:
+            async with create_current(Node) as child1:
+                async with create_current(Node) as grandchild:
                     pass
-            async with span_context(label="child2"):
+            async with create_current(Node) as child2:
                 pass
 ```
 
-Will create a span hierarchy like this:
+Will create a node hierarchy like this:
 
 ```mermaid
 graph LR
     p([parent])
-    s([span])
+    n([node])
     c1([child1])
     c2([child2])
     g([grandchild])
-    p --> s
-    s --> c1
-    s --> c2
+    p --> n
+    n --> c1
+    n --> c2
     c1 --> g
 ```
 
 Attaching artifacts to those nested spans:
 
 ```python
-from artigraph import span_context
+from artigraph import write_node_models
 
 
 @dataclass
-class MyDataModel(ArtifactModel, version=1):
+class MyDataModel(DataModel, version=1):
     some_value: int
     another_value: str
 
 
 async def main():
-    async with span_context(label="parent"):
-        async with span_context(label="span"):
-            await create_span_artifact(
-                "current", label="model1", data=MyDataModel(...)
-            )
-            async with span_context(label="child1"):
-                async with span_context(label="grandchild"):
-                    await create_span_artifact(
-                        "current", label="model2", data=MyDataModel(...)
-                    )
-            async with span_context(label="child2"):
-                await create_span_artifact(
-                    "current", label="model3", data=MyDataModel(...)
-                )
+    async with create_current(Node) as parent:
+        async with create_current(Node) as node:
+            await write_node_models("current", {"model1": MyDataModel(...)})
+            async with create_current(Node) as child1:
+                async with create_current(Node) as grandchild:
+                    await write_node_models("current", {"model2": MyDataModel(...)})
+            async with create_current(Node) as child2:
+                await write_node_models("current", {"model2": MyDataModel(...)})
 ```
 
 Would then extend the graph:
@@ -234,23 +268,24 @@ Would then extend the graph:
 ```mermaid
 graph LR
     p([parent])
-    s([span])
+    n([node])
     c1([child1])
     c2([child2])
     g([grandchild])
     m1[MyDataModel]
     m2[MyDataModel]
     m3[MyDataModel]
-    p --> s
-    s --> |model1| m1
-    s --> c1
-    s --> c2
+
+    p --> n
+    n --> |model1| m1
+    n --> c1
+    n --> c2
     c1 --> g
     g --> |model2| m2
     c2 --> |model3| m3
 ```
 
-### Querying Spans
+### Querying Nodes
 
 Artigraph provides a number of utilities that allow you to traverse the span hierarchy
 and retrieve artifacts from the spans. The examples below show what nodes each query
@@ -261,13 +296,13 @@ would in the [graph above](#span-graph) return by highlighting them in red.
 #### Child Spans
 
 ```python
-span_children = await read_child_spans(span.node_id)
+await read_child_nodes(span.node_id)
 ```
 
 ```mermaid
 graph LR
     p([parent])
-    s([span])
+    n([node])
     c1([child1])
     c2([child2])
     g([grandchild])
@@ -278,10 +313,10 @@ graph LR
     style c1 stroke:red,stroke-width:2px
     style c2 stroke:red,stroke-width:2px
 
-    p --> s
-    s --> |model1| m1
-    s --> c1
-    s --> c2
+    p --> n
+    n --> |model1| m1
+    n --> c1
+    n --> c2
     c1 --> g
     g --> |model2| m2
     c2 --> |model3| m3
@@ -292,13 +327,13 @@ graph LR
 #### Child Artifacts
 
 ```python
-span_child_artifacts = await read_child_artifacts(span.node_id)
+await read_child_artifacts(span.node_id)
 ```
 
 ```mermaid
 graph LR
     p([parent])
-    s([span])
+    n([node])
     c1([child1])
     c2([child2])
     g([grandchild])
@@ -308,10 +343,10 @@ graph LR
 
     style m1 stroke:red,stroke-width:2px
 
-    p --> s
-    s --> |model1| m1
-    s --> c1
-    s --> c2
+    p --> n
+    n --> |model1| m1
+    n --> c1
+    n --> c2
     c1 --> g
     g --> |model2| m2
     c2 --> |model3| m3
@@ -328,7 +363,7 @@ span_descendants = await read_descendant_spans(span.node_id)
 ```mermaid
 graph LR
     p([parent])
-    s([span])
+    n([node])
     c1([child1])
     c2([child2])
     g([grandchild])
@@ -340,10 +375,10 @@ graph LR
     style c2 stroke:red,stroke-width:2px
     style g stroke:red,stroke-width:2px
 
-    p --> s
-    s --> |model1| m1
-    s --> c1
-    s --> c2
+    p --> n
+    n --> |model1| m1
+    n --> c1
+    n --> c2
     c1 --> g
     g --> |model2| m2
     c2 --> |model3| m3
@@ -360,7 +395,7 @@ span_descendant_artifacts = await read_descendant_artifacts(span.node_id)
 ```mermaid
 graph LR
     p([parent])
-    s([span])
+    n([node])
     c1([child1])
     c2([child2])
     g([grandchild])
@@ -372,10 +407,10 @@ graph LR
     style m2 stroke:red,stroke-width:2px
     style m3 stroke:red,stroke-width:2px
 
-    p --> s
-    s --> |model1| m1
-    s --> c1
-    s --> c2
+    p --> n
+    n --> |model1| m1
+    n --> c1
+    n --> c2
     c1 --> g
     g --> |model2| m2
     c2 --> |model3| m3
@@ -392,7 +427,7 @@ span_parent = await read_parent_span(span.node_id)
 ```mermaid
 graph LR
     p([parent])
-    s([span])
+    n([node])
     c1([child1])
     c2([child2])
     g([grandchild])
@@ -402,10 +437,10 @@ graph LR
 
     style p stroke:red,stroke-width:2px
 
-    p --> s
-    s --> |model1| m1
-    s --> c1
-    s --> c2
+    p --> n
+    n --> |model1| m1
+    n --> c1
+    n --> c2
     c1 --> g
     g --> |model2| m2
     c2 --> |model3| m3
@@ -422,7 +457,7 @@ grandchild_ancestors = await read_ancestor_spans(grandchild.node_id)
 ```mermaid
 graph LR
     p([parent])
-    s([span])
+    n([node])
     c1([child1])
     c2([child2])
     g([grandchild])
@@ -434,10 +469,10 @@ graph LR
     style s stroke:red,stroke-width:2px
     style c1 stroke:red,stroke-width:2px
 
-    p --> s
-    s --> |model1| m1
-    s --> c1
-    s --> c2
+    p --> n
+    n --> |model1| m1
+    n --> c1
+    n --> c2
     c1 --> g
     g --> |model2| m2
     c2 --> |model3| m3
@@ -497,7 +532,7 @@ values as artifacts:
 
 ```python
 from functools import wraps
-from artigraph import span_context, create_span_artifacts, read_parent_span
+from artigraph import span_context, write_node_models, read_parent_span
 
 
 def spanned(func):
@@ -506,7 +541,7 @@ def spanned(func):
         async with span_context(label=func.__name__):
             parent_span = await read_parent_span("current")
             result = await func(parent_span, *args, **kwargs)
-            await create_span_artifacts("current", result)
+            await write_node_models("current", result)
             return result
 
     return wrapper

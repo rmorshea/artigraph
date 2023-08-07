@@ -21,7 +21,8 @@ class Node(Base, **_node_dataclass_kwargs):
     def __init_subclass__(cls, **kwargs: Any) -> None:
         cls._shuttle_table_args()
         cls._set_polymorphic_identity()
-        NODE_TYPE_BY_POLYMORPHIC_IDENTITY[cls.polymorphic_identity] = cls
+        if not cls.__mapper_args__.get("polymorphic_abstract"):
+            NODE_TYPE_BY_POLYMORPHIC_IDENTITY[cls.polymorphic_identity] = cls
         super().__init_subclass__(**kwargs)
 
     polymorphic_identity: ClassVar[str] = "node"
@@ -93,3 +94,7 @@ class Node(Base, **_node_dataclass_kwargs):
                 f"does not match value from __mapper_args__ {poly_id!r}"
             )
             raise ValueError(msg)
+
+
+# Have to manually add Node to NODE_TYPE_BY_POLYMORPHIC_IDENTITY
+NODE_TYPE_BY_POLYMORPHIC_IDENTITY[Node.polymorphic_identity] = Node

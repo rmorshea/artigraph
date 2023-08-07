@@ -46,16 +46,10 @@ class DataModel(BaseModel, metaclass=_DataModelMeta, version=1):
     _model_field_configs: ClassVar[dict[str, FieldConfig]] = {}
 
     @classmethod
-    def model_migrate(
-        cls,
-        version: int,  # noqa: ARG003
-        kwargs: dict[str, Any],
-    ) -> Self:
-        """Migrate the data model to a new version."""
-        return cls(**kwargs)
+    def model_init(cls, version: int, data: dict[str, Any]) -> Self:  # noqa: ARG003
+        return cls(**data)
 
     def model_data(self) -> ModelData:
-        """The data for the data model."""
         return {
             name: (getattr(self, name), config)
             for name, config in self._model_field_configs.items()

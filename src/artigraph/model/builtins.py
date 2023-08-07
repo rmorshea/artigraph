@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Collection, Sequence, TypeVar
+from typing import Any, TypeVar
 
 from typing_extensions import Self
 
@@ -13,12 +13,10 @@ class DictModel(BaseModel, dict[str, T]):
     """A dictionary of artifacts"""
 
     @classmethod
-    def model_migrate(cls, _: int, kwargs: dict[str, Any]) -> Self:
-        """Migrate the artifact model to a new version."""
-        return cls(kwargs)
+    def model_init(cls, _: int, data: dict[str, Any]) -> Self:
+        return cls(data)
 
     def model_data(self) -> ModelData:
-        """The data for the artifact model."""
         return {k: (v, FieldConfig()) for k, v in self.items()}
 
 
@@ -26,74 +24,50 @@ class FrozenSetModel(BaseModel, frozenset[T]):
     """A dictionary of artifacts"""
 
     @classmethod
-    def model_migrate(cls, _: int, kwargs: dict[str, Any]) -> Self:
-        """Migrate the artifact model to a new version."""
-        return cls(kwargs)
+    def model_init(cls, _: int, data: dict[str, Any]) -> Self:
+        return cls(data.values())
 
     def model_data(self) -> ModelData:
-        """The data for the artifact model."""
         return {hash(v): (v, FieldConfig()) for v in self}
 
-    def __init__(self, *args: Collection[T], **kwargs: T) -> None:
-        args += (kwargs.values(),)
-        super().__init__(*args)
 
-
-class ListModel(BaseModel, list[T]):
+class ListModel(list[T], BaseModel):
     """A list of artifacts"""
 
     @classmethod
-    def model_migrate(cls, _: int, kwargs: dict[str, Any]) -> Self:
-        """Migrate the artifact model to a new version."""
-        return cls(kwargs)
+    def model_init(cls, _: int, data: dict[str, Any]) -> Self:
+        list_from_data = [None] * len(data)
+        for k, v in data.items():
+            list_from_data[int(k)] = v
+        return cls(list_from_data)
 
     def model_data(self) -> ModelData:
-        """The data for the artifact model."""
-        return {str(i): (v, FieldConfig()) for i, v in enumerate(self._data)}
-
-    def __init__(self, *args: Sequence[T], **kwargs: T) -> None:
-        list_from_kwargs = [None] * len(kwargs)
-        for k, v in kwargs.items():
-            list_from_kwargs[int(k)] = v
-        args += (list_from_kwargs,)
-        super().__init__(*args)
+        return {str(i): (v, FieldConfig()) for i, v in enumerate(self)}
 
 
 class SetModel(BaseModel, set[T]):
     """A dictionary of artifacts"""
 
     @classmethod
-    def model_migrate(cls, _: int, kwargs: dict[str, Any]) -> Self:
-        """Migrate the artifact model to a new version."""
-        return cls(kwargs)
+    def model_init(cls, _: int, data: dict[str, Any]) -> Self:
+        return cls(data.values())
 
     def model_data(self) -> ModelData:
-        """The data for the artifact model."""
         return {str(i): (v, FieldConfig()) for i, v in enumerate(self)}
-
-    def __init__(self, *args: Collection[T], **kwargs: T) -> None:
-        args += (kwargs.values(),)
-        super().__init__(*args)
 
 
 class TupleModel(BaseModel, tuple[T]):
     """A tuple of artifacts"""
 
     @classmethod
-    def model_migrate(cls, _: int, kwargs: dict[str, Any]) -> Self:
-        """Migrate the artifact model to a new version."""
-        return cls(kwargs)
+    def model_init(cls, _: int, data: dict[str, Any]) -> Self:
+        data_from_kwargs = [None] * len(data)
+        for k, v in data.items():
+            data_from_kwargs[int(k)] = v
+        return cls(data_from_kwargs)
 
     def model_data(self) -> ModelData:
-        """The data for the artifact model."""
-        return {str(i): (v, FieldConfig()) for i, v in enumerate(self._data)}
-
-    def __init__(self, *args: Sequence[T], **kwargs: T) -> None:
-        list_from_kwargs = [None] * len(kwargs)
-        for k, v in kwargs.items():
-            list_from_kwargs[int(k)] = v
-        args += (list_from_kwargs,)
-        super().__init__(*args)
+        return {str(i): (v, FieldConfig()) for i, v in enumerate(self)}
 
 
 MODELED_TYPES[list] = ListModel

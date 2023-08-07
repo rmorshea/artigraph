@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from contextvars import ContextVar
 from typing import Any, ClassVar, Sequence, TypedDict, cast
-from urllib.parse import quote, unquote
 
 from sqlalchemy import select
 from typing_extensions import Self, TypeAlias
@@ -32,6 +32,9 @@ ModelData: TypeAlias = "dict[str, tuple[Any, FieldConfig]]"
 
 MODEL_TYPES_BY_NAME: dict[str, type[BaseModel]] = {}
 MODELED_TYPES: dict[type[Any], type[BaseModel]] = {}
+
+# useful in an interactive context (e.g. IPython/Jupyter)
+ALLOW_MODEL_TYPE_OVERWRITES = ContextVar("ALLOW_MODEL_TYPE_OVERWRITES", default=False)
 
 
 def try_convert_value_to_modeled_type(value: Any) -> BaseModel | Any:
@@ -153,9 +156,9 @@ class BaseModel:
     """The version of the artifact model."""
 
     @classmethod
-    def model_migrate(cls, version: int, kwargs: dict[str, Any], /) -> Self:
-        """Migrate the artifact model to a new version."""
-        raise NotImplementedError()
+    def model_init(cls, version: int, data: dict[str, Any], /) -> Self:  # noqa: ARG003
+        """Initialize the artifact model, migrating it if necessary."""
+        return cls(**data)
 
     def model_data(self) -> dict[str, tuple[Any, FieldConfig]]:
         """The data for the artifact model."""
@@ -163,10 +166,11 @@ class BaseModel:
 
     def __init_subclass__(cls, **kwargs: Any):
         name = cls.__name__
-        if name in MODEL_TYPES_BY_NAME:
+        if not ALLOW_MODEL_TYPE_OVERWRITES.get() and name in MODEL_TYPES_BY_NAME:
             msg = f"Artifact model named {name!r} already exists"
             raise RuntimeError(msg)
         MODEL_TYPES_BY_NAME[name] = cls
+        super().__init_subclass__(**kwargs)
 
 
 class ModelMetadata(TypedDict):
@@ -233,8 +237,7 @@ def _get_models_and_data_by_paths(
         maybe_model = try_convert_value_to_modeled_type(value)
         if not isinstance(maybe_model, BaseModel):
             continue
-        escaped_key = quote(label)
-        paths.update(_get_models_and_data_by_paths(maybe_model, f"{path}/{escaped_key}").items())
+        paths.update(_get_models_and_data_by_paths(maybe_model, f"{path}/{label}").items())
 
     return paths
 
@@ -283,10 +286,7 @@ async def _load_from_artifacts(
             node, value = qual_artifact
             kwargs[node.artifact_label] = value
 
-    if model_version != cls.model_version:
-        return cls.model_migrate(model_version, kwargs)
-    else:
-        return cls(**kwargs)
+    return cls.model_init(model_version, kwargs)
 
 
 def _get_model_detail(model: BaseModel) -> str:
@@ -301,4 +301,4 @@ def _get_model_parent_path(path: str) -> str:
 
 def _get_model_label_from_path(path: str) -> str:
     """Get the name of the artifact model field from a path."""
-    return unquote(path.rsplit("/", 1)[-1])
+    return path.rsplit("/", 1)[-1]

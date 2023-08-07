@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from artigraph.api.node import (
     group_nodes_by_parent_id,
+    read_ancestor_nodes,
     read_child_nodes,
     read_descendant_nodes,
     read_node,
@@ -84,6 +85,28 @@ async def test_create_parent_child_relationships():
             parent.node_id,
             child.node_id,
             grandchild.node_id,
+        }
+
+
+async def test_read_ancestor_nodes():
+    """Test reading the ancestor nodes of a node."""
+    async with session_context(expire_on_commit=False):
+        grandparent = await create_node()
+        parent = await create_node(grandparent)
+        child = await create_node(parent)
+        grandchild = await create_node(child)
+        await write_parent_child_relationships(
+            [
+                (grandparent.node_id, parent.node_id),
+                (parent.node_id, child.node_id),
+                (child.node_id, grandchild.node_id),
+            ]
+        )
+
+        assert {n.node_id for n in await read_ancestor_nodes(grandchild.node_id)} == {
+            grandparent.node_id,
+            parent.node_id,
+            child.node_id,
         }
 
 

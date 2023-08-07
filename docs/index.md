@@ -27,7 +27,6 @@ Below is a script that creates an artifact in a local SQLite database and reads 
 
 ```python
 import asyncio
-from dataclasses import dataclass
 
 from artigraph import DataModel
 from artigraph.db import set_engine
@@ -37,7 +36,6 @@ set_engine("sqlite+aiosqlite:///example.db", create_tables=True)
 
 
 # define a model of your data
-@dataclass(frozen=True)
 class MyData(DataModel, version=1):
     some_value: int
     another_value: dict[str, str]

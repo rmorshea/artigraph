@@ -73,19 +73,6 @@ mitigate the disadvantages of STI is to keep the number of `Node` subclasses to 
 minimum. Thankfully, the base primitives of Artigraph are powerful enough to support a
 wide variety of use cases. In general, if you find yourself needing to add a new
 
-## Span
-
-`Span` is a subclass of [`Node`](#node) that represents a span of time in which
-[artifacts](#artifact) are created. It defines the following columns:
-
-| Column           | Type       | Description                 |
-| ---------------- | ---------- | --------------------------- |
-| `span_label`     | `String`   | The label of the span.      |
-| `span_opened_at` | `DateTime` | The start time of the span. |
-| `span_closed_at` | `DateTime` | The end time of the span.   |
-
-The `span_label` need not be unique amongst its siblings.
-
 ## Base Artifact
 
 `BaseArtifact` is a subclass of [`Node`](#node) that defines a set of columns that are
@@ -124,7 +111,7 @@ directly in the database. It defines a single column for that purpose:
 | ------------------------ | ------- | ------------------------- |
 | `database_artifact_data` | `Bytes` | The data of the artifact. |
 
-## Artifact Model
+## Data Model
 
 The [dataclass-like usage of `DataModel`](usage.md#artifact-models) belies the fact that
 its underlying implementation builds atop [remote](#remote-artifact) and
@@ -134,7 +121,6 @@ and their fields is replicated in the database.
 Given an `DataModel` like
 
 ```python
-@dataclass
 class MyDataModel(DataModel, version=1):
     some_value: int
     inner_model: MyDataModel | None = None

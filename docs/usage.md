@@ -466,7 +466,7 @@ graph LR
     m3[MyDataModel]
 
     style p stroke:red,stroke-width:2px
-    style s stroke:red,stroke-width:2px
+    style n stroke:red,stroke-width:2px
     style c1 stroke:red,stroke-width:2px
 
     p --> n
@@ -478,9 +478,9 @@ graph LR
     c2 --> |model3| m3
 ```
 
-### Customizing Spans
+### Customizing Nodes
 
-The built-in `Span` it pretty bare bones. If you want to add additional metadata to
+The built-in `Node` is pretty bare bones. If you want to add additional metadata to
 spans, you can create a custom span class by subclassing `Span` using SQLAlchemy's
 [Singletable Inheritance](https://docs.sqlalchemy.org/en/14/orm/inheritance.html#single-table-inheritance).
 To declare the polymorphic identity of your new span, simply declare a

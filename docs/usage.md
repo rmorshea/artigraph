@@ -481,17 +481,15 @@ graph LR
 ### Customizing Nodes
 
 The built-in `Node` is pretty bare bones. If you want to add additional metadata to
-spans, you can create a custom span class by subclassing `Span` using SQLAlchemy's
+spans, you can create a custom span class by subclassing `Node` using SQLAlchemy's
 [Singletable Inheritance](https://docs.sqlalchemy.org/en/14/orm/inheritance.html#single-table-inheritance).
-To declare the polymorphic identity of your new span, simply declare a
-`polymorphic_identity` class attribute:
 
 ```python
-from artigraph import Span
+from artigraph import Node
 
 
-class CustomSpan(Span):
-    polymorphic_identity = "custom_span"
+class Run(Node):
+    __mapper_args__ = {"polymorphic_identity": "run"}
 ```
 
 Since this uses single table inheritance, all fields from the base `Node` class (from
@@ -502,47 +500,58 @@ column name with the name of your custom span class:
 
 ```python
 from typing import Any
-from artigraph import Span
+from datetime import datetime
 from sqlalchemy import JSON
-from sqlalchemy.declarative import Mapped, mapped_columns
+from sqlalchemy.declarative import Mapped
+from artigraph import Node
 
 
-class CustomSpan(Span):
-    polymorphic_identity = "custom_span"
-    custom_span_metadata: Mapped[Any] = mapped_column(JSON, default=None)
+class Run(Node):
+    __mapper_args__ = {"polymorphic_identity": "run"}
+    run_started_at: Mapped[datetime]
+    run_ended_at: Mapped[datetime | None] = None
 ```
 
 You can then use your custom span class by passing it to `span_context()`:
 
 ```python
-from artigraph import span_context
+from artigraph import create_current
+from datetime import datetime, timezone
 
 
 async def main():
-    async with span_context(CustomSpan(custom_span_metadata={...})) as span:
+    async with create_current(Run(run_started_at=datetime.now(timezone.utc))):
         ...
 ```
 
-### Building Upon Spans
+### Building Upon Nodes
 
-Spans are a very flexible abstraction that can be used to build more complex tooling.
-For example, you could implement a decorator that automatically creates a span, passes
-the parent span to the function so it can read its data, and saves the function's return
-values as artifacts:
+Node are a very flexible abstraction that can be used to build more complex tooling. For
+example, you could implement a decorator that automatically creates a `Run` (from the
+last section), passes the parent node to the function and automatically sets the start
+and end times of the run:
 
 ```python
 from functools import wraps
-from artigraph import span_context, write_node_models, read_parent_span
+from artigraph import write_node_models, read_parent_node
+from artigraph.db import current_session
 
 
-def spanned(func):
+def run(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
-        async with span_context(label=func.__name__):
-            parent_span = await read_parent_span("current")
-            result = await func(parent_span, *args, **kwargs)
-            await write_node_models("current", result)
-            return result
+
+        async with create_current(Run(run_started_at=datetime.now(timezone.utc))) as run:
+            try:
+                parent = await read_parent_node("current")
+                result = await func(parent, *args, **kwargs)
+                await write_node_models("current", result)
+                return result
+            finally:
+                async with current_session() as session:
+                    run.run_ended_at = datetime.now(timezone.utc)
+                    session.add(run)
+                    await session.commit()
 
     return wrapper
 ```
@@ -552,7 +561,7 @@ You could then use this decorator to create `spanned` functions like this:
 ```python
 @spanned
 async def train_model(parent_span, **parameters):
-    dataset = await read_span_artifact(parent_span.node_id, label="dataset")
+    dataset = await read_child_models(parent_span.node_id)
     model = train_model_on_dataset(dataset, **parameters)
     return {"model": model}
 ```

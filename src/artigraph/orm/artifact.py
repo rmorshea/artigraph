@@ -11,7 +11,7 @@ from artigraph.orm.node import Node
 class BaseArtifact(Node):
     """A base class for artifacts."""
 
-    __table_args__ = (UniqueConstraint("node_parent_id", "node_label", "artifact_detail"),)
+    __table_args__ = (UniqueConstraint("node_parent_id", "artifact_label"),)
     __mapper_args__: ClassVar[dict[str, Any]] = {"polymorphic_abstract": True}
 
     artifact_serializer: Mapped[str] = mapped_column(nullable=True)

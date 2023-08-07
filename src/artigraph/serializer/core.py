@@ -10,7 +10,6 @@ T = TypeVar("T")
 S = TypeVar("S", bound="Serializer[Any]")
 
 WRAPPER_VERSION = 1
-SERIALIZERS_BY_TYPE: dict[type[Any], Serializer[Any]] = {}
 SERIALIZERS_BY_NAME: dict[str, Serializer[Any]] = {}
 
 logger = logging.getLogger(__name__)
@@ -60,17 +59,6 @@ class Serializer(ABC, Generic[T]):
             msg = f"Serializer named {self.name!r} already registered."
             raise ValueError(msg)
         SERIALIZERS_BY_NAME[self.name] = self
-
-        for serializable_type in self.types:
-            if serializable_type not in SERIALIZERS_BY_TYPE:
-                SERIALIZERS_BY_TYPE[serializable_type] = self
-            else:
-                logger.debug(
-                    "Did not register %s for %s - %s already exists",
-                    self,
-                    serializable_type,
-                    SERIALIZERS_BY_TYPE[serializable_type],
-                )
 
         return self
 

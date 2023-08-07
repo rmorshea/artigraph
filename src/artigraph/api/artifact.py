@@ -34,7 +34,7 @@ def new_artifact(
     serializer: Serializer,
     *,
     detail: str = ...,
-    storage: Storage = ...,
+    storage: Storage,
     parent_id: int | None = ...,
 ) -> tuple[RemoteArtifact, Any]:
     ...
@@ -160,21 +160,29 @@ async def write_artifacts(qualified_artifacts: Sequence[QualifiedArtifact]) -> S
         # https://docs.sqlalchemy.org/en/20/errors.html#illegalstatechangeerror-and-concurrency-exceptions
         artifact_ids: list[int] = []
         for a, _ in qualified_artifacts:
-            await session.refresh(a, ["node_id"])
+            await session.refresh(a)
             artifact_ids.append(a.node_id)
 
         return artifact_ids
 
 
-async def delete_artifact(artifact_id: int) -> None:
+async def delete_artifact(artifact_id: int, *, descendants: bool = True) -> None:
     """Delete the artifacts from the database."""
     artifact = await read_node(artifact_id)
 
+    remote_artifacts: list[RemoteArtifact] = []
     if isinstance(artifact, RemoteArtifact):
-        storage = get_storage_by_name(artifact.remote_artifact_storage)
-        await storage.delete(artifact.remote_artifact_location)
+        remote_artifacts.append(artifact)
+    if descendants:
+        remote_artifacts.extend(await read_descendant_nodes(artifact_id, RemoteArtifact))
 
-    await delete_node(artifact_id, descendants=True)
+    remote_storage_deletions = TaskBatch()
+    for ra in remote_artifacts:
+        storage = get_storage_by_name(ra.remote_artifact_storage)
+        remote_storage_deletions.add(storage.delete, ra.remote_artifact_location)
+    await remote_storage_deletions.gather()
+
+    await delete_node(artifact_id, descendants=descendants)
 
 
 async def read_child_artifacts(root_node_id: int) -> Sequence[QualifiedArtifact]:

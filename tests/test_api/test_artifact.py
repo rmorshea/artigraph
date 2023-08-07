@@ -1,11 +1,17 @@
 from artigraph.api.artifact import (
+    delete_artifact,
     new_artifact,
     read_artifact_by_id,
     read_child_artifacts,
     write_artifact,
     write_artifacts,
 )
-from artigraph.api.node import write_node
+from artigraph.api.node import (
+    read_node_exists,
+    read_nodes_exist,
+    write_node,
+    write_parent_child_relationships,
+)
 from artigraph.orm.artifact import DatabaseArtifact, RemoteArtifact
 from artigraph.orm.node import Node
 from artigraph.serializer.json import json_serializer
@@ -26,8 +32,8 @@ async def test_create_read_delete_database_artifact():
     assert isinstance(artifact, DatabaseArtifact)
     assert db_artifact_value == {"some": "data"}
 
-    msg = "TODO: test artifact deletion of descendant artifacts"
-    raise AssertionError(msg)
+    await delete_artifact(artifact_id)
+    assert not await read_node_exists(artifact_id)
 
 
 async def test_create_read_delete_remote_artifact():
@@ -45,10 +51,43 @@ async def test_create_read_delete_remote_artifact():
     assert isinstance(artifact, RemoteArtifact)
     assert db_artifact_value == {"some": "data"}
 
-    msg = "TODO: test artifact deletion of descendant artifacts"
-    raise AssertionError(msg)
-
+    await delete_artifact(artifact_id)
+    assert not await read_node_exists(artifact_id)
     assert not await temp_file_storage.exists(artifact.remote_artifact_location)
+
+
+async def test_delete_artifact_descendants():
+    grandparent = new_artifact("gp", 1, json_serializer, storage=temp_file_storage)
+    parent = new_artifact("p", 2, json_serializer)
+    child = new_artifact("c", 3, json_serializer)
+    grandchild = new_artifact("gc", 4, json_serializer, storage=temp_file_storage)
+
+    artifacts = [grandparent, parent, child, grandchild]
+    remote_artifacts = [grandparent, grandchild]
+
+    # write artifacts
+    artifact_ids = await write_artifacts(artifacts)
+
+    # create parent-child relationships
+    await write_parent_child_relationships(
+        [
+            (None, grandparent[0].node_id),
+            (grandparent[0].node_id, parent[0].node_id),
+            (parent[0].node_id, child[0].node_id),
+            (child[0].node_id, grandchild[0].node_id),
+        ]
+    )
+
+    # delete artifact
+    await delete_artifact(grandparent[0].node_id, descendants=True)
+
+    # check that the artifact and its descendants were deleted
+    assert not await read_nodes_exist(artifact_ids)
+
+    # check that remote artifacts were deleted
+    storage_locations = [a.remote_artifact_location for a, _ in remote_artifacts]
+
+    assert not any([await temp_file_storage.exists(location) for location in storage_locations])
 
 
 async def test_read_child_artifacts():

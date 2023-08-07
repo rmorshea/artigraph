@@ -63,13 +63,28 @@ async def test_create_parent_child_relationships():
         grandparent = await create_node()
         parent = await create_node(grandparent)
         child = await create_node(parent)
-        await write_parent_child_relationships([(grandparent, parent), (parent, child)])
+        grandchild = await create_node(child)
+        await write_parent_child_relationships(
+            [
+                (grandparent.node_id, parent.node_id),
+                (parent.node_id, child.node_id),
+                (child.node_id, grandchild.node_id),
+            ]
+        )
 
         db_parent = await read_node(parent.node_id)
         db_child = await read_node(child.node_id)
+        db_grandchild = await read_node(grandchild.node_id)
 
         assert db_parent.node_parent_id == grandparent.node_id
         assert db_child.node_parent_id == parent.node_id
+        assert db_grandchild.node_parent_id == child.node_id
+
+        assert {n.node_id for n in await read_descendant_nodes(grandparent.node_id)} == {
+            parent.node_id,
+            child.node_id,
+            grandchild.node_id,
+        }
 
 
 async def create_node(parent=None):

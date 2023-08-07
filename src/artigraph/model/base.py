@@ -4,7 +4,7 @@ from typing import Any, ClassVar, Sequence, TypedDict, cast
 from urllib.parse import quote, unquote
 
 from sqlalchemy import select
-from typing_extensions import Self
+from typing_extensions import Self, TypeAlias
 
 import artigraph
 from artigraph.api.artifact import (
@@ -22,13 +22,24 @@ from artigraph.api.node import (
     write_parent_child_relationships,
 )
 from artigraph.db import current_session, session_context
-from artigraph.orm.artifact import BaseArtifact, DatabaseArtifact
+from artigraph.orm import BaseArtifact, DatabaseArtifact, Node
 from artigraph.serializer import Serializer
-from artigraph.serializer.json import json_sorted_serializer
+from artigraph.serializer.json import json_serializer, json_sorted_serializer
 from artigraph.storage import Storage
 from artigraph.utils import SessionBatch
 
+ModelData: TypeAlias = "dict[str, tuple[Any, FieldConfig]]"
+
 MODEL_TYPES_BY_NAME: dict[str, type[BaseModel]] = {}
+MODELED_TYPES: dict[type[Any], type[BaseModel]] = {}
+
+
+def try_convert_value_to_modeled_type(value: Any) -> BaseModel | Any:
+    """Try to convert a value to a modeled type."""
+    modeled_type = MODELED_TYPES.get(type(value))
+    if modeled_type is not None:
+        return modeled_type(value)
+    return value
 
 
 def get_model_type_by_name(name: str) -> type[BaseModel]:
@@ -78,10 +89,10 @@ async def read_child_models(node_id: int, labels: Sequence[str] = ()) -> dict[st
 async def write_model(label: str, model: BaseModel, parent_id: int | None = None) -> int:
     parent_node = None if parent_id is None else await read_node(parent_id)
 
-    models_by_path = _get_model_paths(model)
+    models_and_data_by_path = _get_models_and_data_by_paths(model)
     nodes_by_path = {
         path: _get_model_artifact(_get_model_label_from_path(path), model)
-        for path, model in models_by_path.items()
+        for path, (model, _) in models_and_data_by_path.items()
     }
 
     root_node = nodes_by_path[""]
@@ -89,22 +100,19 @@ async def write_model(label: str, model: BaseModel, parent_id: int | None = None
     root_node.artifact_label = label
 
     async with session_context(expire_on_commit=False):
-        await write_nodes(
-            list(nodes_by_path.values()),
-            refresh_attributes=["node_id"],
-        )
+        # write the model nodes
+        await write_nodes(list(nodes_by_path.values()), refresh_attributes=["node_id"])
+
+        # create the model node relationships
         await write_parent_child_relationships(
-            [
-                (nodes_by_path.get(_get_model_parent_path(path), parent_node), node)
-                for path, node in nodes_by_path.items()
-            ]
+            _get_parent_child_id_pairs_from_nodes_by_path(nodes_by_path, parent_node)
         )
+
+        # attach model fields to the model nodes
         await write_artifacts(
-            [
-                fn
-                for path, model in models_by_path.items()
-                for fn in _model_field_artifacts(model, nodes_by_path[path])
-            ]
+            _get_field_artifacts_from_models_and_nodes_by_path(
+                models_and_data_by_path, nodes_by_path
+            )
         )
 
     return root_node.node_id
@@ -133,6 +141,9 @@ class FieldConfig(TypedDict, total=False):
 
     storage: Storage | None
     """The storage for the artifact model field."""
+
+    annotation: Any
+    """The type annotation for the artifact model field."""
 
 
 class BaseModel:
@@ -165,6 +176,29 @@ class ModelMetadata(TypedDict):
     """The version of Artigraph used to generate the model"""
 
 
+def _get_field_artifacts_from_models_and_nodes_by_path(
+    models_by_path: dict[str, tuple[BaseModel, ModelData]],
+    nodes_by_path: dict[str, DatabaseArtifact],
+):
+    return [
+        fn
+        for path, (model, data) in models_by_path.items()
+        for fn in _model_field_artifacts(model, data, nodes_by_path[path])
+    ]
+
+
+def _get_parent_child_id_pairs_from_nodes_by_path(
+    nodes_by_path: dict[str, DatabaseArtifact],
+    root_node: Node | None,
+) -> list[tuple[int | None, int]]:
+    pairs: list[tuple[int | None, int]] = []
+    for path, node in nodes_by_path.items():
+        parent_node = nodes_by_path.get(_get_model_parent_path(path), root_node)
+        parent_node_id = None if parent_node is None else parent_node.node_id
+        pairs.append((parent_node_id, node.node_id))
+    return pairs
+
+
 def _get_artifact_model_info(
     qual_artifact: QualifiedArtifact,
 ) -> None | tuple[DatabaseArtifact, str, int, ModelMetadata]:
@@ -187,39 +221,38 @@ def _get_model_artifact(label: str, model: BaseModel) -> DatabaseArtifact:
     )[0]
 
 
-def _get_model_paths(model: BaseModel, path: str = "") -> dict[str, BaseModel]:
+def _get_models_and_data_by_paths(
+    model: BaseModel, path: str = ""
+) -> dict[str, tuple[BaseModel, ModelData]]:
     """Get the paths of all artifact models in the tree."""
-    paths: dict[str, BaseModel] = {path: model}
-    for label, (value, _) in model.model_data().items():
-        if not isinstance(value, BaseModel):
+
+    model_data = model.model_data()
+    paths: dict[str, tuple[BaseModel, ModelData]] = {path: (model, model_data)}
+
+    for label, (value, _) in model_data.items():
+        maybe_model = try_convert_value_to_modeled_type(value)
+        if not isinstance(maybe_model, BaseModel):
             continue
         escaped_key = quote(label)
-        for child_path, child_model in _get_model_paths(value, f"{path}/{escaped_key}").items():
-            paths[child_path] = child_model
+        paths.update(_get_models_and_data_by_paths(maybe_model, f"{path}/{escaped_key}").items())
+
     return paths
 
 
 def _model_field_artifacts(
-    model: BaseModel, parent: DatabaseArtifact
+    model: BaseModel, model_data: ModelData, parent: DatabaseArtifact
 ) -> Sequence[QualifiedArtifact]:
     artifacts: list[QualifiedArtifact] = []
-    for label, (value, config) in model.model_data().items():
+    for label, (value, config) in model_data.items():
         if isinstance(value, BaseModel):
             continue
-
-        storage = config.get("storage")
-        serializer = config.get("serializer")
-
-        if serializer is None:
-            msg = f"Serializer for field {label!r} on model {model.__class__.__name__} not found"
-            raise RuntimeError(msg)
 
         artifacts.append(
             new_artifact(
                 label,
                 value,
-                storage=storage,
-                serializer=serializer,
+                serializer=config.get("serializer", json_serializer),
+                storage=config.get("storage"),
                 parent_id=parent.node_id,
                 detail=_get_model_detail(model),
             )

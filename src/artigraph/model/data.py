@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, fields
-from typing import TYPE_CHECKING, Annotated, Any, ClassVar, get_args, get_origin
+from typing import Annotated, Any, ClassVar, get_args, get_origin
 
 from typing_extensions import Self, dataclass_transform
 
-from artigraph.model.base import BaseModel, FieldConfig
+from artigraph.model.base import BaseModel, FieldConfig, ModelData
 from artigraph.serializer.core import Serializer
-from artigraph.serializer.json import json_serializer
 from artigraph.storage.core import Storage
 
 
@@ -23,11 +22,13 @@ class _DataModelMeta(type):
         **kwargs: Any,
     ):
         namespace["model_version"] = version
-        model_field_configs = namespace["model_field_configs"] = {}
+        model_field_configs = namespace["_model_field_configs"] = {}
+
         self = super().__new__(cls, name, bases, namespace, **kwargs)
         self = dataclass(frozen=True, **kwargs)(self)
+
         for f in filter(lambda f: f.init, fields(self)):
-            f_config = FieldConfig(serializer=json_serializer)
+            f_config = FieldConfig()
             if get_origin(f.type) is Annotated:
                 for f_type_arg in get_args(f.type):
                     if isinstance(f_type_arg, Serializer):
@@ -35,19 +36,14 @@ class _DataModelMeta(type):
                     elif isinstance(f_type_arg, Storage):
                         f_config["storage"] = f_type_arg
             model_field_configs[f.name] = f_config
+
         return self
 
 
-# convince type checkers that this is a dataclass
-_cast_dataclass = dataclass if TYPE_CHECKING else lambda c: c
-
-
-@_cast_dataclass
 class DataModel(BaseModel, metaclass=_DataModelMeta, version=1):
     """Describes a structure of data that can be saved as artifacts."""
 
-    model_field_configs: ClassVar[dict[str, FieldConfig]] = {}
-    """The configuration for the data model fields."""
+    _model_field_configs: ClassVar[dict[str, FieldConfig]] = {}
 
     @classmethod
     def model_migrate(
@@ -58,10 +54,9 @@ class DataModel(BaseModel, metaclass=_DataModelMeta, version=1):
         """Migrate the data model to a new version."""
         return cls(**kwargs)
 
-    def model_data(self) -> dict[str, tuple[Any, FieldConfig]]:
+    def model_data(self) -> ModelData:
         """The data for the data model."""
         return {
-            f.name: (getattr(self, f.name), self.model_field_configs[f.name])
-            for f in fields(self)
-            if f.init
+            name: (getattr(self, name), config)
+            for name, config in self._model_field_configs.items()
         }

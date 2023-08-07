@@ -9,6 +9,7 @@ from typing import (
     Any,
     AsyncIterator,
     Callable,
+    Iterable,
     Literal,
     Protocol,
     Sequence,
@@ -16,7 +17,7 @@ from typing import (
     overload,
 )
 
-from sqlalchemy import Row, delete, join, select
+from sqlalchemy import Row, case, delete, join, select, update
 from sqlalchemy.orm import aliased
 from typing_extensions import ParamSpec, TypeGuard
 
@@ -94,47 +95,58 @@ def is_node_type(node: Node, node_type: type[N]) -> TypeGuard[N]:
     return node.node_type == node_type.polymorphic_identity
 
 
-@overload
-async def read_node(
-    node_id: int,
-    node_type: type[N] = Node,
-    *,
-    allow_none: Literal[True],
-) -> N | None:
-    ...
-
-
-@overload
-async def read_node(
-    node_id: int,
-    node_type: type[N] = Node,
-    *,
-    allow_none: Literal[False] = ...,
-) -> N:
-    ...
-
-
-async def read_node(
-    node_id: int, node_type: type[N] = Node, *, allow_none: bool = False
-) -> N | None:
-    """Read a node by its ID."""
-    cmd = select(node_type).where(node_type.node_id == node_id)
-    async with current_session() as session:
-        result = await session.execute(cmd)
-        return result.scalar_one_or_none() if allow_none else result.scalar_one()
-
-
-async def node_exists(node_id: int) -> bool:
+async def read_node_exists(node_id: int) -> bool:
     """Check if a node exists."""
-    return await nodes_exist([node_id])
+    return bool(await read_node(node_id, allow_none=True))
 
 
-async def nodes_exist(node_ids: Sequence[int]) -> bool:
+async def read_nodes_exist(node_ids: Sequence[int]) -> bool:
     """Check if nodes exist."""
-    cmd = select(Node.node_id).where(Node.node_id.in_(node_ids))
+    return all(await read_nodes(node_ids, allow_none=True))
+
+
+@overload
+async def read_node(node_id: int, *, allow_none: Literal[True]) -> Node | None:
+    ...
+
+
+@overload
+async def read_node(node_id: int, *, allow_none: Literal[False] = ...) -> Node:
+    ...
+
+
+async def read_node(node_id: int, *, allow_none: bool = False) -> Node | None:
+    """Read a node by its ID."""
+    return (await read_nodes([node_id], allow_none=allow_none))[0]
+
+
+@overload
+async def read_nodes(
+    node_ids: Sequence[int], *, allow_none: Literal[True]
+) -> Sequence[Node | None]:
+    ...
+
+
+@overload
+async def read_nodes(
+    node_ids: Sequence[int], *, allow_none: Literal[False] = ...
+) -> Sequence[Node]:
+    ...
+
+
+async def read_nodes(node_ids: Sequence[int], *, allow_none: bool = False) -> Sequence[Node]:
+    """Read nodes by their IDs."""
+    cmd = select(Node.__table__).where(Node.node_id.in_(node_ids))
     async with current_session() as session:
         result = await session.execute(cmd)
-        return len(result.all()) == len(node_ids)
+        nodes = {n.node_id: n for n in load_nodes_from_rows(result.all())}
+
+    if not allow_none and len(nodes) != len(node_ids):
+        missing = set(node_ids) - {n.node_id for n in nodes}
+        msg = f"Could not find node IDs: {list(missing)}"
+        raise RuntimeError(msg)
+
+    return [nodes.get(node_id) for node_id in node_ids]
 
 
 async def delete_node(node_id: int, *, descendants: bool = True) -> None:
@@ -142,16 +154,20 @@ async def delete_node(node_id: int, *, descendants: bool = True) -> None:
     nodes_ids = [node_id]
     if descendants:
         nodes_ids.extend(n.node_id for n in await read_descendant_nodes(node_id))
+    cmd = delete(Node).where(Node.node_id.in_(nodes_ids))
     async with current_session() as session:
-        await session.execute(delete(Node).where(Node.node_id.in_(nodes_ids)))
+        await session.execute(cmd)
+        await session.commit()
 
 
-async def write_node(node: Node, refresh_attributes: Sequence[str]) -> Node:
+async def write_node(node: Node, *, refresh_attributes: Sequence[str]) -> Node:
     """Create a node."""
-    return (await write_nodes([node], refresh_attributes))[0]
+    return (await write_nodes([node], refresh_attributes=refresh_attributes))[0]
 
 
-async def write_nodes(nodes: Collection[Node], refresh_attributes: Sequence[str]) -> Sequence[Node]:
+async def write_nodes(
+    nodes: Collection[Node], *, refresh_attributes: Sequence[str]
+) -> Sequence[Node]:
     """Create nodes and, if given, refresh their attributes."""
     async with current_session() as session:  # nocov (FIXME: actually covered but not detected)
         session.add_all(nodes)
@@ -165,13 +181,27 @@ async def write_nodes(nodes: Collection[Node], refresh_attributes: Sequence[str]
 
 
 async def write_parent_child_relationships(
-    parent_child_pairs: Sequence[tuple[Node | None, Node]]
+    parent_child_id_pairs: Iterable[tuple[int | None, int]]
 ) -> None:
-    """Create parent-to-child links between nodes."""
+    """Create parent-to-child links between nodes.
+
+    Updates the existing child node's node_parent_id.
+    """
+
+    # Build the CASE statement for the update query
+    parent_id_conditions = [
+        (Node.node_id == child_id, parent_id) for parent_id, child_id in parent_child_id_pairs
+    ]
+
+    # Build the update query
+    cmd = (
+        update(Node)
+        .where(Node.node_id.in_([child_id for _, child_id in parent_child_id_pairs]))
+        .values(node_parent_id=case(*parent_id_conditions))
+    )
+
     async with current_session() as session:
-        for parent, child in parent_child_pairs:
-            child.node_parent_id = None if parent is None else parent.node_id
-            session.add(child)
+        await session.execute(cmd)
         await session.commit()
 
 

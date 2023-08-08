@@ -68,7 +68,7 @@ lint-style = ["ruff {args:.}", "black --check --diff {args:.}"]
 lint-typing = "pyright {args:src}"
 test = "pytest {args:tests}"
 publish-docs = "mkdocs gh-deploy --force"
-publish-pypi = "hatch publish"
+publish-pypi = "hatch build && hatch publish"
 
 # --- Pytest ---------------------------------------------------------------------------------------
 

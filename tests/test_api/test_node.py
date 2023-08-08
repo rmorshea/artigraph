@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import pytest
+
 from artigraph.api.node import (
+    current_node_id,
     group_nodes_by_parent_id,
     read_ancestor_nodes,
     read_child_nodes,
     read_descendant_nodes,
     read_node,
+    read_nodes,
     write_parent_child_relationships,
 )
 from artigraph.db import current_session, session_context
@@ -20,6 +24,12 @@ class ThingOne(Node):
 class ThingTwo(Node):
     polymorphic_identity = "thing_two"
     __mapper_args__ = {"polymorphic_identity": polymorphic_identity}  # noqa: RUF012
+
+
+def test_current_node_id_no_allow_none():
+    """Test that the current node ID is not None."""
+    with pytest.raises(RuntimeError):
+        current_node_id()
 
 
 async def test_read_direct_children():
@@ -86,6 +96,14 @@ async def test_create_parent_child_relationships():
             child.node_id,
             grandchild.node_id,
         }
+
+
+async def test_read_nodes_no_allow_none():
+    async with session_context(expire_on_commit=False):
+        node_exists_id = await create_node()
+
+        with pytest.raises(ValueError):
+            await read_nodes([node_exists_id.node_id, 123], allow_none=False)
 
 
 async def test_read_ancestor_nodes():

@@ -80,29 +80,3 @@ class DataWrapper(TypedDict):
     serializer_name: int
     data_encoding: str
     data: str
-
-
-class StringSerializer(Serializer[str]):
-    """A serializer for JSON."""
-
-    types = (str,)
-    name = "artigraph-string"
-
-    serialize = staticmethod(str.encode)  # type: ignore
-    deserialize = staticmethod(bytes.decode)  # type: ignore
-
-
-StringSerializer().register()
-
-
-class BytesSerializer(Serializer[bytes]):
-    """A serializer for JSON."""
-
-    types = (bytes,)
-    name = "artigraph-bytes"
-
-    serialize = staticmethod(lambda b: b)  # type: ignore
-    deserialize = staticmethod(lambda b: b)  # type: ignore
-
-
-BytesSerializer().register()

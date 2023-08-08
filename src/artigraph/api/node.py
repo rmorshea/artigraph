@@ -137,14 +137,14 @@ async def read_nodes(node_ids: Sequence[int], *, allow_none: bool = False) -> Se
     cmd = select(Node.__table__).where(Node.node_id.in_(node_ids))
     async with current_session() as session:
         result = await session.execute(cmd)
-        nodes = {n.node_id: n for n in load_nodes_from_rows(result.all())}
+        nodes_by_id = {n.node_id: n for n in load_nodes_from_rows(result.all())}
 
-    if not allow_none and len(nodes) != len(node_ids):
-        missing = set(node_ids) - {n.node_id for n in nodes}
+    if not allow_none and len(nodes_by_id) != len(node_ids):
+        missing = set(node_ids) - set(nodes_by_id)
         msg = f"Could not find node IDs: {list(missing)}"
-        raise RuntimeError(msg)
+        raise ValueError(msg)
 
-    return [nodes.get(node_id) for node_id in node_ids]  # type: ignore
+    return [nodes_by_id.get(node_id) for node_id in node_ids]  # type: ignore
 
 
 async def delete_node(node_id: int, *, descendants: bool = True) -> None:

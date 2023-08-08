@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import fields
-from typing import Annotated, Any
+from typing import Annotated, Any, Optional
 
 import pandas as pd
 
@@ -20,7 +20,7 @@ class SampleModel(DataModel, version=1):
 
     some_value: str
     remote_value: FileDataFrame
-    inner_model: None | SampleModel = None
+    inner_model: Optional[None] = None
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, SampleModel):

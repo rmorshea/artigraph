@@ -163,7 +163,7 @@ parallel = true
 artigraph = ["src/artigraph"]
 
 [tool.coverage.report]
-fail_under = 96
+fail_under = 100
 show_missing = true
 skip_covered = true
 sort = "Name"
@@ -172,6 +172,7 @@ exclude_lines = [
   '\.\.\.',
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
+  'raise NotImplementedError\(\)',
 ]
 
 

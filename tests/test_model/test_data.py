@@ -68,6 +68,14 @@ async def test_read_write_simple_artifact_model_with_inner_model():
 async def test_read_write_child_artifact_models():
     """Test saving and loading a simple artifact model with child models."""
     async with create_current(Node):
-        models = {"label": SampleModel(some_value="test-value", remote_value=pd.DataFrame())}
+        models = {
+            "label": SampleModel(some_value="test-value", remote_value=pd.DataFrame()),
+            "other_label": SampleModel(some_value="other-value", remote_value=pd.DataFrame()),
+            "another_label": SampleModel(some_value="another-value", remote_value=pd.DataFrame()),
+        }
         await write_child_models("current", models=models)
-        assert await read_child_models("current") == models
+        assert await read_child_models("current", labels=["label", "other_label"]) == {
+            "label": models["label"],
+            "other_label": models["other_label"],
+        }
+        assert await read_child_models("current", labels=["does_not_exist"]) == {}

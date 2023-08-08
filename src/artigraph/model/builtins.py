@@ -9,7 +9,7 @@ from artigraph.model.base import MODELED_TYPES, BaseModel, FieldConfig, ModelDat
 T = TypeVar("T")
 
 
-class DictModel(BaseModel, dict[str, T]):
+class DictModel(BaseModel, dict[str, T], version=1):
     """A dictionary of artifacts"""
 
     @classmethod
@@ -20,7 +20,7 @@ class DictModel(BaseModel, dict[str, T]):
         return {k: (v, FieldConfig()) for k, v in self.items()}
 
 
-class FrozenSetModel(BaseModel, frozenset[T]):
+class FrozenSetModel(BaseModel, frozenset[T], version=1):
     """A dictionary of artifacts"""
 
     @classmethod
@@ -31,7 +31,7 @@ class FrozenSetModel(BaseModel, frozenset[T]):
         return {str(i): (v, FieldConfig()) for i, v in enumerate(self)}
 
 
-class ListModel(list[T], BaseModel):
+class ListModel(list[T], BaseModel, version=1):
     """A list of artifacts"""
 
     @classmethod
@@ -45,7 +45,7 @@ class ListModel(list[T], BaseModel):
         return {str(i): (v, FieldConfig()) for i, v in enumerate(self)}
 
 
-class SetModel(BaseModel, set[T]):
+class SetModel(BaseModel, set[T], version=1):
     """A dictionary of artifacts"""
 
     @classmethod
@@ -56,7 +56,7 @@ class SetModel(BaseModel, set[T]):
         return {str(i): (v, FieldConfig()) for i, v in enumerate(self)}
 
 
-class TupleModel(BaseModel, tuple[T]):
+class TupleModel(BaseModel, tuple[T], version=1):
     """A tuple of artifacts"""
 
     @classmethod

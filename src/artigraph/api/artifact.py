@@ -186,7 +186,7 @@ async def delete_artifact(artifact_id: int, *, descendants: bool = True) -> None
     remote_artifacts: list[RemoteArtifact] = []
     if isinstance(artifact, RemoteArtifact):
         remote_artifacts.append(artifact)
-    if descendants:  # FIXME: this is covered but not detected by coverage
+    if descendants:  # nocov (FIXME: actually covered but not detected)
         remote_artifacts.extend(await read_descendant_nodes(artifact_id, RemoteArtifact))
 
     remote_storage_deletions = TaskBatch()

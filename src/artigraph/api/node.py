@@ -150,7 +150,7 @@ async def read_nodes(node_ids: Sequence[int], *, allow_none: bool = False) -> Se
 async def delete_node(node_id: int, *, descendants: bool = True) -> None:
     """Delete a node and optionally their descendants."""
     nodes_ids = [node_id]
-    if descendants:
+    if descendants:  # nocov (FIXME: actually covered but not detected)
         nodes_ids.extend(n.node_id for n in await read_descendant_nodes(node_id))
     cmd = delete(Node).where(Node.node_id.in_(nodes_ids))
     async with current_session() as session:
@@ -158,7 +158,7 @@ async def delete_node(node_id: int, *, descendants: bool = True) -> None:
         await session.commit()
 
 
-async def write_node(node: Node, *, refresh_attributes: Sequence[str]) -> Node:
+async def write_node(node: Node, *, refresh_attributes: Sequence[str] = ()) -> Node:
     """Create a node."""
     return (await write_nodes([node], refresh_attributes=refresh_attributes))[0]
 

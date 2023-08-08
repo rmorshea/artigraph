@@ -10,6 +10,7 @@ from artigraph.api.node import (
     read_descendant_nodes,
     read_node,
     read_nodes,
+    read_parent_node,
     write_parent_child_relationships,
 )
 from artigraph.db import current_session, session_context
@@ -126,6 +127,13 @@ async def test_read_ancestor_nodes():
             parent.node_id,
             child.node_id,
         }
+
+
+async def test_read_parent_node():
+    async with session_context(expire_on_commit=False):
+        parent = await create_node()
+        child = await create_node(parent)
+    assert (await read_parent_node(child.node_id)).node_id == parent.node_id
 
 
 async def create_node(parent=None):

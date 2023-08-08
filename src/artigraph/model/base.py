@@ -71,7 +71,7 @@ async def read_child_models(node_id: int, labels: Sequence[str] = ()) -> dict[st
         cmd = select(BaseArtifact.node_id, BaseArtifact.artifact_label).where(
             BaseArtifact.node_parent_id == node_id
         )
-        if labels:
+        if labels:  # nocov (FIXME: this is covered but not detected)
             cmd = cmd.where(BaseArtifact.artifact_label.in_(labels))
         result = await session.execute(cmd)
         node_ids_and_labels = list(result.all())
@@ -156,21 +156,21 @@ class BaseModel:
     """The version of the artifact model."""
 
     @classmethod
-    def model_init(cls, version: int, data: dict[str, Any], /) -> Self:  # noqa: ARG003
+    def model_init(cls, version: int, data: dict[str, Any], /) -> Self:
         """Initialize the artifact model, migrating it if necessary."""
-        return cls(**data)
+        raise NotImplementedError()  # nocov
 
     def model_data(self) -> dict[str, tuple[Any, FieldConfig]]:
         """The data for the artifact model."""
         raise NotImplementedError()
 
-    def __init_subclass__(cls, **kwargs: Any):
+    def __init_subclass__(cls, version: int):
         name = cls.__name__
         if not ALLOW_MODEL_TYPE_OVERWRITES.get() and name in MODEL_TYPES_BY_NAME:
             msg = f"Artifact model named {name!r} already exists"
             raise RuntimeError(msg)
         MODEL_TYPES_BY_NAME[name] = cls
-        super().__init_subclass__(**kwargs)
+        cls.model_version = version
 
 
 class ModelMetadata(TypedDict):

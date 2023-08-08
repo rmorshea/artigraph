@@ -22,8 +22,7 @@ class _DataModelMeta(type):
         version: int,
         **kwargs: Any,
     ):
-        namespace["model_version"] = version
-        self = super().__new__(cls, name, bases, namespace, **kwargs)
+        self = super().__new__(cls, name, bases, namespace, version=version, **kwargs)
         self = dataclass(frozen=True, **kwargs)(self)
         return self
 

@@ -11,8 +11,6 @@ from artigraph.api.artifact import (
     QualifiedArtifact,
     group_artifacts_by_parent_id,
     new_artifact,
-    read_artifact_by_id,
-    read_descendant_artifacts,
     write_artifacts,
 )
 from artigraph.api.node import (
@@ -22,6 +20,7 @@ from artigraph.api.node import (
     write_parent_child_relationships,
 )
 from artigraph.db import current_session, session_context
+from artigraph.model.filter import ModelFilter
 from artigraph.orm import BaseArtifact, DatabaseArtifact, Node
 from artigraph.serializer import Serializer
 from artigraph.serializer.json import json_serializer, json_sorted_serializer
@@ -29,6 +28,7 @@ from artigraph.storage import Storage
 from artigraph.utils import SessionBatch
 
 ModelData: TypeAlias = "dict[str, tuple[Any, FieldConfig]]"
+M = TypeVar("M", bound="BaseModel")
 
 MODEL_TYPES_BY_NAME: dict[str, type[BaseModel]] = {}
 MODELED_TYPES: dict[type[Any], type[BaseModel]] = {}
@@ -136,6 +136,10 @@ async def read_model(node_id: int) -> BaseModel:
     return await _load_from_artifacts(cls, root_node, model_version, artifacts_by_parent_id)
 
 
+async def read_models(model_filter: ModelFilter[M]) -> Sequence[M]:
+    ...
+
+
 class FieldConfig(TypedDict, total=False):
     """The metadata for an artifact model field."""
 
@@ -221,7 +225,7 @@ def _get_model_artifact(label: str, model: BaseModel) -> DatabaseArtifact:
         label,
         ModelMetadata(artigraph_version=artigraph.__version__),
         serializer=json_sorted_serializer,
-        detail=_get_model_detail(model),
+        detail=_get_model_detail(type(model)),
     )[0]
 
 
@@ -257,7 +261,7 @@ def _model_field_artifacts(
                 serializer=config.get("serializer", json_serializer),
                 storage=config.get("storage"),
                 parent_id=parent.node_id,
-                detail=_get_model_detail(model),
+                detail=_get_model_field_detail(type(model)),
             )
         )
     return artifacts
@@ -289,9 +293,14 @@ async def _load_from_artifacts(
     return cls.model_init(model_version, kwargs)
 
 
-def _get_model_detail(model: BaseModel) -> str:
+def _get_model_detail(model: type[BaseModel]) -> str:
     """Get the name and version of the artifact model."""
-    return f"{type(model).__name__}-v{model.model_version}"
+    return f"{type(model).__name__}-v{model.model_version}-model"
+
+
+def _get_model_field_detail(model: type[BaseModel]) -> str:
+    """Get the name and version of the artifact model field."""
+    return f"{type(model).__name__}-v{model.model_version}-field"
 
 
 def _get_model_parent_path(path: str) -> str:

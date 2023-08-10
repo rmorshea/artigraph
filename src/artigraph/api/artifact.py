@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from os import replace
 from typing import Any, Generic, Sequence, TypeVar, overload
 
-from artigraph.api.filter import NodeFilter
+from artigraph.api.filter import ArtifactFilter
 from artigraph.api.node import (
     delete_nodes,
     is_node_type,
+    read_node_or_none,
     read_nodes,
 )
 from artigraph.db import session_context
@@ -89,7 +89,6 @@ def new_artifact(
             artifact_label=label,
             artifact_serializer=serializer.name,
             artifact_detail=detail,
-            database_artifact_value=serializer.serialize(value),
         )
         if storage is None
         else RemoteArtifact(
@@ -115,11 +114,46 @@ def group_artifacts_by_parent_id(
     return artifacts_by_parent_id
 
 
-async def read_artifacts(node_filter: NodeFilter) -> Sequence[QualifiedArtifact]:
-    """Load the artifact from the database."""
-    node_filter = _to_artifact_filter(node_filter)
-    artifact_nodes = await read_nodes(node_filter)
+async def delete_artifacts(artifact_filter: ArtifactFilter) -> None:
+    """Delete the artifacts from the database."""
+    artifacts = await read_nodes(artifact_filter)
 
+    remote_storage_deletions = TaskBatch()
+    for a in artifacts:
+        if is_node_type(a, RemoteArtifact):
+            storage = get_storage_by_name(a.remote_artifact_storage)
+            remote_storage_deletions.add(storage.delete, a.remote_artifact_location)
+
+    await remote_storage_deletions.gather()
+    await delete_nodes(artifact_filter)
+
+
+async def read_artifact(artifact_filter: ArtifactFilter) -> QualifiedArtifact:
+    """Load the artifact from the database."""
+    artifact_node = await read_node_or_none(artifact_filter)
+    if not artifact_node:
+        msg = f"Artifact not found for filter {artifact_filter}"
+        raise ValueError(msg)
+    return (await _load_qualified_artifacts([artifact_node]))[0]
+
+
+async def read_artifact_or_none(artifact_filter: ArtifactFilter) -> QualifiedArtifact | None:
+    """Load the artifact from the database, or return None if it does not exist."""
+    artifact_node = await read_node_or_none(artifact_filter)
+    if not artifact_node:
+        return None
+    return (await _load_qualified_artifacts([artifact_node]))[0]
+
+
+async def read_artifacts(artifact_filter: ArtifactFilter) -> Sequence[QualifiedArtifact]:
+    """Load the artifact from the database."""
+    artifact_nodes = await read_nodes(artifact_filter)
+    return await _load_qualified_artifacts(artifact_nodes)
+
+
+async def _load_qualified_artifacts(
+    artifact_nodes: Sequence[BaseArtifact],
+) -> list[QualifiedArtifact]:
     artifact_nodes_and_bytes: list[tuple[BaseArtifact, bytes | None]] = []
 
     remote_artifact_nodes: list[RemoteArtifact] = []
@@ -159,9 +193,12 @@ async def write_artifacts(
         if isinstance(qual.artifact, RemoteArtifact):
             qualified_storage_artifacts.append((qual.artifact, qual.value))
         elif isinstance(qual.artifact, DatabaseArtifact):
-            serializer = get_serializer_by_name(qual.artifact.artifact_serializer)
-            qual.artifact.database_artifact_value = serializer.serialize(qual.value)
-            database_artifacts.append(qual.artifact)
+            if qual.value is not None:
+                serializer = get_serializer_by_name(qual.artifact.artifact_serializer)
+                qual.artifact.database_artifact_value = serializer.serialize(qual.value)
+                database_artifacts.append(qual.artifact)
+            else:
+                qual.artifact.database_artifact_value = None
         else:  # nocov
             msg = f"Unknown artifact type: {qual.artifact}"
             raise RuntimeError(msg)
@@ -191,25 +228,3 @@ async def write_artifacts(
             artifact_ids.append(a.node_id)
 
         return artifact_ids
-
-
-async def delete_artifacts(node_filter: NodeFilter) -> None:
-    """Delete the artifacts from the database."""
-    node_filter = _to_artifact_filter(node_filter)
-    artifacts = await read_nodes(node_filter)
-
-    remote_storage_deletions = TaskBatch()
-    for a in artifacts:
-        if is_node_type(a, RemoteArtifact):
-            storage = get_storage_by_name(a.remote_artifact_storage)
-            remote_storage_deletions.add(storage.delete, a.remote_artifact_location)
-
-    await remote_storage_deletions.gather()
-    await delete_nodes(node_filter)
-
-
-def _to_artifact_filter(node_filter: NodeFilter) -> NodeFilter[DatabaseArtifact | RemoteArtifact]:
-    return replace(
-        node_filter,
-        in_types=(*node_filter.in_types, RemoteArtifact, DatabaseArtifact),
-    )

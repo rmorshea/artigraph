@@ -45,3 +45,16 @@ class DatabaseArtifact(BaseArtifact):
 
     database_artifact_value: Mapped[Optional[bytes]] = mapped_column(default=None)
     """The data of the artifact."""
+
+
+class ModelArtifact(DatabaseArtifact):
+    """An artifact that is a model."""
+
+    polymorphic_identity = "model_artifact"
+    __mapper_args__: ClassVar[dict[str, Any]] = {"polymorphic_identity": polymorphic_identity}
+
+    model_artifact_type: Mapped[str] = mapped_column(nullable=True)
+    """The type of the model."""
+
+    model_artifact_version: Mapped[int] = mapped_column(nullable=True)
+    """The version of the model."""

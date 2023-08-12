@@ -19,7 +19,7 @@ from artigraph.api.artifact import (
 )
 from artigraph.api.filter import ArtifactFilter, NodeRelationshipFilter
 from artigraph.api.node import read_node, write_parent_child_relationships
-from artigraph.db import session_context
+from artigraph.db import new_session
 from artigraph.model.filter import ModelFilter, NodeFilter
 from artigraph.orm import Node
 from artigraph.orm.artifact import ModelArtifact
@@ -74,7 +74,7 @@ async def write_model(
     root_node.artifact.node_parent_id = parent_id
     root_node.artifact.artifact_label = label
 
-    async with session_context(expire_on_commit=False):
+    async with new_session(expire_on_commit=False):
         # write the model nodes
         await write_artifacts(list(nodes_by_path.values()))  # type: ignore
 

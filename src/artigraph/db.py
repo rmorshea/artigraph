@@ -39,7 +39,7 @@ def engine_context(
 
 
 @asynccontextmanager
-async def session_context(**kwargs: Any) -> AsyncIterator[AsyncSession]:
+async def new_session(**kwargs: Any) -> AsyncIterator[AsyncSession]:
     """Define which session to use in the context."""
     kwargs.setdefault("expire_on_commit", False)
     async with async_sessionmaker(await get_engine(), **kwargs)() as session:

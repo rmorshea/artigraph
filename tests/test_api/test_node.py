@@ -9,7 +9,7 @@ from artigraph.api.node import (
     read_nodes_exist,
     write_parent_child_relationships,
 )
-from artigraph.db import current_session, session_context
+from artigraph.db import current_session, new_session
 from artigraph.orm.node import Node
 
 
@@ -76,7 +76,7 @@ async def test_read_recursive_children():
 
 async def test_create_parent_child_relationships():
     """Test creating parent-to-child relationships between nodes."""
-    async with session_context(expire_on_commit=False):
+    async with new_session(expire_on_commit=False):
         grandparent = await create_node()
         parent = await create_node(grandparent)
         child = await create_node(parent)
@@ -112,7 +112,7 @@ async def test_create_parent_child_relationships():
 
 async def test_read_ancestor_nodes():
     """Test reading the ancestor nodes of a node."""
-    async with session_context(expire_on_commit=False):
+    async with new_session(expire_on_commit=False):
         grandparent = await create_node()
         parent = await create_node(grandparent)
         child = await create_node(parent)
@@ -138,7 +138,7 @@ async def test_read_ancestor_nodes():
 
 
 async def test_read_parent_node():
-    async with session_context(expire_on_commit=False):
+    async with new_session(expire_on_commit=False):
         parent = await create_node()
         child = await create_node(parent)
     node_filter = NodeFilter(relationship=NodeRelationshipFilter(parent_of=child.node_id))

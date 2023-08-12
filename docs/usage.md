@@ -591,7 +591,7 @@ def run(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
 
-        async with create_current(Run(run_started_at=datetime.now(timezone.utc))) as run:
+        async with ModelGroup(new_node(Run, run_started_at=datetime.now(timezone.utc))) as run:
             try:
                 parent = await read_parent_node("current")
                 result = await func(parent, *args, **kwargs)

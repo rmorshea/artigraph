@@ -3,7 +3,7 @@ import pytest
 from artigraph.api.artifact import new_artifact, write_artifact
 from artigraph.api.filter import ValueFilter
 from artigraph.api.node import write_node
-from artigraph.db import session_context
+from artigraph.db import new_session
 from artigraph.model.base import (
     MODELED_TYPES,
     BaseModel,
@@ -50,7 +50,7 @@ def test_try_convert_value_to_and_from_modeled_type(value):
 
 async def test_read_model_error_if_not_model_node():
     """Test that an error is raised if the node is not a model node."""
-    async with session_context(expire_on_commit=False):
+    async with new_session(expire_on_commit=False):
         node = await write_node(Node(node_parent_id=None))
 
         with pytest.raises(ValueError):

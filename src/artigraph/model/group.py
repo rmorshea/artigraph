@@ -28,7 +28,7 @@ class ModelGroup(Generic[N]):
 
     Parameters:
         node: The node that the models belong to
-        rollback: If True, the models will not be written to the database if an exception is raised
+        rollback: If True, the models will not be written to the database if an exception is raised.
     """
 
     _current_model_group_token: Token[ModelGroup[Node]]
@@ -73,20 +73,36 @@ class ModelGroup(Generic[N]):
         """Add a model to the group."""
         return self.add_models({label: model}, replace_existing=replace_existing)
 
-    async def read_models(self) -> dict[str, BaseModel]:
+    async def read_models(
+        self,
+        labels: Sequence[str],
+        *,
+        refresh: bool = False,
+    ) -> dict[str, BaseModel]:
         """Read this group's models from the database."""
+        labels_to_read = set(labels).difference(self._models.keys()) if not refresh else labels
         self._models.update(
             {
                 qual.artifact.artifact_label: qual.value
-                for qual in await read_models(NodeRelationshipFilter(child_of=self._node_id))
+                for qual in await read_models(
+                    ModelFilter(
+                        NodeRelationshipFilter(child_of=self._node_id),
+                        artifact_label=ValueFilter(in_=labels_to_read),
+                    )
+                )
             }
         )
-        return self._models
+        return self._models.copy()
 
     async def read_model(self, label: str, *, refresh: bool = False) -> BaseModel:
         """Read this group's model from the database."""
         if label not in self._models or refresh:
-            qual = await read_model(NodeRelationshipFilter(child_of=self._node_id))
+            qual = await read_model(
+                ModelFilter(
+                    NodeRelationshipFilter(child_of=self._node_id),
+                    artifact_label=ValueFilter(eq=label),
+                )
+            )
             self._models[label] = qual.value
         return self._models[label]
 

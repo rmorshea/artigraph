@@ -39,12 +39,12 @@ def new_node(node_type: Callable[P, N] = Node, *args: P.args, **kwargs: P.kwargs
     return node_type(*args, **kwargs)
 
 
-async def read_nodes_exist(node_filter: NodeFilter) -> bool:
+async def read_nodes_exist(node_filter: NodeFilter[Any] | Filter) -> bool:
     """Check if nodes exist."""
     return bool(await read_nodes(node_filter))
 
 
-async def read_node(node_filter: NodeFilter[N]) -> N:
+async def read_node(node_filter: NodeFilter[N] | Filter) -> N:
     """Read a node by its ID."""
     node = await read_node_or_none(node_filter)
     if node is None:
@@ -53,7 +53,7 @@ async def read_node(node_filter: NodeFilter[N]) -> N:
     return node
 
 
-async def read_node_or_none(node_filter: NodeFilter[N]) -> N | None:
+async def read_node_or_none(node_filter: NodeFilter[N] | Filter) -> N | None:
     """Read a node by its ID."""
     async with current_session() as session:
         result = await session.execute(node_filter.apply(select(Node.__table__)))

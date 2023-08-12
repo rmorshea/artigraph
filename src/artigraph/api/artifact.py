@@ -6,7 +6,7 @@ from typing import Any, Generic, Sequence, TypeVar, overload
 from sqlalchemy import inspect
 from typing_extensions import TypeAlias
 
-from artigraph.api.filter import ArtifactFilter
+from artigraph.api.filter import ArtifactFilter, Filter
 from artigraph.api.node import (
     delete_nodes,
     read_node,
@@ -126,7 +126,7 @@ def group_artifacts_by_parent_id(
     return artifacts_by_parent_id
 
 
-async def delete_artifacts(artifact_filter: ArtifactFilter) -> None:
+async def delete_artifacts(artifact_filter: ArtifactFilter | Filter) -> None:
     """Delete the artifacts from the database."""
     artifacts = await read_nodes(artifact_filter)
 
@@ -140,13 +140,13 @@ async def delete_artifacts(artifact_filter: ArtifactFilter) -> None:
     await delete_nodes(artifact_filter)
 
 
-async def read_artifact(artifact_filter: ArtifactFilter[A]) -> QualifiedArtifact[A, Any]:
+async def read_artifact(artifact_filter: ArtifactFilter[A] | Filter) -> QualifiedArtifact[A, Any]:
     """Load the artifact from the database."""
     return (await _load_qualified_artifacts([await read_node(artifact_filter)]))[0]
 
 
 async def read_artifact_or_none(
-    artifact_filter: ArtifactFilter[A],
+    artifact_filter: ArtifactFilter[A] | Filter,
 ) -> QualifiedArtifact[A, Any] | None:
     """Load the artifact from the database, or return None if it does not exist."""
     artifact_node = await read_node_or_none(artifact_filter)
@@ -154,7 +154,7 @@ async def read_artifact_or_none(
 
 
 async def read_artifacts(
-    artifact_filter: ArtifactFilter[A],
+    artifact_filter: ArtifactFilter[A] | Filter,
 ) -> Sequence[QualifiedArtifact[A, Any]]:
     """Load the artifact from the database."""
     artifact_nodes = await read_nodes(artifact_filter)

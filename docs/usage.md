@@ -60,9 +60,9 @@ You can then create an instance of the model and save it to the database:
 
 ```python
 # construct an artifact
-artifact = MyDataModel(some_value=42, another_value={"foo": "bar"})
+model = MyDataModel(some_value=42, another_value={"foo": "bar"})
 # save it to the database
-artifact_id = await write_model(label="my-data")
+await write_model(label="my-data", model=model)
 ```
 
 Instead of using the `@dataclass` decorator to declare dataclass behavior, pass kwargs
@@ -109,6 +109,7 @@ s3_bucket = S3Storage("my-bucket")
 T = TypeVar("T")
 S3 = Annotated[T, s3_bucket]
 PandasDataframe = Annotated[pd.DataFrame, dataframe_serializer]
+
 
 class MyDataModel(DataModel, version=1):
     db_frame: PandasDataframe
@@ -167,42 +168,62 @@ deleting the old data.
 
 ## Nodes
 
-Nodes provide a way to group models together. For example, if you have a model that was
-trained on a dataset, you might want to group the model and the dataset together under a
-common node. To do so just establish the node you want to group them under using
-`create_current()`:
+Nodes provide a way to group models together.
 
 ```python
-from artigraph import Node, create_current, write_node_models
+from artigraph import new_node, write_node, write_models
+
+node = await write_node(new_node())
+
+await write_models(
+    parent_id=node.node_id,
+    models={
+        "model1": MyDataModel(...),
+        "model2": MyDataModel(...),
+    }
+)
+```
+
+You can then retrieve the models attached to a node using `read_models()`:
+
+```python
+model_filter = NodeRelationshipFilter(child_of=node.node_id)
+models = await read_models(model_filter)
+```
+
+To make this easier, you can use `ModelGroup`s. A `ModelGroup` is a context manager that
+automatically creates a node and, and the end of the context attaches any models that
+were added to it. For example:
+
+```python
+from artigraph import ModelGroup, new_node
 
 
-async with create_current(Node):
-    await write_node_models(
-        "current",
+async with ModelGroup(new_node()) as group:
+    group.add_models(
         {
-            "training_dataset": Dataset(...),
-            "test_dataset": Dataset(...),
+            "training_dataset": DatasetModel(...),
+            "test_dataset": DatasetModel(...),
             "trained_model": TrainedModel(...),
-        },
+        }
     )
 ```
 
-You can then retrieve artifacts from a spans using `read_node_models()`:
+You can then retrieve artifacts from the group using `read_models()`:
 
 ```python
-from artigraph import read_node_models
+models = await group.read_models()
+```
 
-async with create_current(Node) as node:
-    await write_node_models(
-        "current",
-        {
-            "training_dataset": Dataset(...),
-            "test_dataset": Dataset(...),
-            "trained_model": TrainedModel(...),
-        },
-    )
+You can also use groups with existing node or node ID:
 
-models = await read_node_models(node.node_id)
+```python
+node_id = 1234
+group = ModelGroup(node=node_id)
+group.add_model("model1", MyDataModel(...))
+await group.save()
+models = await group.read_models()
+await group.delete_models()
 ```
 
 ### Nesting Nodes
@@ -285,10 +306,10 @@ graph LR
 
 ### Querying Nodes
 
-Artigraph makes it easy to inspect the graph using `NodeFilter`s. The examples below
-show what nodes each query would return in the [graph above](#span-graph) by
-highlighting the nodes in <span style="color:green">green</span> that were used in the
-query and <span style="color:red">red</span> for nodes that would be returned.
+Artigraph makes it easy to inspect the graph using `Filter`s. The examples below show
+what nodes each query would return in the [graph above](#span-graph) by highlighting the
+nodes in <span style="color:green">green</span> that were used in the query and
+<span style="color:red">red</span> for nodes that would be returned.
 
 ---
 

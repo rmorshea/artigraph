@@ -9,6 +9,7 @@ import artigraph
 from artigraph.api.artifact import (
     AnyQualifiedArtifact,
     QualifiedArtifact,
+    delete_artifacts,
     group_artifacts_by_parent_id,
     new_artifact,
     read_artifact,
@@ -35,23 +36,31 @@ MODELED_TYPES: dict[type[Any], type[BaseModel]] = {}
 # useful in an interactive context (e.g. IPython/Jupyter)
 ALLOW_MODEL_TYPE_OVERWRITES = ContextVar("ALLOW_MODEL_TYPE_OVERWRITES", default=False)
 
-QualifiedModelArtifact: TypeAlias = "QualifiedArtifact[ModelArtifact, ModelMetadata]"
+QualifiedModelMetadataArtifact: TypeAlias = "QualifiedArtifact[ModelArtifact, ModelMetadata]"
+"""A convenience type for a qualified model metadata artifact."""
+
+QualifiedModelArtifact: TypeAlias = "QualifiedArtifact[ModelArtifact, M]"
 """A convenience type for a qualified model artifact."""
 
 
 async def write_models(
-    *, parent_id: int | None, models: dict[str, BaseModel]
-) -> dict[str, QualifiedModelArtifact]:
+    *,
+    parent_id: int | None = None,
+    models: dict[str, BaseModel],
+) -> dict[str, QualifiedModelMetadataArtifact]:
     """Save a set of models in the database that are linked to the given node"""
-    ids: dict[str, QualifiedModelArtifact] = {}
+    ids: dict[str, QualifiedModelMetadataArtifact] = {}
     for k, v in models.items():
         ids[k] = await write_model(parent_id=parent_id, label=k, model=v)
     return ids
 
 
 async def write_model(
-    *, parent_id: int | None, label: str, model: BaseModel
-) -> QualifiedModelArtifact:
+    *,
+    parent_id: int | None = None,
+    label: str,
+    model: BaseModel,
+) -> QualifiedModelMetadataArtifact:
     """Save a model in te database that is linked to the given node"""
     parent_node = None if parent_id is None else await read_node(NodeFilter(node_id=parent_id))
 
@@ -84,22 +93,31 @@ async def write_model(
     return root_node
 
 
-async def read_model(model_filter: ModelFilter[M]) -> M:
+async def read_model(model_filter: ModelFilter[M]) -> QualifiedModelArtifact[M]:
     """Load the model from the database."""
-    return await _read_model(await read_artifact(model_filter))  # type: ignore
+    qual = await read_artifact(model_filter)
+    return QualifiedArtifact(qual.artifact, await _read_model(qual))  # type: ignore
 
 
-async def read_model_or_none(model_filter: ModelFilter[M]) -> M | None:
+async def read_model_or_none(model_filter: ModelFilter[M]) -> QualifiedModelArtifact[M] | None:
     """Load the model from the database or return None if it doesn't exist."""
     qual = await read_artifact_or_none(model_filter)
     if qual is None:
         return None
-    return await _read_model(qual)  # type: ignore
+    return QualifiedArtifact(qual.artifact, await _read_model(qual))  # type: ignore
 
 
-async def read_models(model_filter: ModelFilter[M]) -> Sequence[M]:
+async def read_models(model_filter: ModelFilter[M]) -> Sequence[QualifiedModelArtifact[M]]:
     """Load the models from the database."""
-    return [await _read_model(m) for m in await read_artifacts(model_filter)]  # type: ignore
+    return [  # type: ignore
+        QualifiedArtifact(m.artifact, await _read_model(m))
+        for m in await read_artifacts(model_filter)
+    ]
+
+
+async def delete_models(model_filter: ModelFilter[Any]) -> None:
+    models = await read_artifacts(model_filter)
+    await delete_artifacts(NodeRelationshipFilter(descendant_of=models))
 
 
 class FieldConfig(TypedDict, total=False):
@@ -151,7 +169,7 @@ class ModelMetadata(TypedDict):
     """The version of Artigraph used to generate the model"""
 
 
-async def _read_model(qual: QualifiedModelArtifact) -> BaseModel:
+async def _read_model(qual: QualifiedModelMetadataArtifact) -> BaseModel:
     """Load the artifact model from the database."""
     desc_artifacts = await read_artifacts(
         ArtifactFilter(
@@ -167,7 +185,7 @@ async def _read_model(qual: QualifiedModelArtifact) -> BaseModel:
 
 def _get_field_artifacts_from_models_and_nodes_by_path(
     models_by_path: dict[str, tuple[BaseModel, ModelData]],
-    nodes_by_path: dict[str, QualifiedModelArtifact],
+    nodes_by_path: dict[str, QualifiedModelMetadataArtifact],
 ):
     return [
         fn
@@ -180,7 +198,7 @@ def _get_field_artifacts_from_models_and_nodes_by_path(
 
 
 def _get_parent_child_id_pairs_from_nodes_by_path(
-    nodes_by_path: dict[str, QualifiedModelArtifact],
+    nodes_by_path: dict[str, QualifiedModelMetadataArtifact],
     root_node: Node | None,
 ) -> list[tuple[int | None, int]]:
     pairs: list[tuple[int | None, int]] = []
@@ -195,7 +213,7 @@ def _get_parent_child_id_pairs_from_nodes_by_path(
     return pairs
 
 
-def _get_model_artifact(label: str, model: BaseModel) -> QualifiedModelArtifact:
+def _get_model_artifact(label: str, model: BaseModel) -> QualifiedModelMetadataArtifact:
     """Get the artifact model for the given artifact label."""
     return QualifiedArtifact(
         artifact=ModelArtifact(
@@ -247,7 +265,7 @@ def _artifacts_from_model_data(
 
 
 async def _load_from_artifacts(
-    qual_artifact: QualifiedModelArtifact,
+    qual_artifact: QualifiedModelMetadataArtifact,
     artifacts_by_parent_id: dict[int | None, list[AnyQualifiedArtifact]],
 ) -> BaseModel:
     """Load the artifacts from the database."""
@@ -294,6 +312,8 @@ def _get_model_type_by_name(name: str) -> type[BaseModel]:
         raise ValueError(msg) from None
 
 
-def _is_qualified_model_artifact(qual: QualifiedArtifact) -> TypeGuard[QualifiedModelArtifact]:
+def _is_qualified_model_artifact(
+    qual: QualifiedArtifact,
+) -> TypeGuard[QualifiedModelMetadataArtifact]:
     """Check if an artifact is a qualified model artifact."""
     return isinstance(qual.artifact, ModelArtifact)

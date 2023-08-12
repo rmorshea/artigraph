@@ -5,12 +5,15 @@ from typing import Annotated, Any, Optional
 
 import pandas as pd
 
+from artigraph.api.filter import NodeRelationshipFilter
+from artigraph.api.node import new_node, write_node
 from artigraph.model.base import (
     read_model,
     write_model,
+    write_models,
 )
 from artigraph.model.data import DataModel
-from artigraph.model.filter import ModelFilter
+from artigraph.model.filter import ModelFilter, ModelTypeFilter
 from artigraph.serializer.pandas import dataframe_serializer
 from artigraph.storage.file import temp_file_storage
 
@@ -65,6 +68,27 @@ async def test_read_write_simple_artifact_model_with_inner_model():
     qual = await write_model(parent_id=None, label="some-label", model=model)
     db_model = await read_model(ModelFilter(node_id=qual.artifact.node_id))
     assert db_model == model
+
+
+class OtherModel(SampleModel, version=1):
+    pass
+
+
+async def test_filter_on_model_type():
+    """Test filtering on model type exclude OtherModel"""
+    root = await write_node(new_node())
+    sample_model = SampleModel(some_value="sample-value", remote_value=pd.DataFrame())
+    other_model = OtherModel(some_value="other-value", remote_value=pd.DataFrame())
+    await write_models(
+        parent_id=root.node_id, models={"sample": sample_model, "other": other_model}
+    )
+    db_model = await read_model(
+        ModelFilter(
+            relationship=NodeRelationshipFilter(child_of=root.node_id),
+            model_type=ModelTypeFilter(type=SampleModel, subclasses=False),
+        )
+    )
+    assert db_model == sample_model
 
 
 # async def test_read_write_child_artifact_models():

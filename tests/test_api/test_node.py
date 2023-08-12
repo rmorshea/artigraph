@@ -25,7 +25,7 @@ class ThingTwo(Node):
 
 async def test_read_node_type_any_of():
     graph = await create_graph()
-    nodes = await read_nodes(NodeFilter(node_type=NodeTypeFilter(type_in=[ThingOne])))
+    nodes = await read_nodes(NodeFilter(node_type=NodeTypeFilter(type=[ThingOne])))
     assert {n.node_id for n in nodes} == {
         n.node_id for n in graph.get_all_nodes() if isinstance(n, ThingOne)
     }
@@ -33,7 +33,7 @@ async def test_read_node_type_any_of():
 
 async def test_read_node_type_none_of():
     graph = await create_graph()
-    nodes = await read_nodes(NodeFilter(node_type=NodeTypeFilter(type_not_in=[ThingOne])))
+    nodes = await read_nodes(NodeFilter(node_type=NodeTypeFilter(not_type=[ThingOne])))
     assert {n.node_id for n in nodes} == {
         n.node_id for n in graph.get_all_nodes() if not isinstance(n, ThingOne)
     }

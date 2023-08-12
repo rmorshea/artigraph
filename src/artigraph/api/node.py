@@ -14,7 +14,7 @@ from typing import (
 from sqlalchemy import case, delete, select, update
 from typing_extensions import ParamSpec
 
-from artigraph.api.filter import NodeFilter
+from artigraph.api.filter import Filter, NodeFilter
 from artigraph.db import current_session
 from artigraph.orm.node import NODE_TYPE_BY_POLYMORPHIC_IDENTITY, Node
 
@@ -30,7 +30,7 @@ def group_nodes_by_parent_id(nodes: Sequence[N]) -> dict[int | None, list[N]]:
     return grouped_nodes
 
 
-def new_node(node_type: Callable[P, N], *args: P.args, **kwargs: P.kwargs) -> N:
+def new_node(node_type: Callable[P, N] = Node, *args: P.args, **kwargs: P.kwargs) -> N:
     """Create a new node."""
     if args:
         msg = "Positional arguments are not supported - use keyword arguments instead."
@@ -60,7 +60,7 @@ async def read_node_or_none(node_filter: NodeFilter[N]) -> N | None:
         return load_node_from_row(result.one_or_none())  # type: ignore
 
 
-async def read_nodes(node_filter: NodeFilter[N] | None = None) -> Sequence[N]:
+async def read_nodes(node_filter: NodeFilter[N] | Filter | None = None) -> Sequence[N]:
     """Read nodes by their IDs."""
     cmd = select(Node.__table__)
     if node_filter is not None:

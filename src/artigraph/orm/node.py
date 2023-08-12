@@ -8,6 +8,7 @@ from sqlalchemy import ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from artigraph.orm.base import Base
+from artigraph.utils import get_subclasses
 
 T = TypeVar("T")
 
@@ -23,7 +24,7 @@ def get_polymorphic_identities(
     subclasses: bool = False,
 ) -> Sequence[str]:
     """Get the polymorphic identities of the given node types and optionall their subclasses."""
-    node_types = [s for c in node_types for s in _get_subclasses(c)] if subclasses else node_types
+    node_types = [s for c in node_types for s in get_subclasses(c)] if subclasses else node_types
     return [nt.polymorphic_identity for nt in node_types if not nt.is_abstract()]
 
 
@@ -115,7 +116,3 @@ class Node(Base, **_node_dataclass_kwargs):
 
 # Have to manually add Node to NODE_TYPE_BY_POLYMORPHIC_IDENTITY
 NODE_TYPE_BY_POLYMORPHIC_IDENTITY[Node.polymorphic_identity] = Node
-
-
-def _get_subclasses(cls: type[T]) -> list[type[T]]:
-    return [cls, *(s for c in cls.__subclasses__() for s in _get_subclasses(c))]

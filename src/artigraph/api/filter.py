@@ -97,7 +97,7 @@ class NodeFilter(Filter, Generic[N]):
             query = (
                 self.node_type
                 if isinstance(self.node_type, NodeTypeFilter)
-                else NodeTypeFilter(type_in=[self.node_type])
+                else NodeTypeFilter(type=[self.node_type])
             ).apply(query)
 
         if self.relationship:
@@ -127,10 +127,10 @@ class NodeRelationshipFilter(Filter):
     """Nodes must be an ancestor of one of these nodes."""
 
     def apply(self, query: Query) -> Query:
-        child_of = _to_sequence_of_none(self.child_of)
-        parent_of = _to_sequence_of_none(self.parent_of)
-        descendant_of = _to_sequence_of_none(self.descendant_of)
-        ancestor_of = _to_sequence_of_none(self.ancestor_of)
+        child_of = to_sequence_or_none(self.child_of)
+        parent_of = to_sequence_or_none(self.parent_of)
+        descendant_of = to_sequence_or_none(self.descendant_of)
+        ancestor_of = to_sequence_or_none(self.ancestor_of)
 
         if not self.include_self:
             query = query.where(
@@ -210,19 +210,22 @@ class NodeTypeFilter(Filter, Generic[N]):
 
     subclasses: bool = True
     """Consider subclasses of the given types when filtering."""
-    type_in: Sequence[type[N]] | None = None
+    type: Sequence[type[N]] | type[N] | None = None  # noqa: A003
     """Nodes must be one of these types."""
-    type_not_in: Sequence[type[N]] | None = None
+    not_type: Sequence[type[N]] | type[N] | None = None
     """Nodes must not be one of these types."""
 
     def apply(self, query: Query) -> Query:
-        if self.type_in is not None:
-            in_polys = get_polymorphic_identities(self.type_in, subclasses=self.subclasses)
-            query = query.where(Node.node_type.in_(in_polys))
+        type_in = to_sequence_or_none(self.type)
+        type_not_in = to_sequence_or_none(self.not_type)
 
-        if self.type_not_in is not None:
-            notin_polys = get_polymorphic_identities(self.type_not_in, subclasses=self.subclasses)
-            query = query.where(Node.node_type.notin_(notin_polys))
+        if type_in is not None:
+            polys_in = get_polymorphic_identities(type_in, subclasses=self.subclasses)
+            query = query.where(Node.node_type.in_(polys_in))
+
+        if type_not_in is not None:
+            polys_not_in = get_polymorphic_identities(type_not_in, subclasses=self.subclasses)
+            query = query.where(Node.node_type.notin_(polys_not_in))
 
         return query
 
@@ -232,7 +235,7 @@ class ArtifactFilter(NodeFilter[A]):
 
     node_type: NodeTypeFilter[A] = field(
         # delay this in case tables are defined late
-        default_factory=lambda: NodeTypeFilter(type_in=[BaseArtifact])  # type: ignore
+        default_factory=lambda: NodeTypeFilter(type=[BaseArtifact])  # type: ignore
     )
     """Artifacts must be one of these types."""
     artifact_label: ValueFilter[str] | None = None
@@ -300,5 +303,6 @@ class ValueFilter(GenericFilter[InstrumentedAttribute[T]]):
         return query
 
 
-def _to_sequence_of_none(value: Sequence[T] | T | None) -> Sequence[T] | None:
+def to_sequence_or_none(value: Sequence[T] | T | None) -> Sequence[T] | None:
+    """Convert scalar values to a sequence, or None if the value is None."""
     return value if isinstance(value, Sequence) else (None if value is None else (value,))

@@ -69,3 +69,7 @@ class TaskBatch(Generic[R]):
 
     async def gather(self) -> Sequence[R]:
         return await asyncio.gather(*[t() for t in self._funcs])
+
+
+def get_subclasses(cls: type[R]) -> list[type[R]]:
+    return [cls, *(s for c in cls.__subclasses__() for s in get_subclasses(c))]

@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import field
 from typing import TYPE_CHECKING, Generic, Sequence, TypeVar
 
+from sqlalchemy import or_, select
+
 from artigraph.api.filter import (
     ArtifactFilter,
     Filter,
@@ -10,8 +12,10 @@ from artigraph.api.filter import (
     NodeTypeFilter,
     Query,
     ValueFilter,
+    to_sequence_or_none,
 )
 from artigraph.orm.artifact import BaseArtifact, ModelArtifact
+from artigraph.utils import get_subclasses
 
 if TYPE_CHECKING:
     from artigraph.model.base import BaseModel
@@ -25,25 +29,39 @@ class ModelFilter(ArtifactFilter[ModelArtifact], Generic[M]):
 
     node_type: NodeTypeFilter[ModelArtifact] = field(
         # delay this in case tables are defined late
-        default_factory=lambda: NodeTypeFilter(type_in=[ModelArtifact])
+        default_factory=lambda: NodeTypeFilter(type=[ModelArtifact])
     )
     """Models must be one of these types."""
-
     is_root: bool = False
     """Model node must be the root node. That is, it's parent is not an artifact."""
-
-    model_types: Sequence[ModelTypeFilter[M]] = ()
+    model_type: Sequence[ModelTypeFilter[M]] | ModelTypeFilter[M] | type[M] | None = None
     """Models must be one of these types."""
 
     def apply(self, query: Query) -> Query:
         query = super().apply(query)
 
-        for model_type in self.model_types:
-            query = model_type.apply(query)
+        model_type = to_sequence_or_none(self.model_type)
+
+        if model_type is not None:
+            # or the model type queries together
+            query = query.where(
+                or_(
+                    *[
+                        ModelArtifact.node_id.in_(
+                            (
+                                mt
+                                if isinstance(mt, ModelTypeFilter)
+                                else ModelTypeFilter(type=mt, version=mt.model_version)
+                            ).apply(select(ModelArtifact.node_id))
+                        )
+                        for mt in model_type
+                    ]
+                )
+            )
 
         if self.is_root:
             query = NodeFilter(
-                node_type=NodeTypeFilter(type_not_in=BaseArtifact.__subclasses__())
+                node_type=NodeTypeFilter(not_type=BaseArtifact.__subclasses__())
             ).apply(query)
 
         return query
@@ -52,21 +70,32 @@ class ModelFilter(ArtifactFilter[ModelArtifact], Generic[M]):
 class ModelTypeFilter(Generic[M], Filter):
     """Filter models by their type and version"""
 
-    model_type: type[M]
+    type: type[M]  # noqa: A003
     """Models must be this type."""
-
-    model_version: ValueFilter | int | None = None
+    version: ValueFilter | int | None = None
     """Models must be this version."""
+    subclasses: bool = True
+    """If True, include subclasses of the given model type."""
 
     def apply(self, query: Query) -> Query:
-        query = query.where(ModelArtifact.model_artifact_type == self.model_type.model_name)
-
-        if self.model_version:
-            model_version = (
-                self.model_version
-                if isinstance(self.model_version, int)
-                else ValueFilter(eq=self.model_version)
+        if self.subclasses:
+            query = query.where(
+                ModelArtifact.model_artifact_type.in_(
+                    [m.model_name for m in get_subclasses(self.type)]
+                )
             )
-            query = model_version.using(ModelArtifact.model_artifact_version).apply(query)
+        else:
+            query = query.where(ModelArtifact.model_artifact_type == self.type.model_name)
+
+        if self.version is not None:
+            query = (
+                (
+                    self.version
+                    if isinstance(self.version, ValueFilter)
+                    else ValueFilter(eq=self.version)
+                )
+                .using(ModelArtifact.model_artifact_version)
+                .apply(query)
+            )
 
         return query

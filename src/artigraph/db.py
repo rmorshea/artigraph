@@ -41,6 +41,7 @@ def engine_context(
 @asynccontextmanager
 async def session_context(**kwargs: Any) -> AsyncIterator[AsyncSession]:
     """Define which session to use in the context."""
+    kwargs.setdefault("expire_on_commit", False)
     async with async_sessionmaker(await get_engine(), **kwargs)() as session:
         reset = set_session(session)
         try:
@@ -60,7 +61,7 @@ async def current_session() -> AsyncIterator[AsyncSession]:
         yield session
         return
 
-    async with AsyncSession(await get_engine()) as session:
+    async with AsyncSession(await get_engine(), expire_on_commit=False) as session:
         try:
             yield session
         except Exception:

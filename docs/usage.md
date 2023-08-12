@@ -210,17 +210,16 @@ models = await read_node_models(node.node_id)
 Nodes can be nested to create a hierarchy. For example the following code
 
 ```python
-from artigraph import Node, create_current
+from artigraph import ModelGroup, new_node
 
 
-async def main():
-    async with create_current(Node) as parent:
-        async with create_current(Node) as node:
-            async with create_current(Node) as child1:
-                async with create_current(Node) as grandchild:
-                    pass
-            async with create_current(Node) as child2:
+async with ModelGroup(new_node()) as parent:
+    async with ModelGroup(Node) as node:
+        async with ModelGroup(Node) as child1:
+            async with ModelGroup(Node) as grandchild:
                 pass
+        async with ModelGroup(Node) as child2:
+            pass
 ```
 
 Will create a node hierarchy like this:
@@ -241,7 +240,7 @@ graph LR
 Attaching artifacts to those nested spans:
 
 ```python
-from artigraph import write_node_models
+from artigraph import ModelGroup, new_node
 
 
 @dataclass
@@ -250,15 +249,14 @@ class MyDataModel(DataModel, version=1):
     another_value: str
 
 
-async def main():
-    async with create_current(Node) as parent:
-        async with create_current(Node) as node:
-            await write_node_models("current", {"model1": MyDataModel(...)})
-            async with create_current(Node) as child1:
-                async with create_current(Node) as grandchild:
-                    await write_node_models("current", {"model2": MyDataModel(...)})
-            async with create_current(Node) as child2:
-                await write_node_models("current", {"model2": MyDataModel(...)})
+async with ModelGroup(new_node()) as parent:
+    async with ModelGroup(Node) as group:
+        node.add_model("model1", MyDataModel(...))
+        async with ModelGroup(Node) as child1:
+            async with ModelGroup(Node) as grandchild:
+                grandchild.add_model("model2", MyDataModel(...))
+        async with ModelGroup(Node) as child2:
+            child2.add_model("model3", MyDataModel(...))
 ```
 
 Would then extend the graph:
@@ -287,22 +285,28 @@ graph LR
 
 ### Querying Nodes
 
-Artigraph provides a number of utilities that allow you to traverse the span hierarchy
-and retrieve artifacts from the spans. The examples below show what nodes each query
-would in the [graph above](#span-graph) return by highlighting them in red.
+Artigraph makes it easy to inspect the graph using `NodeFilter`s. The examples below
+show what nodes each query would return in the [graph above](#span-graph) by
+highlighting the nodes in <span style="color:green">green</span> that were used in the
+query and <span style="color:red">red</span> for nodes that would be returned.
 
 ---
 
-#### Child Spans
+#### Child Nodes
 
 ```python
-await read_child_nodes(span.node_id)
+await read_nodes(
+    NodeFilter(
+        node_type=NodeTypeFilter(type=Node, subclasses=False),
+        relationship=NodeRelationshipFilter(child_of=group.node.node_id),
+    )
+)
 ```
 
 ```mermaid
 graph LR
     p([parent])
-    n([node])
+    n([group])
     c1([child1])
     c2([child2])
     g([grandchild])
@@ -310,6 +314,7 @@ graph LR
     m2[MyDataModel]
     m3[MyDataModel]
 
+    style n stroke:green,stroke-width:2px
     style c1 stroke:red,stroke-width:2px
     style c2 stroke:red,stroke-width:2px
 
@@ -324,16 +329,21 @@ graph LR
 
 ---
 
-#### Child Artifacts
+#### Child Models
 
 ```python
-await read_child_artifacts(span.node_id)
+await read_models(
+    ModelFilter(
+        model_type=MyDataModel,
+        relationship=NodeRelationshipFilter(child_of=group.node.node_id),
+    )
+)
 ```
 
 ```mermaid
 graph LR
     p([parent])
-    n([node])
+    n([group])
     c1([child1])
     c2([child2])
     g([grandchild])
@@ -341,6 +351,7 @@ graph LR
     m2[MyDataModel]
     m3[MyDataModel]
 
+    style n stroke:green,stroke-width:2px
     style m1 stroke:red,stroke-width:2px
 
     p --> n
@@ -354,16 +365,21 @@ graph LR
 
 ---
 
-#### Descendant Spans
+#### Descendant Nodes
 
 ```python
-span_descendants = await read_descendant_spans(span.node_id)
+await read_nodes(
+    NodeFilter(
+        node_type=NodeTypeFilter(type=Node, subclasses=False),
+        relationship=NodeRelationshipFilter(descendant_of=group.node.node_id),
+    )
+)
 ```
 
 ```mermaid
 graph LR
     p([parent])
-    n([node])
+    n([group])
     c1([child1])
     c2([child2])
     g([grandchild])
@@ -371,6 +387,7 @@ graph LR
     m2[MyDataModel]
     m3[MyDataModel]
 
+    style n stroke:green,stroke-width:2px
     style c1 stroke:red,stroke-width:2px
     style c2 stroke:red,stroke-width:2px
     style g stroke:red,stroke-width:2px
@@ -386,16 +403,21 @@ graph LR
 
 ---
 
-#### Descendant Artifacts
+#### Descendant Models
 
 ```python
-span_descendant_artifacts = await read_descendant_artifacts(span.node_id)
+await read_models(
+    ModelFilter(
+        model_type=MyDataModel,
+        relationship=NodeRelationshipFilter(descendant_of=group.node.node_id),
+    )
+)
 ```
 
 ```mermaid
 graph LR
     p([parent])
-    n([node])
+    n([group])
     c1([child1])
     c2([child2])
     g([grandchild])
@@ -403,6 +425,7 @@ graph LR
     m2[MyDataModel]
     m3[MyDataModel]
 
+    style n stroke:green,stroke-width:2px
     style m1 stroke:red,stroke-width:2px
     style m2 stroke:red,stroke-width:2px
     style m3 stroke:red,stroke-width:2px
@@ -418,16 +441,18 @@ graph LR
 
 ---
 
-#### Parent Span
+#### Parent Nodes
 
 ```python
-span_parent = await read_parent_span(span.node_id)
+span_parent = await read_nodes(
+    NodeRelationshipFilter(parent_of=group.node.node_id)
+)
 ```
 
 ```mermaid
 graph LR
     p([parent])
-    n([node])
+    n([group])
     c1([child1])
     c2([child2])
     g([grandchild])
@@ -435,6 +460,7 @@ graph LR
     m2[MyDataModel]
     m3[MyDataModel]
 
+    style n stroke:green,stroke-width:2px
     style p stroke:red,stroke-width:2px
 
     p --> n
@@ -448,16 +474,18 @@ graph LR
 
 ---
 
-#### Ancestor Spans
+#### Ancestor Nodes
 
 ```python
-grandchild_ancestors = await read_ancestor_spans(grandchild.node_id)
+grandchild_ancestors = await read_nodes(
+    NodeRelationshipFilter(ancestor_or=group.node.node_id)
+)
 ```
 
 ```mermaid
 graph LR
     p([parent])
-    n([node])
+    n([group])
     c1([child1])
     c2([child2])
     g([grandchild])
@@ -465,6 +493,7 @@ graph LR
     m2[MyDataModel]
     m3[MyDataModel]
 
+    style g stroke:green,stroke-width:2px
     style p stroke:red,stroke-width:2px
     style n stroke:red,stroke-width:2px
     style c1 stroke:red,stroke-width:2px

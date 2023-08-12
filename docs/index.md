@@ -41,10 +41,11 @@ class MyDataModel(DataModel, version=1):
 
 
 async def main():
+    # create a model group and add a model to it
     async with ModelGroup(new_node()) as group:
         model = MyDataModel(some_value=42, another_value={"foo": "bar"})
         group.add_model("my-data", model)
-
+    # read the model back
     db_model = await group.read_model("my-data", refresh=True)
 
 

@@ -17,12 +17,14 @@ from artigraph.api.filter import (
 )
 from artigraph.api.node import (
     delete_nodes,
+    new_node,
     read_node,
     read_node_or_none,
     read_nodes,
     write_node,
     write_nodes,
 )
+from artigraph.db import current_session, engine_context, get_engine, new_session, set_engine
 from artigraph.model.base import (
     delete_models,
     read_model,
@@ -42,14 +44,19 @@ __all__ = [
     "ArtifactFilter",
     "BaseArtifact",
     "current_model_group",
+    "current_session",
     "DatabaseArtifact",
     "DataModel",
     "delete_artifacts",
     "delete_models",
     "delete_nodes",
+    "engine_context",
+    "get_engine",
     "ModelFilter",
     "ModelGroup",
     "ModelTypeFilter",
+    "new_node",
+    "new_session",
     "Node",
     "NodeFilter",
     "NodeRelationshipFilter",
@@ -65,6 +72,7 @@ __all__ = [
     "read_nodes",
     "RemoteArtifact",
     "Serializer",
+    "set_engine",
     "Storage",
     "ValueFilter",
     "write_artifact",

@@ -8,14 +8,14 @@ from pydantic import BaseModel
 from typing_extensions import Self
 
 from artigraph.api.filter import NodeRelationshipFilter, ValueFilter
-from artigraph.api.node import read_node, write_node
+from artigraph.api.node import read_node, read_node_or_none, write_node
 from artigraph.model.base import delete_models, read_model, read_models, write_models
 from artigraph.model.filter import ModelFilter
 from artigraph.orm.node import Node
 
 N = TypeVar("N", bound=Node)
 
-_CURRENT_MODEL_GROUP: ContextVar[ModelGroup[Node]] = ContextVar()
+_CURRENT_MODEL_GROUP: ContextVar[ModelGroup[Node]] = ContextVar("CURRENT_MODEL_GROUP")
 
 
 def current_model_group() -> ModelGroup[Node]:
@@ -107,6 +107,13 @@ class ModelGroup(Generic[N]):
         else:
             for label in labels:
                 del self._models[label]
+
+    async def parent_group(self) -> ModelGroup[Node] | None:
+        """Get this groups' parent."""
+        parent_node = read_node_or_none(NodeRelationshipFilter(child_of=self._node_id))
+        if parent_node is None:
+            return None
+        return ModelGroup(parent_node)
 
     async def save(self) -> None:
         """Write the models to the database."""

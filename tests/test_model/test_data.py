@@ -45,7 +45,7 @@ async def test_save_load_simple_artifact_model():
     model = SampleModel(some_value="test-value", remote_value=pd.DataFrame())
     qual = await write_model(parent_id=None, label="some-label", model=model)
     db_model = await read_model(ModelFilter(node_id=qual.artifact.node_id))
-    assert db_model == model
+    assert db_model.value == model
 
 
 async def test_read_write_simple_artifact_model_with_inner_model():
@@ -67,7 +67,7 @@ async def test_read_write_simple_artifact_model_with_inner_model():
 
     qual = await write_model(parent_id=None, label="some-label", model=model)
     db_model = await read_model(ModelFilter(node_id=qual.artifact.node_id))
-    assert db_model == model
+    assert db_model.value == model
 
 
 class OtherModel(SampleModel, version=1):
@@ -88,7 +88,7 @@ async def test_filter_on_model_type():
             model_type=ModelTypeFilter(type=SampleModel, subclasses=False),
         )
     )
-    assert db_model == sample_model
+    assert db_model.value == sample_model
 
 
 # async def test_read_write_child_artifact_models():

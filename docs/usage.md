@@ -583,7 +583,7 @@ and end times of the run:
 
 ```python
 from functools import wraps
-from artigraph import write_node_models, read_parent_node
+from artigraph import ModelGroup, new_node
 from artigraph.db import current_session
 
 
@@ -591,11 +591,10 @@ def run(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
 
-        async with ModelGroup(new_node(Run, run_started_at=datetime.now(timezone.utc))) as run:
+        async with ModelGroup(new_node(Run, run_started_at=datetime.now(timezone.utc))) as group:
             try:
-                parent = await read_parent_node("current")
-                result = await func(parent, *args, **kwargs)
-                await write_node_models("current", result)
+                result = await func(*args, **kwargs)
+                await group.add_models(result)
                 return result
             finally:
                 async with current_session() as session:
@@ -609,9 +608,8 @@ def run(func):
 You could then use this decorator to create `spanned` functions like this:
 
 ```python
-@spanned
-async def train_model(parent_span, **parameters):
-    dataset = await read_child_models(parent_span.node_id)
+@run
+async def train_model(**parameters):
     model = train_model_on_dataset(dataset, **parameters)
     return {"model": model}
 ```

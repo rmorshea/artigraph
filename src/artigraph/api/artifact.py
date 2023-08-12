@@ -6,7 +6,7 @@ from typing import Any, Generic, Sequence, TypeVar, overload
 from artigraph.api.filter import ArtifactFilter
 from artigraph.api.node import (
     delete_nodes,
-    is_node_type,
+    read_node,
     read_node_or_none,
     read_nodes,
 )
@@ -32,6 +32,10 @@ class QualifiedArtifact(Generic[A, T]):
 
     value: T
     """The deserialized value"""
+
+
+AnyQualifiedArtifact = QualifiedArtifact[RemoteArtifact | DatabaseArtifact, Any]
+"""A convenience type for any qualified artifact."""
 
 
 @overload
@@ -78,38 +82,37 @@ def new_artifact(
     value: Any,
     serializer: Serializer,
     *,
-    detail: str = "",
     storage: Storage | None = None,
     parent_id: int | None = None,
-) -> QualifiedArtifact:
+) -> QualifiedArtifact[RemoteArtifact | DatabaseArtifact, T]:
     """Construct a new artifact and its value"""
-    return (
-        DatabaseArtifact(
-            node_parent_id=parent_id,
-            artifact_label=label,
-            artifact_serializer=serializer.name,
-            artifact_detail=detail,
-        )
-        if storage is None
-        else RemoteArtifact(
-            node_parent_id=parent_id,
-            artifact_label=label,
-            artifact_detail=detail,
-            artifact_serializer=serializer.name,
-            remote_artifact_storage=storage.name,
+    return QualifiedArtifact(
+        artifact=(
+            DatabaseArtifact(
+                node_parent_id=parent_id,
+                artifact_label=label,
+                artifact_serializer=serializer.name,
+            )
+            if storage is None
+            else RemoteArtifact(
+                node_parent_id=parent_id,
+                artifact_label=label,
+                artifact_serializer=serializer.name,
+                remote_artifact_storage=storage.name,
+            )
         ),
-        value,
+        value=value,
     )
 
 
 def group_artifacts_by_parent_id(
-    qualified_artifacts: Sequence[QualifiedArtifact],
-) -> dict[int | None, list[QualifiedArtifact]]:
+    qualified_artifacts: Sequence[AnyQualifiedArtifact],
+) -> dict[int | None, list[AnyQualifiedArtifact]]:
     """Group artifacts by their parent id."""
-    artifacts_by_parent_id: dict[int | None, list[QualifiedArtifact]] = {}
+    artifacts_by_parent_id: dict[int | None, list[AnyQualifiedArtifact]] = {}
     for qualart in qualified_artifacts:
         artifacts_by_parent_id.setdefault(qualart.artifact.node_parent_id, []).append(
-            (qualart.artifact, qualart.value)
+            QualifiedArtifact(qualart.artifact, qualart.value)
         )
     return artifacts_by_parent_id
 
@@ -120,7 +123,7 @@ async def delete_artifacts(artifact_filter: ArtifactFilter) -> None:
 
     remote_storage_deletions = TaskBatch()
     for a in artifacts:
-        if is_node_type(a, RemoteArtifact):
+        if isinstance(a, RemoteArtifact):
             storage = get_storage_by_name(a.remote_artifact_storage)
             remote_storage_deletions.add(storage.delete, a.remote_artifact_location)
 
@@ -128,16 +131,14 @@ async def delete_artifacts(artifact_filter: ArtifactFilter) -> None:
     await delete_nodes(artifact_filter)
 
 
-async def read_artifact(artifact_filter: ArtifactFilter) -> QualifiedArtifact:
+async def read_artifact(artifact_filter: ArtifactFilter[A]) -> QualifiedArtifact[A, Any]:
     """Load the artifact from the database."""
-    artifact_node = await read_node_or_none(artifact_filter)
-    if not artifact_node:
-        msg = f"Artifact not found for filter {artifact_filter}"
-        raise ValueError(msg)
-    return (await _load_qualified_artifacts([artifact_node]))[0]
+    return (await _load_qualified_artifacts([await read_node(artifact_filter)]))[0]
 
 
-async def read_artifact_or_none(artifact_filter: ArtifactFilter) -> QualifiedArtifact | None:
+async def read_artifact_or_none(
+    artifact_filter: ArtifactFilter[A],
+) -> QualifiedArtifact[A, Any] | None:
     """Load the artifact from the database, or return None if it does not exist."""
     artifact_node = await read_node_or_none(artifact_filter)
     if not artifact_node:
@@ -145,7 +146,9 @@ async def read_artifact_or_none(artifact_filter: ArtifactFilter) -> QualifiedArt
     return (await _load_qualified_artifacts([artifact_node]))[0]
 
 
-async def read_artifacts(artifact_filter: ArtifactFilter) -> Sequence[QualifiedArtifact]:
+async def read_artifacts(
+    artifact_filter: ArtifactFilter[A],
+) -> Sequence[QualifiedArtifact[A, Any]]:
     """Load the artifact from the database."""
     artifact_nodes = await read_nodes(artifact_filter)
     return await _load_qualified_artifacts(artifact_nodes)
@@ -153,7 +156,7 @@ async def read_artifacts(artifact_filter: ArtifactFilter) -> Sequence[QualifiedA
 
 async def _load_qualified_artifacts(
     artifact_nodes: Sequence[BaseArtifact],
-) -> list[QualifiedArtifact]:
+) -> list[AnyQualifiedArtifact]:
     artifact_nodes_and_bytes: list[tuple[BaseArtifact, bytes | None]] = []
 
     remote_artifact_nodes: list[RemoteArtifact] = []
@@ -182,9 +185,7 @@ async def _load_qualified_artifacts(
     return qualified_artifacts
 
 
-async def write_artifacts(
-    qualified_artifacts: Sequence[QualifiedArtifact[Any, Any]]
-) -> Sequence[int]:
+async def write_artifacts(qualified_artifacts: Sequence[AnyQualifiedArtifact]) -> Sequence[int]:
     """Save the artifacts to the database."""
     qualified_storage_artifacts: list[tuple[RemoteArtifact, Any]] = []
     database_artifacts: list[DatabaseArtifact] = []
@@ -223,8 +224,8 @@ async def write_artifacts(
         # We can't do this in asyncio.gather() because of issues with concurrent connections:
         # https://docs.sqlalchemy.org/en/20/errors.html#illegalstatechangeerror-and-concurrency-exceptions
         artifact_ids: list[int] = []
-        for a, _ in qualified_artifacts:
-            await session.refresh(a)
-            artifact_ids.append(a.node_id)
+        for qual in qualified_artifacts:
+            await session.refresh(qual.artifact)
+            artifact_ids.append(qual.artifact.node_id)
 
         return artifact_ids

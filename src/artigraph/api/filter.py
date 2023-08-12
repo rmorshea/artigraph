@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
+import operator
+from dataclasses import dataclass, field, fields, replace
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Generic, Sequence, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Generic, Sequence, TypeVar
 
-from sqlalchemy import join, select
+from sqlalchemy import BinaryExpression, join, select
 from sqlalchemy.orm import aliased
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.sql.selectable import Select
@@ -48,16 +49,16 @@ class GenericFilter(Filter, Generic[T]):
         # type checkers assume T.__get__ if T is a descriptor - force it to just be T
 
         @property
-        def value(self) -> T:
+        def value(self) -> T:  # type: ignore
             """The specific value to filter by."""
 
     else:
-        value = field(init=False)
+        value: T = field(init=False)
 
     def using(self, value: T) -> Self:
         """Return a new filter that uses the given value."""
         new = replace(self)
-        new.value = value
+        new.value = value  # type: ignore
         return new
 
     def apply(self, query: Select) -> Select:
@@ -67,42 +68,48 @@ class GenericFilter(Filter, Generic[T]):
 class NodeFilter(Filter, Generic[N]):
     """Filter nodes that meet the given conditions"""
 
-    node_id: IntegerFilter | None
+    node_id: ComparisonFilter[int] | None = None
     """Nodes must have one of these IDs."""
 
     node_type: NodeTypeFilter[N] | None = None
     """Nodes must be one of these types."""
 
-    is_child_of: Sequence[Node] = ()
-    """Nodes must be a child of one of these nodes."""
+    is_child_of: Sequence[int] = ()
+    """Nodes must be a child of one of nodes with these ids."""
 
-    is_parent_of: Sequence[Node] = ()
-    """Nodes must be a parent to any one of these nodes."""
+    is_parent_of: Sequence[int] = ()
+    """Nodes must be a parent to any one of nodes with these ids."""
 
-    is_descendant_of: Sequence[Node] = ()
-    """Nodes must be a descendant of one of these nodes."""
+    is_descendant_of: Sequence[int] = ()
+    """Nodes must be a descendant of one of nodes with these ids."""
 
-    is_ancestor_of: Sequence[Node] = ()
-    """Nodes must be an ancestor of one of these nodes."""
+    is_ancestor_of: Sequence[int] = ()
+    """Nodes must be an ancestor of one of nodes with these ids."""
 
-    created_at: DatetimeFilter | None
+    created_at: ComparisonFilter[datetime] | None = None
     """Filter nodes by their creation time."""
 
-    updated_at: DatetimeFilter | None
+    updated_at: ComparisonFilter[datetime] | None = None
     """Filter nodes by their last update time."""
 
     def apply(self, query: Select) -> Select:
         if self.node_id:
-            query = self.node_id.apply(query)
+            query = self.node_id.using(Node.node_id).apply(query)
 
         if self.node_type:
             query = self.node_type.apply(query)
 
         if self.is_child_of:
-            query = query.where(Node.node_parent_id.in_(n.node_id for n in self.is_child_of))
+            query = query.where(Node.node_parent_id.in_(n for n in self.is_child_of))
 
         if self.is_parent_of:
-            query = query.where(Node.node_id.in_(n.node_parent_id for n in self.is_parent_of))
+            query = query.where(
+                Node.node_id.in_(
+                    select(Node.node_parent_id)
+                    .where(Node.node_id.in_(n for n in self.is_parent_of))
+                    .alias("parent_ids")
+                )
+            )
 
         if self.is_descendant_of:
             descendant_node_cte = (
@@ -133,6 +140,7 @@ class NodeFilter(Filter, Generic[N]):
             )
 
         if self.is_ancestor_of:
+            # Create a CTE to get the ancestors recursively
             ancestor_node_cte = (
                 select(Node.node_id.label("ancestor_id"), Node.node_parent_id)
                 .where(Node.node_id.in_(self.is_ancestor_of))
@@ -140,23 +148,19 @@ class NodeFilter(Filter, Generic[N]):
             )
 
             # Recursive case: select the parents of the current nodes
-            child_node = aliased(Node)
+            parent_node = aliased(Node)
             ancestor_node_cte = ancestor_node_cte.union_all(
-                select(child_node.node_id, child_node.node_parent_id).where(
-                    child_node.node_id == ancestor_node_cte.c.ancestor_id
+                select(parent_node.node_id, parent_node.node_parent_id).where(
+                    parent_node.node_id == ancestor_node_cte.c.node_parent_id
                 )
             )
 
             # Join the CTE with the actual Node table to get the ancestors
             query = (
                 query.select_from(
-                    join(
-                        Node,
-                        ancestor_node_cte,
-                        Node.node_id == ancestor_node_cte.c.ancestor_id,
-                    )
+                    join(Node, ancestor_node_cte, Node.node_id == ancestor_node_cte.c.ancestor_id)
                 )
-                # Exclude the roots
+                # Exclude the root node itself
                 .where(ancestor_node_cte.c.ancestor_id.notin_(self.is_ancestor_of))
             )
 
@@ -180,24 +184,35 @@ class NodeTypeFilter(Filter, Generic[N]):
 
     def apply(self, query: Select) -> Select:
         if self.any_of:
-            query = query.where(Node.node_type.in_(n.polymorphic_identity for n in self.any_of))
+            query = query.where(
+                Node.node_type.in_(
+                    {c.polymorphic_identity for c in self.any_of}
+                    | {s.polymorphic_identity for c in self.any_of for s in c.__subclasses__()}
+                )
+            )
 
         if self.none_of:
-            query = query.where(Node.node_type.notin_(n.polymorphic_identity for n in self.none_of))
+            query = query.where(
+                Node.node_type.notin_(
+                    {c.polymorphic_identity for c in self.none_of}
+                    | {s.polymorphic_identity for c in self.none_of for s in c.__subclasses__()}
+                )
+            )
 
         return query
 
 
-class ArtifactFilter(NodeFilter[BaseArtifact]):
+class ArtifactFilter(NodeFilter[A]):
     """Filter artifacts that meet the given conditions."""
 
-    node_type: NodeTypeFilter = field(init=False)
+    node_type: NodeTypeFilter[A] = field(
+        # delay this in case tables are defined late
+        default_factory=lambda: NodeTypeFilter(any_of=[BaseArtifact])  # type: ignore
+    )
+    """Artifacts must be one of these types."""
 
-    artifact_label: StringFilter | None = None
+    artifact_label: ComparisonFilter[str] | None = None
     """Filter artifacts by their label."""
-
-    artifact_detail: StringFilter | None = None
-    """Filter artifacts by their detail."""
 
     artifact_serializer: Sequence[Serializer] = ()
     """Filter artifacts by their serializer."""
@@ -205,13 +220,8 @@ class ArtifactFilter(NodeFilter[BaseArtifact]):
     def apply(self, query: Select) -> Select:
         query = super().apply(query)
 
-        self.node_type = NodeTypeFilter(any_of=BaseArtifact.__subclasses__())
-
         if self.artifact_label:
             query = self.artifact_label.using(BaseArtifact.artifact_label).apply(query)
-
-        if self.artifact_detail:
-            query = self.artifact_detail.using(BaseArtifact.artifact_detail).apply(query)
 
         if self.artifact_serializer:
             query = query.where(
@@ -221,87 +231,47 @@ class ArtifactFilter(NodeFilter[BaseArtifact]):
         return query
 
 
-class IntegerFilter(GenericFilter[InstrumentedAttribute[int]]):
-    """Filter an integer column by a range of integers."""
-
-    gt: int | None = None
-    """The minimum integer."""
-
-    ge: int | None = None
-    """The minimum integer, inclusive."""
-
-    lt: int | None = None
-    """The maximum integer."""
-
-    le: int | None = None
-    """The maximum integer, inclusive."""
-
-    eq: int | None = None
-    """The exact integer."""
-
-    def apply(self, query: Select) -> Select:
-        if self.gt:
-            query = query.where(self.value > self.gt)
-        if self.ge:
-            query = query.where(self.value >= self.ge)
-        if self.lt:
-            query = query.where(self.value < self.lt)
-        if self.le:
-            query = query.where(self.value <= self.le)
-        if self.eq:
-            query = query.where(self.value == self.eq)
-        return query
+def column_op(
+    *,
+    op: Callable[[InstrumentedAttribute[Any], Any], BinaryExpression],
+    **kwargs: Any,
+) -> Any:
+    """Apply a comparison operator to a column."""
+    return field(metadata={"op": op}, **kwargs)
 
 
-class StringFilter(GenericFilter[InstrumentedAttribute[str]]):
-    """Filter a string column by a range of strings."""
+@dataclass_transform(field_specifiers=())
+class ComparisonFilter(GenericFilter[InstrumentedAttribute[T]]):
+    """Filter a column by comparing it to a value."""
 
-    like: str | None = None
-    """The string must match this pattern."""
-
-    ilike: str | None = None
-    """The string must match this pattern, case-insensitive."""
-
-    eq: str | None = None
-    """The string must be exactly this."""
+    gt: T | None = column_op(default=None, op=operator.gt)
+    """The column must be greater than this value."""
+    ge: T | None = column_op(default=None, op=operator.ge)
+    """The column must be greater than or equal to this value."""
+    lt: T | None = column_op(default=None, op=operator.lt)
+    """The column must be less than this value."""
+    le: T | None = column_op(default=None, op=operator.le)
+    """The column must be less than or equal to this value."""
+    eq: T | None = column_op(default=None, op=operator.eq)
+    """The column must be equal to this value."""
+    in_: Sequence[T] | None = column_op(default=None, op=lambda col, val: col.in_(val))
+    """The column must be one of these values."""
+    not_in: Sequence[T] | None = column_op(default=None, op=lambda col, val: col.notin_(val))
+    """The column must not be one of these values."""
+    like: T | None = column_op(default=None, op=lambda col, val: col.like(val))
+    """The column must match this pattern."""
+    ilike: T | None = column_op(default=None, op=lambda col, val: col.ilike(val))
+    """The column must match this pattern, case-insensitive."""
+    is_: bool | None = column_op(default=None, op=lambda col, val: col.is_(val))
+    """The column must be this value."""
+    is_not: bool | None = column_op(default=None, op=lambda col, val: col.isnot(val))
+    """The column must not be this value."""
 
     def apply(self, query: Select) -> Select:
-        if self.like:
-            query = query.where(self.value.like(self.like))
-        if self.ilike:
-            query = query.where(self.value.ilike(self.ilike))
-        if self.eq:
-            query = query.where(self.value == self.eq)
-        return query
-
-
-class DatetimeFilter(GenericFilter[InstrumentedAttribute[datetime]]):
-    """Filter a datetime column by a range of datetimes."""
-
-    gt: datetime | None = None
-    """The minimum datetime."""
-
-    ge: datetime | None = None
-    """The minimum datetime, inclusive."""
-
-    lt: datetime | None = None
-    """The maximum datetime."""
-
-    le: datetime | None = None
-    """The maximum datetime, inclusive."""
-
-    eq: datetime | None = None
-    """The exact datetime."""
-
-    def apply(self, query: Select) -> Select:
-        if self.gt:
-            query = query.where(self.value > self.gt)
-        if self.ge:
-            query = query.where(self.value >= self.ge)
-        if self.lt:
-            query = query.where(self.value < self.lt)
-        if self.le:
-            query = query.where(self.value <= self.le)
-        if self.eq:
-            query = query.where(self.value == self.eq)
+        for f in fields(self):
+            if "op" in f.metadata:
+                op_value = getattr(self, f.name, None)
+                if op_value is not None:
+                    op: Callable[[InstrumentedAttribute[T], T], BinaryExpression] = f.metadata["op"]
+                    query = query.where(op(self.value, op_value))
         return query

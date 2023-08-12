@@ -1,85 +1,25 @@
 from __future__ import annotations
 
 from collections.abc import Collection
-from contextlib import asynccontextmanager
-from contextvars import ContextVar
 from dataclasses import fields
-from functools import wraps
 from typing import (
     Any,
-    AsyncIterator,
     Callable,
     Iterable,
-    Literal,
-    Protocol,
     Sequence,
     TypeVar,
     overload,
 )
 
 from sqlalchemy import Row, Select, case, delete, select, update
-from typing_extensions import ParamSpec, TypeGuard
+from typing_extensions import ParamSpec
 
 from artigraph.api.filter import NodeFilter
-from artigraph.db import current_session, session_context
+from artigraph.db import current_session
 from artigraph.orm.node import NODE_TYPE_BY_POLYMORPHIC_IDENTITY, Node
 
 P = ParamSpec("P")
-R_co = TypeVar("R_co", covariant=True)
 N = TypeVar("N", bound=Node)
-
-_CURRENT_NODE_ID: ContextVar[int | None] = ContextVar("CURRENT_NODE_ID", default=None)
-
-
-@overload
-def current_node_id(*, allow_none: Literal[True]) -> int | None:
-    ...
-
-
-@overload
-def current_node_id(*, allow_none: Literal[False] = ...) -> int:
-    ...
-
-
-def current_node_id(*, allow_none: bool = False) -> int | None:
-    """Get the current span ID."""
-    span_id = _CURRENT_NODE_ID.get()
-    if span_id is None and not allow_none:
-        msg = "No span is currently active."
-        raise RuntimeError(msg)
-    return span_id
-
-
-def with_current_node_id(func: _NodeFunc[P, R_co]) -> _CurrentNodeFunc[P, R_co]:
-    @wraps(func)
-    async def wrapper(node_id: int | Literal["current"], *args: P.args, **kwargs: P.kwargs) -> R_co:
-        return await func(
-            current_node_id() if node_id == "current" else node_id,
-            *args,
-            **kwargs,
-        )
-
-    return wrapper
-
-
-@asynccontextmanager
-async def create_current(
-    node_type: Callable[P, N],
-    *args: P.args,
-    **kwargs: P.kwargs,
-) -> AsyncIterator[N]:
-    """Create a new node and set it as the current node."""
-    kwargs.setdefault("node_parent_id", current_node_id(allow_none=True))
-    node = node_type(*args, **kwargs)
-    async with session_context(expire_on_commit=False) as session:
-        session.add(node)
-        await session.commit()
-        await session.refresh(node)
-    last_span_token = _CURRENT_NODE_ID.set(node.node_id)
-    try:
-        yield node
-    finally:
-        _CURRENT_NODE_ID.reset(last_span_token)
 
 
 def group_nodes_by_parent_id(nodes: Sequence[N]) -> dict[int | None, list[N]]:
@@ -90,9 +30,13 @@ def group_nodes_by_parent_id(nodes: Sequence[N]) -> dict[int | None, list[N]]:
     return grouped_nodes
 
 
-def is_node_type(node: Node, node_type: type[N]) -> TypeGuard[N]:
-    """Check if a node is of a given type."""
-    return node.node_type == node_type.polymorphic_identity
+def new_node(node_type: Callable[P, N], *args: P.args, **kwargs: P.kwargs) -> N:
+    """Create a new node."""
+    if args:
+        msg = "Positional arguments are not supported - use keyword arguments instead."
+        raise TypeError(msg)
+    kwargs.setdefault("node_parent_id", None)
+    return node_type(*args, **kwargs)
 
 
 async def read_nodes_exist(node_filter: NodeFilter) -> bool:
@@ -153,7 +97,7 @@ async def write_nodes(
             # We can't do this in asyncio.gather() because of issues with concurrent connections:
             # https://docs.sqlalchemy.org/en/20/errors.html#illegalstatechangeerror-and-concurrency-exceptions
             for n in nodes:
-                await session.refresh(n, refresh_attributes)
+                await session.refresh(n, refresh_attributes or None)
     return tuple(nodes)
 
 
@@ -212,25 +156,3 @@ def load_node_from_row(row: Row[Any] | None) -> Any:
     node_obj = node_type(**kwargs)
     node_obj.__dict__.update(attrs)
     return node_obj
-
-
-class _NodeFunc(Protocol[P, R_co]):
-    async def __call__(
-        self,
-        node_id: int,
-        /,
-        *args: P.args,
-        **kwargs: P.kwargs,
-    ) -> R_co:
-        ...
-
-
-class _CurrentNodeFunc(Protocol[P, R_co]):
-    async def __call__(
-        self,
-        node_id: int | Literal["current"],
-        /,
-        *args: P.args,
-        **kwargs: P.kwargs,
-    ) -> R_co:
-        ...

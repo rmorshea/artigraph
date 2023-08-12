@@ -1,16 +1,10 @@
 from __future__ import annotations
 
-import pytest
-
+from artigraph.api.filter import ComparisonFilter, NodeFilter, NodeTypeFilter
 from artigraph.api.node import (
-    current_node_id,
     group_nodes_by_parent_id,
-    read_ancestor_nodes,
-    read_child_nodes,
-    read_descendant_nodes,
     read_node,
     read_nodes,
-    read_parent_node,
     write_parent_child_relationships,
 )
 from artigraph.db import current_session, session_context
@@ -27,17 +21,11 @@ class ThingTwo(Node):
     __mapper_args__ = {"polymorphic_identity": polymorphic_identity}  # noqa: RUF012
 
 
-def test_current_node_id_no_allow_none():
-    """Test that the current node ID is not None."""
-    with pytest.raises(RuntimeError):
-        current_node_id()
-
-
 async def test_read_direct_children():
     """Test reading the direct children of a node."""
     graph = await create_graph()
     root = graph.get_root()
-    children = await read_child_nodes(root.node_id)
+    children = await read_nodes(NodeFilter(is_child_of=[root.node_id]))
     assert {n.node_id for n in children} == {n.node_id for n in graph.get_children(root.node_id)}
 
 
@@ -45,7 +33,12 @@ async def test_read_direct_children_with_node_types():
     """Test reading the direct children of a node with node types."""
     graph = await create_graph()
     root = graph.get_root()
-    children = await read_child_nodes(root.node_id, ThingOne)
+    children = await read_nodes(
+        NodeFilter(
+            is_child_of=[root.node_id],
+            node_type=NodeTypeFilter(any_of=[ThingOne]),
+        )
+    )
     expected_ids = {n.node_id for n in graph.get_children(root.node_id) if isinstance(n, ThingOne)}
     assert {n.node_id for n in children} == expected_ids
 
@@ -54,7 +47,7 @@ async def test_read_recursive_children():
     """Test reading the recursive children of a node."""
     graph = await create_graph()
     root = graph.get_root()
-    children = await read_descendant_nodes(root.node_id)
+    children = await read_nodes(NodeFilter(is_descendant_of=[root.node_id]))
     expected_descendant_ids = {n.node_id for n in graph.get_all_nodes()} - {root.node_id}
     assert {n.node_id for n in children} == expected_descendant_ids
 
@@ -63,7 +56,12 @@ async def test_read_recursive_children_with_node_type():
     """Test reading the recursive children of a node with node types."""
     graph = await create_graph()
     root = graph.get_root()
-    children = await read_descendant_nodes(root.node_id, ThingOne)
+    children = await read_nodes(
+        NodeFilter(
+            is_descendant_of=[root.node_id],
+            node_type=NodeTypeFilter(any_of=[ThingOne]),
+        )
+    )
     all_span_ids = {n.node_id for n in graph.get_all_nodes() if isinstance(n, ThingOne)}
     expected_descendant_ids = all_span_ids - {root.node_id}
     assert {n.node_id for n in children} == expected_descendant_ids
@@ -84,27 +82,22 @@ async def test_create_parent_child_relationships():
             ]
         )
 
-        db_parent = await read_node(parent.node_id)
-        db_child = await read_node(child.node_id)
-        db_grandchild = await read_node(grandchild.node_id)
+        db_parent = await read_node(NodeFilter(node_id=ComparisonFilter(eq=parent.node_id)))
+        db_child = await read_node(NodeFilter(node_id=ComparisonFilter(eq=child.node_id)))
+        db_grandchild = await read_node(NodeFilter(node_id=ComparisonFilter(eq=grandchild.node_id)))
 
         assert db_parent.node_parent_id == grandparent.node_id
         assert db_child.node_parent_id == parent.node_id
         assert db_grandchild.node_parent_id == child.node_id
 
-        assert {n.node_id for n in await read_descendant_nodes(grandparent.node_id)} == {
+        actual_node_ids = {
+            n.node_id for n in await read_nodes(NodeFilter(is_descendant_of=[grandparent.node_id]))
+        }
+        assert actual_node_ids == {
             parent.node_id,
             child.node_id,
             grandchild.node_id,
         }
-
-
-async def test_read_nodes_no_allow_none():
-    async with session_context(expire_on_commit=False):
-        node_exists_id = await create_node()
-
-        with pytest.raises(ValueError):
-            await read_nodes([node_exists_id.node_id, 123], allow_none=False)
 
 
 async def test_read_ancestor_nodes():
@@ -121,8 +114,10 @@ async def test_read_ancestor_nodes():
                 (child.node_id, grandchild.node_id),
             ]
         )
-
-        assert {n.node_id for n in await read_ancestor_nodes(grandchild.node_id)} == {
+        actual_node_ids = {
+            n.node_id for n in await read_nodes(NodeFilter(is_ancestor_of=[grandchild.node_id]))
+        }
+        assert actual_node_ids == {
             grandparent.node_id,
             parent.node_id,
             child.node_id,
@@ -133,7 +128,7 @@ async def test_read_parent_node():
     async with session_context(expire_on_commit=False):
         parent = await create_node()
         child = await create_node(parent)
-    assert (await read_parent_node(child.node_id)).node_id == parent.node_id
+    assert (await read_node(NodeFilter(is_parent_of=[child.node_id]))).node_id == parent.node_id
 
 
 async def create_node(parent=None):
@@ -157,9 +152,10 @@ async def create_graph() -> Graph:
     │   ├── ThingTwo
     │   │   └── ThingTwo
     │   └── ThingOne
-    └── ThingOne
-        ├── ThingOne
-        └── ThingTwo
+    ├── ThingOne
+    │  ├── ThingOne
+    │   └── ThingTwo
+    └── ThingTwo
     """
     graph = Graph(None)
     root = graph.add_child(ThingOne)
@@ -169,6 +165,7 @@ async def create_graph() -> Graph:
     child2 = root.add_child(ThingOne)
     child2.add_child(ThingOne)
     child2.add_child(ThingTwo)
+    root.add_child(ThingTwo)
 
     await graph.create()
 
@@ -213,3 +210,6 @@ class Graph:
                     c.parent.node_parent_id = self.parent.node_id
             for c in self.children:
                 await c.create()
+
+    def __repr__(self) -> str:
+        return f"Graph(parent={self.parent}, children={self.children})"

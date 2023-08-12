@@ -26,6 +26,7 @@ from artigraph.api.node import (
 )
 from artigraph.db import current_session, engine_context, get_engine, new_session, set_engine
 from artigraph.model.base import (
+    BaseModel,
     delete_models,
     read_model,
     read_model_or_none,
@@ -43,6 +44,7 @@ from artigraph.storage import Storage
 __all__ = [
     "ArtifactFilter",
     "BaseArtifact",
+    "BaseModel",
     "current_model_group",
     "current_session",
     "DatabaseArtifact",

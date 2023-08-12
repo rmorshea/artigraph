@@ -86,7 +86,7 @@ class ModelGroup(Generic[N]):
                 qual.artifact.artifact_label: qual.value
                 for qual in await read_models(
                     ModelFilter(
-                        NodeRelationshipFilter(child_of=self._node_id),
+                        relationship=NodeRelationshipFilter(child_of=self._node_id),
                         artifact_label=ValueFilter(in_=labels_to_read),
                     )
                 )
@@ -99,18 +99,18 @@ class ModelGroup(Generic[N]):
         if label not in self._models or refresh:
             qual = await read_model(
                 ModelFilter(
-                    NodeRelationshipFilter(child_of=self._node_id),
+                    relationship=NodeRelationshipFilter(child_of=self._node_id),
                     artifact_label=ValueFilter(eq=label),
                 )
             )
             self._models[label] = qual.value
         return self._models[label]
 
-    async def delete_model(self, label: str) -> None:
+    async def remove_model(self, label: str) -> None:
         """Delete this group's model from the database."""
-        await self.delete_models([label])
+        await self.remove_models([label])
 
-    async def delete_models(self, labels: Sequence[str] | None = None) -> None:
+    async def remove_models(self, labels: Sequence[str] | None = None) -> None:
         """Delete the specified models, or all models, from this group in database"""
         await delete_models(
             ModelFilter(

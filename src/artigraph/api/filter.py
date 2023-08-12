@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import operator
+import sys
 from dataclasses import dataclass, field, fields, replace
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Callable, Generic, Sequence, TypeVar
@@ -32,6 +33,7 @@ class _FilterMeta(type):
         **kwargs: Any,
     ):
         self = super().__new__(cls, name, bases, namespace, **kwargs)
+        kwargs = kwargs if sys.version_info < (3, 10) else {"kw_only": True, **kwargs}
         self = dataclass(**kwargs)(self)
         return self
 

@@ -55,13 +55,18 @@ class ModelTypeFilter(Generic[M], Filter):
     model_type: type[M]
     """Models must be this type."""
 
-    model_version: ValueFilter | None = None
+    model_version: ValueFilter | int | None = None
     """Models must be this version."""
 
     def apply(self, query: Query) -> Query:
         query = query.where(ModelArtifact.model_artifact_type == self.model_type.model_name)
 
         if self.model_version:
-            query = self.model_version.using(ModelArtifact.model_artifact_version).apply(query)
+            model_version = (
+                self.model_version
+                if isinstance(self.model_version, int)
+                else ValueFilter(eq=self.model_version)
+            )
+            query = model_version.using(ModelArtifact.model_artifact_version).apply(query)
 
         return query

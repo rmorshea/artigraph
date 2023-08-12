@@ -47,11 +47,19 @@ async def test_delete_node():
     assert not await read_nodes_exist(node_filter)
 
 
+async def test_recursive_delete_node():
+    graph = await create_graph()
+    root = graph.get_root()
+    node_filter = NodeFilter(relationship=NodeRelationshipFilter(descendant_of=root.node_id))
+    await delete_nodes(node_filter)
+    assert not await read_nodes_exist(node_filter)
+
+
 async def test_read_direct_children():
     """Test reading the direct children of a node."""
     graph = await create_graph()
     root = graph.get_root()
-    node_filter = NodeFilter(relationship=NodeRelationshipFilter(parent_in=[root.node_id]))
+    node_filter = NodeFilter(relationship=NodeRelationshipFilter(child_of=root.node_id))
     children = await read_nodes(node_filter)
     assert {n.node_id for n in children} == {n.node_id for n in graph.get_children(root.node_id)}
 
@@ -60,7 +68,7 @@ async def test_read_recursive_children():
     """Test reading the recursive children of a node."""
     graph = await create_graph()
     root = graph.get_root()
-    node_filter = NodeFilter(relationship=NodeRelationshipFilter(ancestor_in=[root.node_id]))
+    node_filter = NodeFilter(relationship=NodeRelationshipFilter(descendant_of=root.node_id))
     children = await read_nodes(node_filter)
     expected_descendant_ids = {n.node_id for n in graph.get_all_nodes()} - {root.node_id}
     assert {n.node_id for n in children} == expected_descendant_ids
@@ -90,7 +98,10 @@ async def test_create_parent_child_relationships():
         assert db_grandchild.node_parent_id == child.node_id
 
         actual_node_ids = {
-            n.node_id for n in await read_nodes(NodeFilter(is_descendant_of=[grandparent.node_id]))
+            n.node_id
+            for n in await read_nodes(
+                NodeFilter(relationship=NodeRelationshipFilter(descendant_of=grandparent.node_id))
+            )
         }
         assert actual_node_ids == {
             parent.node_id,
@@ -114,7 +125,10 @@ async def test_read_ancestor_nodes():
             ]
         )
         actual_node_ids = {
-            n.node_id for n in await read_nodes(NodeFilter(is_ancestor_of=[grandchild.node_id]))
+            n.node_id
+            for n in await read_nodes(
+                NodeFilter(relationship=NodeRelationshipFilter(ancestor_of=grandchild.node_id))
+            )
         }
         assert actual_node_ids == {
             grandparent.node_id,
@@ -127,7 +141,8 @@ async def test_read_parent_node():
     async with session_context(expire_on_commit=False):
         parent = await create_node()
         child = await create_node(parent)
-    assert (await read_node(NodeFilter(is_parent_of=[child.node_id]))).node_id == parent.node_id
+    node_filter = NodeFilter(relationship=NodeRelationshipFilter(parent_of=child.node_id))
+    assert (await read_node(node_filter)).node_id == parent.node_id
 
 
 async def create_node(parent=None):
@@ -206,7 +221,8 @@ class Graph:
                 await session.commit()
                 await session.refresh(self.parent)
                 for c in self.children:
-                    c.parent.node_parent_id = self.parent.node_id
+                    if c.parent:
+                        c.parent.node_parent_id = self.parent.node_id
             for c in self.children:
                 await c.create()
 

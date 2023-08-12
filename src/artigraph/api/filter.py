@@ -12,14 +12,14 @@ from sqlalchemy.sql.dml import Delete, Update
 from sqlalchemy.sql.selectable import Select
 from typing_extensions import ParamSpec, Self, TypeAlias, dataclass_transform
 
-from artigraph.orm import BaseArtifact, Node
+from artigraph.orm import BaseArtifact, Node, get_polymorphic_identities
 from artigraph.serializer.core import Serializer
 
 P = ParamSpec("P")
 T = TypeVar("T")
 N = TypeVar("N", bound=Node)
 A = TypeVar("A", bound=BaseArtifact)
-Query: TypeAlias = "Select | Update | Delete"
+Query: TypeAlias = "Select[Any] | Update | Delete"
 
 
 @dataclass_transform()
@@ -55,7 +55,7 @@ class GenericFilter(Filter, Generic[T]):
             """The specific value to filter by."""
 
     else:
-        value: T = field(init=False)
+        value: T = field(init=False, repr=False)
 
     def using(self, value: T) -> Self:
         """Return a new filter that uses the given value."""
@@ -70,27 +70,38 @@ class GenericFilter(Filter, Generic[T]):
 class NodeFilter(Filter, Generic[N]):
     """Filter nodes that meet the given conditions"""
 
-    node_id: ValueFilter[int] | None = None
-    """Nodes must have one of these IDs."""
-
-    node_type: NodeTypeFilter[N] | None = None
+    node_id: ValueFilter[int] | int | None = None
+    """Nodes must have this ID or meet this condition."""
+    node_type: NodeTypeFilter[N] | type[N] | None = None
     """Nodes must be one of these types."""
-
     relationship: NodeRelationshipFilter | None = None
     """Nodes must be related to one of these nodes."""
-
     created_at: ValueFilter[datetime] | None = None
     """Filter nodes by their creation time."""
-
     updated_at: ValueFilter[datetime] | None = None
     """Filter nodes by their last update time."""
 
     def apply(self, query: Query) -> Query:
-        if self.node_id:
-            query = self.node_id.using(Node.node_id).apply(query)
+        if self.node_id is not None:
+            query = (
+                (
+                    self.node_id
+                    if isinstance(self.node_id, ValueFilter)
+                    else ValueFilter(eq=self.node_id)
+                )
+                .using(Node.node_id)
+                .apply(query)
+            )
 
-        if self.node_type:
-            query = self.node_type.apply(query)
+        if self.node_type is not None:
+            query = (
+                self.node_type
+                if isinstance(self.node_type, NodeTypeFilter)
+                else NodeTypeFilter(type_in=[self.node_type])
+            ).apply(query)
+
+        if self.relationship:
+            query = self.relationship.apply(query)
 
         if self.created_at:
             query = self.created_at.using(Node.node_created_at).apply(query)
@@ -104,50 +115,49 @@ class NodeFilter(Filter, Generic[N]):
 class NodeRelationshipFilter(Filter):
     """Filter nodes by their relationships to other nodes."""
 
-    include_roots: bool = False
+    include_self: bool = False
     """Include the given nodes in the results."""
-
-    parent_in: Sequence[int] | None = None
-    """Nodes must be children of one of these nodes."""
-
-    child_in: Sequence[int] | None = None
-    """Nodes must be parents of one of these nodes."""
-
-    descendant_in: Sequence[int] | None = None
-    """Nodes must be ancestors of one of these nodes."""
-
-    ancestor_in: Sequence[int] | None = None
-    """Nodes must be descendants of one of these nodes."""
+    child_of: Sequence[int] | int | None = None
+    """Nodes must be a child of one of these nodes."""
+    parent_of: Sequence[int] | int | None = None
+    """Nodes must be a parent of one of these nodes."""
+    descendant_of: Sequence[int] | int | None = None
+    """Nodes must be a descendant of one of these nodes."""
+    ancestor_of: Sequence[int] | int | None = None
+    """Nodes must be an ancestor of one of these nodes."""
 
     def apply(self, query: Query) -> Query:
-        if not self.include_roots:
+        child_of = _to_sequence_of_none(self.child_of)
+        parent_of = _to_sequence_of_none(self.parent_of)
+        descendant_of = _to_sequence_of_none(self.descendant_of)
+        ancestor_of = _to_sequence_of_none(self.ancestor_of)
+
+        if not self.include_self:
             query = query.where(
                 Node.node_id.notin_(
                     [
-                        *(self.parent_in or []),
-                        *(self.child_in or []),
-                        *(self.descendant_in or []),
-                        *(self.ancestor_in or []),
+                        *(child_of or []),
+                        *(parent_of or []),
+                        *(descendant_of or []),
+                        *(ancestor_of or []),
                     ]
                 )
             )
 
-        if self.parent_in is not None:
-            query = query.where(Node.node_parent_id.in_(n for n in self.parent_in))
+        if child_of is not None:
+            query = query.where(Node.node_parent_id.in_(n for n in child_of))
 
-        if self.child_in is not None:
+        if parent_of is not None:
             query = query.where(
                 Node.node_id.in_(
-                    select(Node.node_parent_id)
-                    .where(Node.node_id.in_(n for n in self.child_in))
-                    .alias("parent_ids")
+                    select(Node.node_parent_id).where(Node.node_id.in_(n for n in parent_of))
                 )
             )
 
-        if self.ancestor_in is not None:
+        if descendant_of is not None:
             descendant_node_cte = (
                 select(Node.node_id.label("descendant_id"), Node.node_parent_id)
-                .where(Node.node_id.in_(self.ancestor_in))
+                .where(Node.node_id.in_(descendant_of))
                 .cte(name="descendants", recursive=True)
             )
 
@@ -159,17 +169,19 @@ class NodeRelationshipFilter(Filter):
                 )
             )
 
-            # Join the CTE with the actual Node table to get the descendants
-            query = query.join(
-                descendant_node_cte,
-                Node.node_id == descendant_node_cte.c.descendant_id,
+            query = query.where(
+                Node.node_id.in_(
+                    select(descendant_node_cte.c.descendant_id).where(
+                        descendant_node_cte.c.descendant_id.isnot(None)
+                    )
+                )
             )
 
-        if self.descendant_in is not None:
+        if ancestor_of is not None:
             # Create a CTE to get the ancestors recursively
             ancestor_node_cte = (
                 select(Node.node_id.label("ancestor_id"), Node.node_parent_id)
-                .where(Node.node_id.in_(self.descendant_in))
+                .where(Node.node_id.in_(ancestor_of))
                 .cte(name="ancestors", recursive=True)
             )
 
@@ -182,43 +194,34 @@ class NodeRelationshipFilter(Filter):
             )
 
             # Join the CTE with the actual Node table to get the ancestors
-            query = (
-                query.join(
-                    ancestor_node_cte,
-                    Node.node_id == ancestor_node_cte.c.ancestor_id,
+            query = query.where(
+                Node.node_id.in_(
+                    select(ancestor_node_cte.c.ancestor_id).where(
+                        ancestor_node_cte.c.ancestor_id.isnot(None)
+                    )
                 )
-                # Exclude the root node itself
-                .where(ancestor_node_cte.c.ancestor_id.notin_(self.descendant_in))
             )
+
+        return query
 
 
 class NodeTypeFilter(Filter, Generic[N]):
     """Filter nodes by their type."""
 
-    consider_subclasses: bool = True
-    """Include subclasses when filtering the given types."""
-
+    subclasses: bool = True
+    """Consider subclasses of the given types when filtering."""
     type_in: Sequence[type[N]] | None = None
     """Nodes must be one of these types."""
-
     type_not_in: Sequence[type[N]] | None = None
     """Nodes must not be one of these types."""
 
     def apply(self, query: Query) -> Query:
         if self.type_in is not None:
-            in_polys = {c.polymorphic_identity for c in self.type_in}
-            if self.consider_subclasses:
-                in_polys |= {
-                    s.polymorphic_identity for c in self.type_in for s in c.__subclasses__()
-                }
+            in_polys = get_polymorphic_identities(self.type_in, subclasses=self.subclasses)
             query = query.where(Node.node_type.in_(in_polys))
 
         if self.type_not_in is not None:
-            notin_polys = {c.polymorphic_identity for c in self.type_not_in}
-            if self.consider_subclasses:
-                notin_polys |= {
-                    s.polymorphic_identity for c in self.type_not_in for s in c.__subclasses__()
-                }
+            notin_polys = get_polymorphic_identities(self.type_not_in, subclasses=self.subclasses)
             query = query.where(Node.node_type.notin_(notin_polys))
 
         return query
@@ -232,10 +235,8 @@ class ArtifactFilter(NodeFilter[A]):
         default_factory=lambda: NodeTypeFilter(type_in=[BaseArtifact])  # type: ignore
     )
     """Artifacts must be one of these types."""
-
     artifact_label: ValueFilter[str] | None = None
     """Filter artifacts by their label."""
-
     artifact_serializer: Sequence[Serializer] = ()
     """Filter artifacts by their serializer."""
 
@@ -297,3 +298,7 @@ class ValueFilter(GenericFilter[InstrumentedAttribute[T]]):
                     op: Callable[[InstrumentedAttribute[T], T], BinaryExpression] = f.metadata["op"]
                     query = query.where(op(self.value, op_value))
         return query
+
+
+def _to_sequence_of_none(value: Sequence[T] | T | None) -> Sequence[T] | None:
+    return value if isinstance(value, Sequence) else (None if value is None else (value,))

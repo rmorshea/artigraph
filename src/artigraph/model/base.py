@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextvars import ContextVar
 from typing import Any, ClassVar, Sequence, TypedDict, TypeVar
 
-from typing_extensions import Self, TypeAlias
+from typing_extensions import Self, TypeAlias, TypeGuard
 
 import artigraph
 from artigraph.api.artifact import (
@@ -16,11 +16,11 @@ from artigraph.api.artifact import (
     read_artifacts,
     write_artifacts,
 )
-from artigraph.api.filter import ArtifactFilter
+from artigraph.api.filter import ArtifactFilter, NodeRelationshipFilter
 from artigraph.api.node import read_node, write_parent_child_relationships
 from artigraph.db import session_context
-from artigraph.model.filter import ModelFilter
-from artigraph.orm import DatabaseArtifact, Node
+from artigraph.model.filter import ModelFilter, NodeFilter
+from artigraph.orm import Node
 from artigraph.orm.artifact import ModelArtifact
 from artigraph.serializer import Serializer
 from artigraph.serializer.json import json_serializer, json_sorted_serializer
@@ -39,17 +39,21 @@ QualifiedModelArtifact: TypeAlias = "QualifiedArtifact[ModelArtifact, ModelMetad
 """A convenience type for a qualified model artifact."""
 
 
-async def write_models(*, parent_id: int | None, models: dict[str, BaseModel]) -> dict[str, int]:
+async def write_models(
+    *, parent_id: int | None, models: dict[str, BaseModel]
+) -> dict[str, QualifiedModelArtifact]:
     """Save a set of models in the database that are linked to the given node"""
-    ids: dict[str, int] = {}
+    ids: dict[str, QualifiedModelArtifact] = {}
     for k, v in models.items():
-        ids[k] = await write_model(parent_id=parent_id, label=k, mode=v)
+        ids[k] = await write_model(parent_id=parent_id, label=k, model=v)
     return ids
 
 
-async def write_model(*, parent_id: int | None, label: str, model: BaseModel) -> int:
+async def write_model(
+    *, parent_id: int | None, label: str, model: BaseModel
+) -> QualifiedModelArtifact:
     """Save a model in te database that is linked to the given node"""
-    parent_node = None if parent_id is None else await read_node(parent_id)
+    parent_node = None if parent_id is None else await read_node(NodeFilter(node_id=parent_id))
 
     models_and_data_by_path = _get_models_and_data_by_paths(model)
     nodes_by_path = {
@@ -63,7 +67,7 @@ async def write_model(*, parent_id: int | None, label: str, model: BaseModel) ->
 
     async with session_context(expire_on_commit=False):
         # write the model nodes
-        await write_artifacts(list(nodes_by_path.values()))
+        await write_artifacts(list(nodes_by_path.values()))  # type: ignore
 
         # create the model node relationships
         await write_parent_child_relationships(
@@ -77,12 +81,12 @@ async def write_model(*, parent_id: int | None, label: str, model: BaseModel) ->
             )
         )
 
-    return root_node.node_id
+    return root_node
 
 
 async def read_model(model_filter: ModelFilter[M]) -> M:
     """Load the model from the database."""
-    return await _read_model(await read_artifact(model_filter))
+    return await _read_model(await read_artifact(model_filter))  # type: ignore
 
 
 async def read_model_or_none(model_filter: ModelFilter[M]) -> M | None:
@@ -90,12 +94,12 @@ async def read_model_or_none(model_filter: ModelFilter[M]) -> M | None:
     qual = await read_artifact_or_none(model_filter)
     if qual is None:
         return None
-    return await _read_model(qual)
+    return await _read_model(qual)  # type: ignore
 
 
 async def read_models(model_filter: ModelFilter[M]) -> Sequence[M]:
     """Load the models from the database."""
-    return [await _read_model(a) for a in await read_artifacts(model_filter)]
+    return [await _read_model(m) for m in await read_artifacts(model_filter)]  # type: ignore
 
 
 class FieldConfig(TypedDict, total=False):
@@ -114,6 +118,9 @@ class FieldConfig(TypedDict, total=False):
 class BaseModel:
     """An interface for all modeled artifacts."""
 
+    model_name: ClassVar[str]
+    """The name of the artifact model."""
+
     model_version: ClassVar[int] = 1
     """The version of the artifact model."""
 
@@ -127,11 +134,13 @@ class BaseModel:
         raise NotImplementedError()
 
     def __init_subclass__(cls, version: int):
-        name = cls.__name__
-        if not ALLOW_MODEL_TYPE_OVERWRITES.get() and name in MODEL_TYPES_BY_NAME:
-            msg = f"Artifact model named {name!r} already exists"
+        if "model_name" not in cls.__dict__:
+            cls.model_name = cls.__name__
+
+        if not ALLOW_MODEL_TYPE_OVERWRITES.get() and cls.model_name in MODEL_TYPES_BY_NAME:
+            msg = f"Artifact model named {cls.model_name!r} already exists"
             raise RuntimeError(msg)
-        MODEL_TYPES_BY_NAME[name] = cls
+        MODEL_TYPES_BY_NAME[cls.model_name] = cls
         cls.model_version = version
 
 
@@ -144,19 +153,29 @@ class ModelMetadata(TypedDict):
 
 async def _read_model(qual: QualifiedModelArtifact) -> BaseModel:
     """Load the artifact model from the database."""
-    desc_artifacts = await read_artifacts(ArtifactFilter(is_descendant_of=[qual.artifact.node_id]))
+    desc_artifacts = await read_artifacts(
+        ArtifactFilter(
+            relationship=NodeRelationshipFilter(
+                descendant_of=[qual.artifact.node_id],
+                include_self=True,
+            )
+        )
+    )
     desc_artifacts_by_parent_id = group_artifacts_by_parent_id(desc_artifacts)
-    return await _load_from_artifacts(qual.artifact, desc_artifacts_by_parent_id)
+    return await _load_from_artifacts(qual, desc_artifacts_by_parent_id)
 
 
 def _get_field_artifacts_from_models_and_nodes_by_path(
     models_by_path: dict[str, tuple[BaseModel, ModelData]],
-    nodes_by_path: dict[str, DatabaseArtifact],
+    nodes_by_path: dict[str, QualifiedModelArtifact],
 ):
     return [
         fn
         for path, (_, data) in models_by_path.items()
-        for fn in _artifacts_from_model_data(data, nodes_by_path[path])
+        for fn in _artifacts_from_model_data(
+            data,
+            nodes_by_path[path],  # type: ignore
+        )
     ]
 
 
@@ -166,8 +185,12 @@ def _get_parent_child_id_pairs_from_nodes_by_path(
 ) -> list[tuple[int | None, int]]:
     pairs: list[tuple[int | None, int]] = []
     for path, qual in nodes_by_path.items():
-        parent_qual = nodes_by_path.get(_get_model_parent_path(path), root_node)
-        parent_node_id = None if parent_qual is None else parent_qual.artifact.node_id
+        parent_qual = nodes_by_path.get(_get_model_parent_path(path))
+        parent_node_id = (
+            (root_node.node_id if root_node else None)
+            if parent_qual is None
+            else parent_qual.artifact.node_id
+        )
         pairs.append((parent_node_id, qual.artifact.node_id))
     return pairs
 
@@ -179,8 +202,9 @@ def _get_model_artifact(label: str, model: BaseModel) -> QualifiedModelArtifact:
             node_parent_id=None,
             artifact_label=label,
             artifact_serializer=json_sorted_serializer.name,
-            model_artifact_type=type(model).__name__,
+            model_artifact_type=model.model_name,
             model_artifact_version=model.model_version,
+            database_artifact_value=None,
         ),
         value=ModelMetadata(artigraph_version=artigraph.__version__),
     )
@@ -204,7 +228,7 @@ def _get_models_and_data_by_paths(
 
 
 def _artifacts_from_model_data(
-    model_data: ModelData, parent: DatabaseArtifact
+    model_data: ModelData, parent: AnyQualifiedArtifact
 ) -> Sequence[QualifiedArtifact]:
     artifacts: list[QualifiedArtifact] = []
     for label, (value, config) in model_data.items():
@@ -216,7 +240,7 @@ def _artifacts_from_model_data(
                 value,
                 serializer=config.get("serializer", json_serializer),
                 storage=config.get("storage"),
-                parent_id=parent.node_id,
+                parent_id=parent.artifact.node_id,
             )
         )
     return artifacts
@@ -232,7 +256,7 @@ async def _load_from_artifacts(
     kwargs: dict[str, Any] = {}
 
     for child_qual_artifact in artifacts_by_parent_id[qual_artifact.artifact.node_id]:
-        if isinstance(child_qual_artifact.artifact, ModelArtifact):
+        if _is_qualified_model_artifact(child_qual_artifact):
             kwargs[child_qual_artifact.artifact.artifact_label] = await _load_from_artifacts(
                 child_qual_artifact,
                 artifacts_by_parent_id,
@@ -268,3 +292,8 @@ def _get_model_type_by_name(name: str) -> type[BaseModel]:
     except KeyError:
         msg = f"Unknown artifact model type {name!r}"
         raise ValueError(msg) from None
+
+
+def _is_qualified_model_artifact(qual: QualifiedArtifact) -> TypeGuard[QualifiedModelArtifact]:
+    """Check if an artifact is a qualified model artifact."""
+    return isinstance(qual.artifact, ModelArtifact)

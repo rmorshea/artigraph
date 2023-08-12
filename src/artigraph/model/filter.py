@@ -59,7 +59,7 @@ class ModelTypeFilter(Generic[M], Filter):
     """Models must be this version."""
 
     def apply(self, query: Query) -> Query:
-        query = query.where(ModelArtifact.model_artifact_type == self.model_type.__name__)
+        query = query.where(ModelArtifact.model_artifact_type == self.model_type.model_name)
 
         if self.model_version:
             query = self.model_version.using(ModelArtifact.model_artifact_version).apply(query)

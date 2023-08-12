@@ -11,7 +11,7 @@ from typing import (
     overload,
 )
 
-from sqlalchemy import Row, Select, case, delete, select, update
+from sqlalchemy import case, delete, select, update
 from typing_extensions import ParamSpec
 
 from artigraph.api.filter import NodeFilter
@@ -53,11 +53,11 @@ async def read_node(node_filter: NodeFilter[N]) -> N:
     return node
 
 
-async def read_node_or_none(node_filter: NodeFilter) -> Node | None:
+async def read_node_or_none(node_filter: NodeFilter[N]) -> N | None:
     """Read a node by its ID."""
     async with current_session() as session:
         result = await session.execute(node_filter.apply(select(Node.__table__)))
-        return load_node_from_row(result.one_or_none())
+        return load_node_from_row(result.one_or_none())  # type: ignore
 
 
 async def read_nodes(node_filter: NodeFilter[N] | None = None) -> Sequence[N]:
@@ -74,9 +74,9 @@ async def delete_nodes(node_filter: NodeFilter[Node]) -> None:
     """Delete nodes matching the given filter."""
 
     async with current_session() as session:
-        node_ids_cmd: Select[tuple[int]] = node_filter.apply(select(Node.node_id))
-        node_ids = (await session.execute(node_ids_cmd)).scalars().all()
-        delete_cmd = delete(Node).where(Node.node_id.in_(node_ids))
+        # node_ids_cmd: Select[tuple[int]] = node_filter.apply(select(Node.node_id))
+        # node_ids = (await session.execute(node_ids_cmd)).scalars().all()
+        delete_cmd = node_filter.apply(delete(Node))
         await session.execute(delete_cmd)
         await session.commit()
 
@@ -126,14 +126,9 @@ async def write_parent_child_relationships(
         await session.commit()
 
 
-def load_nodes_from_rows(rows: Sequence[Row[Any]]) -> Sequence[Any]:
+def load_nodes_from_rows(rows: Sequence[Any]) -> Sequence[Any]:
     """Load the appropriate Node instances given a sequence of SQLAlchemy rows."""
     return list(map(load_node_from_row, rows))
-
-
-@overload
-def load_node_from_row(row: Row[Node]) -> Node:
-    ...
 
 
 @overload
@@ -141,7 +136,12 @@ def load_node_from_row(row: None) -> None:
     ...
 
 
-def load_node_from_row(row: Row[Any] | None) -> Any:
+@overload
+def load_node_from_row(row: Any) -> Node:
+    ...
+
+
+def load_node_from_row(row: Any | None) -> Node | None:
     """Load the appropriate Node instance given a SQLAlchemy row."""
     if row is None:
         return None

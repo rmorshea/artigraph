@@ -3,6 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Generic, Sequence, TypeVar, overload
 
+from sqlalchemy import inspect
+from typing_extensions import TypeAlias
+
 from artigraph.api.filter import ArtifactFilter
 from artigraph.api.node import (
     delete_nodes,
@@ -10,7 +13,7 @@ from artigraph.api.node import (
     read_node_or_none,
     read_nodes,
 )
-from artigraph.db import session_context
+from artigraph.db import current_session
 from artigraph.orm.artifact import BaseArtifact, DatabaseArtifact, RemoteArtifact
 from artigraph.orm.node import Node
 from artigraph.serializer import get_serializer_by_name
@@ -34,7 +37,11 @@ class QualifiedArtifact(Generic[A, V]):
     """The deserialized value"""
 
 
-AnyQualifiedArtifact = QualifiedArtifact[RemoteArtifact | DatabaseArtifact, Any]
+AnyQualifiedArtifact: TypeAlias = """
+    QualifiedArtifact[RemoteArtifact | DatabaseArtifact, Any]
+    | QualifiedArtifact[DatabaseArtifact, Any]
+    | QualifiedArtifact[RemoteArtifact, Any]
+"""  # noqa: F722
 """A convenience type for any qualified artifact."""
 
 
@@ -44,7 +51,6 @@ def new_artifact(
     value: V,
     serializer: Serializer,
     *,
-    detail: str = ...,
     storage: Storage,
     parent_id: int | None = ...,
 ) -> QualifiedArtifact[RemoteArtifact, V]:
@@ -54,10 +60,9 @@ def new_artifact(
 @overload
 def new_artifact(
     label: str,
-    value: Any,
+    value: V,
     serializer: Serializer,
     *,
-    detail: str = ...,
     storage: Storage | None,
     parent_id: int | None = ...,
 ) -> QualifiedArtifact[RemoteArtifact | DatabaseArtifact, V]:
@@ -67,10 +72,9 @@ def new_artifact(
 @overload
 def new_artifact(
     label: str,
-    value: Any,
+    value: V,
     serializer: Serializer,
     *,
-    detail: str = ...,
     storage: None = ...,
     parent_id: int | None = ...,
 ) -> QualifiedArtifact[DatabaseArtifact, V]:
@@ -79,12 +83,16 @@ def new_artifact(
 
 def new_artifact(
     label: str,
-    value: Any,
+    value: V,
     serializer: Serializer,
     *,
     storage: Storage | None = None,
     parent_id: int | None = None,
-) -> QualifiedArtifact[RemoteArtifact | DatabaseArtifact, V]:
+) -> (
+    QualifiedArtifact[RemoteArtifact | DatabaseArtifact, V]
+    | QualifiedArtifact[RemoteArtifact, V]
+    | QualifiedArtifact[DatabaseArtifact, V]
+):
     """Construct a new artifact and its value"""
     return QualifiedArtifact(
         artifact=(
@@ -92,6 +100,7 @@ def new_artifact(
                 node_parent_id=parent_id,
                 artifact_label=label,
                 artifact_serializer=serializer.name,
+                database_artifact_value=None,
             )
             if storage is None
             else RemoteArtifact(
@@ -141,9 +150,7 @@ async def read_artifact_or_none(
 ) -> QualifiedArtifact[A, Any] | None:
     """Load the artifact from the database, or return None if it does not exist."""
     artifact_node = await read_node_or_none(artifact_filter)
-    if not artifact_node:
-        return None
-    return (await _load_qualified_artifacts([artifact_node]))[0]
+    return (await _load_qualified_artifacts([artifact_node]))[0] if artifact_node else None
 
 
 async def read_artifacts(
@@ -154,12 +161,14 @@ async def read_artifacts(
     return await _load_qualified_artifacts(artifact_nodes)
 
 
-async def write_artifact(qualified_artifact: AnyQualifiedArtifact) -> int:
+async def write_artifact(qualified_artifact: AnyQualifiedArtifact) -> AnyQualifiedArtifact:
     """Save the artifact to the database."""
     return (await write_artifacts([qualified_artifact]))[0]
 
 
-async def write_artifacts(qualified_artifacts: Sequence[AnyQualifiedArtifact]) -> Sequence[int]:
+async def write_artifacts(
+    qualified_artifacts: Sequence[AnyQualifiedArtifact],
+) -> Sequence[AnyQualifiedArtifact]:
     """Save the artifacts to the database."""
     qualified_storage_artifacts: list[tuple[RemoteArtifact, Any]] = []
     database_artifacts: list[DatabaseArtifact] = []
@@ -191,7 +200,7 @@ async def write_artifacts(qualified_artifacts: Sequence[AnyQualifiedArtifact]) -
         artifact.remote_artifact_location = location
 
     # Save records in the database
-    async with session_context() as session:
+    async with current_session() as session:
         session.add_all(database_artifacts + remote_artifacts)
         await session.commit()
 
@@ -199,15 +208,14 @@ async def write_artifacts(qualified_artifacts: Sequence[AnyQualifiedArtifact]) -
         # https://docs.sqlalchemy.org/en/20/errors.html#illegalstatechangeerror-and-concurrency-exceptions
         artifact_ids: list[int] = []
         for qual in qualified_artifacts:
-            await session.refresh(qual.artifact)
+            if inspect(qual.artifact).persistent:
+                await session.refresh(qual.artifact)
             artifact_ids.append(qual.artifact.node_id)
 
-        return artifact_ids
+        return qualified_artifacts
 
 
-async def _load_qualified_artifacts(
-    artifact_nodes: Sequence[BaseArtifact],
-) -> list[AnyQualifiedArtifact]:
+async def _load_qualified_artifacts(artifact_nodes: Sequence[A]) -> list[QualifiedArtifact[A, Any]]:
     artifact_nodes_and_bytes: list[tuple[BaseArtifact, bytes | None]] = []
 
     remote_artifact_nodes: list[RemoteArtifact] = []
@@ -231,6 +239,8 @@ async def _load_qualified_artifacts(
     qualified_artifacts: list[QualifiedArtifact] = []
     for node, value in artifact_nodes_and_bytes:
         serializer = get_serializer_by_name(node.artifact_serializer)
-        qualified_artifacts.append(QualifiedArtifact(node, serializer.deserialize(value)))
+        qualified_artifacts.append(
+            QualifiedArtifact(node, value if value is None else serializer.deserialize(value))
+        )
 
     return qualified_artifacts

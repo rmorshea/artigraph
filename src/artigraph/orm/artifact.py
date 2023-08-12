@@ -40,7 +40,7 @@ class DatabaseArtifact(BaseArtifact):
     polymorphic_identity = "database_artifact"
     __mapper_args__: ClassVar[dict[str, Any]] = {"polymorphic_identity": polymorphic_identity}
 
-    database_artifact_value: Mapped[Optional[bytes]] = mapped_column(default=None)
+    database_artifact_value: Mapped[Optional[bytes]]
     """The data of the artifact."""
 
 

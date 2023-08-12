@@ -3,14 +3,13 @@ from __future__ import annotations
 from dataclasses import field
 from typing import TYPE_CHECKING, Generic, Sequence, TypeVar
 
-from sqlalchemy.sql.selectable import Select
-
 from artigraph.api.filter import (
     ArtifactFilter,
-    ComparisonFilter,
     Filter,
     NodeFilter,
     NodeTypeFilter,
+    Query,
+    ValueFilter,
 )
 from artigraph.orm.artifact import BaseArtifact, ModelArtifact
 
@@ -26,7 +25,7 @@ class ModelFilter(ArtifactFilter[ModelArtifact], Generic[M]):
 
     node_type: NodeTypeFilter[ModelArtifact] = field(
         # delay this in case tables are defined late
-        default_factory=lambda: NodeTypeFilter(any_of=[ModelArtifact])
+        default_factory=lambda: NodeTypeFilter(type_in=[ModelArtifact])
     )
     """Models must be one of these types."""
 
@@ -36,7 +35,7 @@ class ModelFilter(ArtifactFilter[ModelArtifact], Generic[M]):
     model_types: Sequence[ModelTypeFilter[M]] = ()
     """Models must be one of these types."""
 
-    def apply(self, query: Select) -> Select:
+    def apply(self, query: Query) -> Query:
         query = super().apply(query)
 
         for model_type in self.model_types:
@@ -44,7 +43,7 @@ class ModelFilter(ArtifactFilter[ModelArtifact], Generic[M]):
 
         if self.is_root:
             query = NodeFilter(
-                node_type=NodeTypeFilter(none_of=BaseArtifact.__subclasses__())
+                node_type=NodeTypeFilter(type_not_in=BaseArtifact.__subclasses__())
             ).apply(query)
 
         return query
@@ -56,10 +55,10 @@ class ModelTypeFilter(Generic[M], Filter):
     model_type: type[M]
     """Models must be this type."""
 
-    model_version: ComparisonFilter | None = None
+    model_version: ValueFilter | None = None
     """Models must be this version."""
 
-    def apply(self, query: Select) -> Select:
+    def apply(self, query: Query) -> Query:
         query = query.where(ModelArtifact.model_artifact_type == self.model_type.__name__)
 
         if self.model_version:

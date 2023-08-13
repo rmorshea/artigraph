@@ -10,6 +10,7 @@ from artigraph.api.artifact import (
 )
 from artigraph.api.filter import (
     ArtifactFilter,
+    Filter,
     NodeFilter,
     NodeRelationshipFilter,
     NodeTypeFilter,
@@ -53,6 +54,7 @@ __all__ = [
     "delete_models",
     "delete_nodes",
     "engine_context",
+    "Filter",
     "get_engine",
     "ModelFilter",
     "ModelGroup",

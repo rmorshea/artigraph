@@ -4,9 +4,11 @@ from artigraph.api.filter import NodeFilter, NodeRelationshipFilter, NodeTypeFil
 from artigraph.api.node import (
     delete_nodes,
     group_nodes_by_parent_id,
+    new_node,
     read_node,
     read_nodes,
     read_nodes_exist,
+    write_node,
     write_parent_child_relationships,
 )
 from artigraph.db import current_session, new_session
@@ -228,3 +230,10 @@ class Graph:
 
     def __repr__(self) -> str:
         return f"Graph(parent={self.parent}, children={self.children})"
+
+
+async def test_new_node_with_node_id():
+    """Test creating a new node with a node_id."""
+    node = new_node(node_id=1)
+    await write_node(node)
+    await read_node(NodeFilter(node_id=1))

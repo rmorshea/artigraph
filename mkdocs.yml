@@ -8,9 +8,11 @@ extra_css:
 nav:
     - Home: index.md
     - Usage: usage.md
+    - Queries: queries.md
     - Storage: storage.md
     - Serializers: serializers.md
     - Schema: schema.md
+    - API: api.md
 
 # Theme
 theme:
@@ -46,5 +48,20 @@ markdown_extensions:
               - name: mermaid
                 class: mermaid
                 format: !!python/name:pymdownx.superfences.fence_code_format
+    - admonition
+    - pymdownx.details
 plugins:
     - search
+    - mkdocstrings:
+          default_handler: python
+          handlers:
+              python:
+                  paths: [src]
+                  options:
+                      show_bases: true
+                      show_source: true
+                      docstring_style: google
+                      show_signature_annotations: true
+                      separate_signature: true
+watch:
+    - "./src"

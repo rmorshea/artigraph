@@ -70,7 +70,10 @@ async def current_session() -> AsyncIterator[AsyncSession]:
 
 
 def set_engine(engine: AsyncEngine | str, *, create_tables: bool = False) -> Callable[[], None]:
-    """Set the current engine and whether to try creating tables if they don't exist."""
+    """Set the current engine and whether to try creating tables if they don't exist.
+
+    Tables are only created when the engine is retrieved for the first time.
+    """
     engine = create_async_engine(engine) if isinstance(engine, str) else engine
     current_engine_token = _CURRENT_ENGINE.set(engine)
     create_tables_token = _CREATE_TABLES.set(create_tables)

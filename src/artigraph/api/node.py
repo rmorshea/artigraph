@@ -33,7 +33,11 @@ def group_nodes_by_parent_id(nodes: Sequence[N]) -> dict[int | None, list[N]]:
 def new_node(node_type: Callable[P, N] = Node, *args: P.args, **kwargs: P.kwargs) -> N:
     """Create a new node."""
     kwargs.setdefault("node_parent_id", None)
-    return node_type(*args, **kwargs)
+    node_id = kwargs.pop("node_id", None)
+    node = node_type(*args, **kwargs)
+    if node_id is not None:
+        node.node_id = node_id  # type: ignore
+    return node
 
 
 async def read_nodes_exist(node_filter: NodeFilter[Any] | Filter) -> bool:

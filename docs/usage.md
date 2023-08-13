@@ -8,9 +8,9 @@ There are two main concepts in Artigraph:
 ## Setup
 
 First, you need to set up a SQLAlchemy engine and create the Artigraph tables. The
-quickest way to do this is to use the `set_engine` function, pass it a conntection
-string, and set `create_tables=True`. You won't need `create_tables=True` if you're
-using a database that already has the tables created.
+quickest way to do this is to use the [set_engine][artigraph.db.set_engine] function,
+pass it a conntection string, and set `create_tables=True`. You won't need
+`create_tables=True` if you're using a database that already has the tables created.
 
 ```python
 from artigraph import set_engine
@@ -42,9 +42,9 @@ All the examples below assume this setup has already been performed.
 
 ## Data Models
 
-A `DataModel` is a frozen dataclass that describes the structure of data you want to
-save. Instead of using the `@dataclass` decorator, you subclass `DataModel` and declare
-the version of your model.
+A [DataModel][artigraph.DataModel] is a frozen dataclass that describes the structure of
+data you want to save. Instead of using the `@dataclass` decorator, you subclass
+[DataModel][artigraph.DataModel] and declare the version of your model.
 
 ```python
 from dataclasses import field
@@ -75,10 +75,10 @@ class MyDataModel(DataModel, version=1, repr=False, kw_only=True):
 
 ### Model Fields
 
-By default the fields of a `DataModel` must be JSON serializable. However, you can
-annotated fields in order to indicate other methods for [serializing](serilizers.md) or
-[storing](storage.md) them. As an example, you can declare a `pandas.DataFrame`` field
-that should be stored in S3:
+By default the fields of a [DataModel][artigraph.DataModel] must be JSON serializable.
+However, you can annotated fields in order to indicate other methods for
+[serializing](serializers.md) or [storing](storage.md) them. As an example, you can
+declare a `pandas.DataFrame`` field that should be stored in S3:
 
 ```python
 from typing import Annotated
@@ -93,7 +93,8 @@ class MyDataModel(DataModel, version=1):
     frame: Annotated[pd.DataFrame, dataframe_serializer, s3_storage]
 ```
 
-You can use this to declare reusable `Annotated` types that can be composed together:
+You can use this to declare reusable `typing.Annotated` types that can be composed
+together:
 
 ```python
 from typing import Annotated, TypeVar
@@ -162,9 +163,9 @@ Now, when you read a model with version 1, it will be automatically converted to
 version when its read.
 
 Note that this does not write the migrated data to the database. With that said you
-could use `model_migrate` to write a migration scripts by reading a series of old models
-into the new class definition, saving the migrated data back to the database, and
-deleting the old data.
+could use [DataModel.model_init][artigraph.model.base.BaseModel.model_init] to write a
+migration scripts by reading a series of old models into the new class definition,
+saving the migrated data back to the database, and deleting the old data.
 
 ## Nodes
 
@@ -191,9 +192,10 @@ model_filter = NodeRelationshipFilter(child_of=node.node_id)
 models = await read_models(model_filter)
 ```
 
-To make this easier, you can use `ModelGroup`s. A `ModelGroup` is a context manager that
-automatically creates a node and, and the end of the context attaches any models that
-were added to it. For example:
+To make this easier, you can use [ModelGroup][artigraph.ModelGroup]s. You can use a
+[ModelGroup][artigraph.ModelGroup] as a context manager that automatically creates a
+node and, at the end of the context, attaches any models that were added to it. For
+example:
 
 ```python
 from artigraph import ModelGroup, new_node
@@ -209,7 +211,8 @@ async with ModelGroup(new_node()) as group:
     )
 ```
 
-You can then retrieve artifacts from the group using `read_models()`:
+You can then retrieve artifacts from the group using
+[ModelGroup.get_models()][artigraph.ModelGroup.get_models]:
 
 ```python
 models = await group.read_models()
@@ -222,8 +225,8 @@ node_id = 1234
 group = ModelGroup(node=node_id)
 group.add_model("model1", MyDataModel(...))
 await group.save()
-models = await group.read_models()
-await group.delete_models()
+models = await group.get_models()
+await group.remove_models()
 ```
 
 ### Nesting Nodes
@@ -235,11 +238,11 @@ from artigraph import ModelGroup, new_node
 
 
 async with ModelGroup(new_node()) as parent:
-    async with ModelGroup(Node) as node:
-        async with ModelGroup(Node) as child1:
-            async with ModelGroup(Node) as grandchild:
+    async with ModelGroup(new_node()) as node:
+        async with ModelGroup(new_node()) as child1:
+            async with ModelGroup(new_node()) as grandchild:
                 pass
-        async with ModelGroup(Node) as child2:
+        async with ModelGroup(new_node()) as child2:
             pass
 ```
 
@@ -271,12 +274,12 @@ class MyDataModel(DataModel, version=1):
 
 
 async with ModelGroup(new_node()) as parent:
-    async with ModelGroup(Node) as group:
+    async with ModelGroup(new_node()) as group:
         node.add_model("model1", MyDataModel(...))
-        async with ModelGroup(Node) as child1:
-            async with ModelGroup(Node) as grandchild:
+        async with ModelGroup(new_node()) as child1:
+            async with ModelGroup(new_node()) as grandchild:
                 grandchild.add_model("model2", MyDataModel(...))
-        async with ModelGroup(Node) as child2:
+        async with ModelGroup(new_node()) as child2:
             child2.add_model("model3", MyDataModel(...))
 ```
 
@@ -287,46 +290,6 @@ Would then extend the graph:
 ```mermaid
 graph LR
     p([parent])
-    n([node])
-    c1([child1])
-    c2([child2])
-    g([grandchild])
-    m1[MyDataModel]
-    m2[MyDataModel]
-    m3[MyDataModel]
-
-    p --> n
-    n --> |model1| m1
-    n --> c1
-    n --> c2
-    c1 --> g
-    g --> |model2| m2
-    c2 --> |model3| m3
-```
-
-### Querying Nodes
-
-Artigraph makes it easy to inspect the graph using `Filter`s. The examples below show
-what nodes each query would return in the [graph above](#span-graph) by highlighting the
-nodes in <span style="color:green">green</span> that were used in the query and
-<span style="color:red">red</span> for nodes that would be returned.
-
----
-
-#### Child Nodes
-
-```python
-await read_nodes(
-    NodeFilter(
-        node_type=NodeTypeFilter(type=Node, subclasses=False),
-        relationship=NodeRelationshipFilter(child_of=group.node.node_id),
-    )
-)
-```
-
-```mermaid
-graph LR
-    p([parent])
     n([group])
     c1([child1])
     c2([child2])
@@ -335,10 +298,6 @@ graph LR
     m2[MyDataModel]
     m3[MyDataModel]
 
-    style n stroke:green,stroke-width:2px
-    style c1 stroke:red,stroke-width:2px
-    style c2 stroke:red,stroke-width:2px
-
     p --> n
     n --> |model1| m1
     n --> c1
@@ -348,185 +307,7 @@ graph LR
     c2 --> |model3| m3
 ```
 
----
-
-#### Child Models
-
-```python
-await read_models(
-    ModelFilter(
-        model_type=MyDataModel,
-        relationship=NodeRelationshipFilter(child_of=group.node.node_id),
-    )
-)
-```
-
-```mermaid
-graph LR
-    p([parent])
-    n([group])
-    c1([child1])
-    c2([child2])
-    g([grandchild])
-    m1[MyDataModel]
-    m2[MyDataModel]
-    m3[MyDataModel]
-
-    style n stroke:green,stroke-width:2px
-    style m1 stroke:red,stroke-width:2px
-
-    p --> n
-    n --> |model1| m1
-    n --> c1
-    n --> c2
-    c1 --> g
-    g --> |model2| m2
-    c2 --> |model3| m3
-```
-
----
-
-#### Descendant Nodes
-
-```python
-await read_nodes(
-    NodeFilter(
-        node_type=NodeTypeFilter(type=Node, subclasses=False),
-        relationship=NodeRelationshipFilter(descendant_of=group.node.node_id),
-    )
-)
-```
-
-```mermaid
-graph LR
-    p([parent])
-    n([group])
-    c1([child1])
-    c2([child2])
-    g([grandchild])
-    m1[MyDataModel]
-    m2[MyDataModel]
-    m3[MyDataModel]
-
-    style n stroke:green,stroke-width:2px
-    style c1 stroke:red,stroke-width:2px
-    style c2 stroke:red,stroke-width:2px
-    style g stroke:red,stroke-width:2px
-
-    p --> n
-    n --> |model1| m1
-    n --> c1
-    n --> c2
-    c1 --> g
-    g --> |model2| m2
-    c2 --> |model3| m3
-```
-
----
-
-#### Descendant Models
-
-```python
-await read_models(
-    ModelFilter(
-        model_type=MyDataModel,
-        relationship=NodeRelationshipFilter(descendant_of=group.node.node_id),
-    )
-)
-```
-
-```mermaid
-graph LR
-    p([parent])
-    n([group])
-    c1([child1])
-    c2([child2])
-    g([grandchild])
-    m1[MyDataModel]
-    m2[MyDataModel]
-    m3[MyDataModel]
-
-    style n stroke:green,stroke-width:2px
-    style m1 stroke:red,stroke-width:2px
-    style m2 stroke:red,stroke-width:2px
-    style m3 stroke:red,stroke-width:2px
-
-    p --> n
-    n --> |model1| m1
-    n --> c1
-    n --> c2
-    c1 --> g
-    g --> |model2| m2
-    c2 --> |model3| m3
-```
-
----
-
-#### Parent Nodes
-
-```python
-span_parent = await read_nodes(
-    NodeRelationshipFilter(parent_of=group.node.node_id)
-)
-```
-
-```mermaid
-graph LR
-    p([parent])
-    n([group])
-    c1([child1])
-    c2([child2])
-    g([grandchild])
-    m1[MyDataModel]
-    m2[MyDataModel]
-    m3[MyDataModel]
-
-    style n stroke:green,stroke-width:2px
-    style p stroke:red,stroke-width:2px
-
-    p --> n
-    n --> |model1| m1
-    n --> c1
-    n --> c2
-    c1 --> g
-    g --> |model2| m2
-    c2 --> |model3| m3
-```
-
----
-
-#### Ancestor Nodes
-
-```python
-grandchild_ancestors = await read_nodes(
-    NodeRelationshipFilter(ancestor_or=group.node.node_id)
-)
-```
-
-```mermaid
-graph LR
-    p([parent])
-    n([group])
-    c1([child1])
-    c2([child2])
-    g([grandchild])
-    m1[MyDataModel]
-    m2[MyDataModel]
-    m3[MyDataModel]
-
-    style g stroke:green,stroke-width:2px
-    style p stroke:red,stroke-width:2px
-    style n stroke:red,stroke-width:2px
-    style c1 stroke:red,stroke-width:2px
-
-    p --> n
-    n --> |model1| m1
-    n --> c1
-    n --> c2
-    c1 --> g
-    g --> |model2| m2
-    c2 --> |model3| m3
-```
+Artigraph provides [powerful utilities](queries.md) for exploring this graph.
 
 ### Customizing Nodes
 

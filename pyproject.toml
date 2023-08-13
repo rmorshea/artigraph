@@ -54,6 +54,7 @@ dependencies = [
   "moto>=4,<5",
   "mkdocs>=1.5,<2",
   "mkdocs-material>=9,<10",
+  "mkdocstrings[python]>=0.20,<1",
 ]
 
 [tool.hatch.envs.default.scripts]

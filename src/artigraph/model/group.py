@@ -34,11 +34,9 @@ class ModelGroup(Generic[N]):
 
     Parameters:
         node: The node that the models belong to
-        rollback: If True, the models will not be written to the database if an exception is raised.
     """
 
     _current_model_group_token: Token[ModelGroup[Node]]
-    node: N
 
     def __init__(self, node: N | int) -> None:
         self._node_id = _LazyNodeId(node, current_model_group_or_none())

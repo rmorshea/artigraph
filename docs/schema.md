@@ -83,7 +83,6 @@ Its columns are:
 | --------------------- | -------- | ---------------------------------------------------------------- |
 | `artifact_label`      | `String` | A label for the artifact that is **unique amongst its siblings** |
 | `artifact_serializer` | `String` | The name of the serializer used to serialize the artifact.       |
-| `artifact_detail`     | `String` | Any extra information about the artifact                         |
 
 Of note is the `artifact_serializer` which maps to a [serializer](serializers.md) by
 name.
@@ -111,12 +110,22 @@ directly in the database. It defines a single column for that purpose:
 | ------------------------ | ------- | ------------------------- |
 | `database_artifact_data` | `Bytes` | The data of the artifact. |
 
+### Model Artifact
+
+`ModelArtifact` is a subclass of [`DatabaseArtifact`](#database-artifact) that stores
+the root node of a [DataModel][artigraph.DataModel].
+
+| Column                   | Type  | Description              |
+| ------------------------ | ----- | ------------------------ |
+| `model_artifact_type`    | `str` | The name of the model    |
+| `model_artifact_version` | `int` | The version of the model |
+
 ## Data Model
 
 The [dataclass-like usage of `DataModel`](usage.md#artifact-models) belies the fact that
 its underlying implementation builds atop [remote](#remote-artifact) and
-[database](#database-artifact) artifacts. Under the hood, the hierarchy of `DataModel`s
-and their fields is replicated in the database.
+[model](#model-artifact) artifacts. Under the hood, the hierarchy of `DataModel`s and
+their fields is replicated in the database.
 
 Given an `DataModel` like
 
@@ -137,9 +146,9 @@ Will result in the following graph being created in the database
 
 ```mermaid
 graph TB
-    m1(["DatabaseArtifact(detail='MyDataModel-v1')"])
+    m1(["ModelArtifact(type='MyDataModel', version=1)"])
     f1(["DatabaseArtifact(data=1)"])
-    m2(["DatabaseArtifact(detail='MyDataModel-v1')"])
+    m2(["DatabaseArtifact(type='MyDataModel', version=1)"])
     f2(["DatabaseArtifact(data=2)"])
     f3(["DatabaseArtifact(data=None)"])
 
@@ -151,10 +160,10 @@ graph TB
 
 With the table contents below
 
-| node_id | node_parent_id | node_polymorphic_identity | artifact_label | artifact_serializer   | artifact_detail | database_artifact_data                                     | node_created_at | node_updated_at |
-| ------- | -------------- | ------------------------- | -------------- | --------------------- | --------------- | ---------------------------------------------------------- | --------------- | --------------- |
-| 1       | null           | database_artifact         | my-data        | artigraph-json-sorted | MyDataModel-v1  | {'**is_artifact_model**':true,'artigraph_version':'x.y.z'} | ...             | ...             |
-| 2       | 1              | database_artifact         | some_value     | artigraph-json        | MyDataModel-v1  | 1                                                          | ...             | ...             |
-| 3       | 1              | database_artifact         | inner_model    | artigraph-json-sorted | MyDataModel-v1  | {'**is_artifact_model**':true,'artigraph_version':'x.y.z'} | ...             | ...             |
-| 4       | 3              | database_artifact         | some_value     | artigraph-json        | MyDataModel-v1  | 2                                                          | ...             | ...             |
-| 5       | 3              | database_artifact         | inner_model    | artigraph-json        | MyDataModel-v1  | null                                                       | ...             | ...             |
+| node_id | node_parent_id | node_polymorphic_identity | artifact_label | artifact_serializer   | model_artifact_type | model_artifact_version | database_artifact_data        | node_created_at | node_updated_at |
+| ------- | -------------- | ------------------------- | -------------- | --------------------- | ------------------- | ---------------------- | ----------------------------- | --------------- | --------------- |
+| 1       | null           | model_artifact            | my-data        | artigraph-json-sorted | MyDataModel         | 1                      | {'artigraph_version':'x.y.z'} | ...             | ...             |
+| 2       | 1              | database_artifact         | some_value     | artigraph-json        | null                | null                   | 1                             | ...             | ...             |
+| 3       | 1              | model_artifact            | inner_model    | artigraph-json-sorted | MyDataModel         | 1                      | {'artigraph_version':'x.y.z'} | ...             | ...             |
+| 4       | 3              | database_artifact         | some_value     | artigraph-json        | null                | null                   | 2                             | ...             | ...             |
+| 5       | 3              | database_artifact         | inner_model    | artigraph-json        | null                | null                   | null                          | ...             | ...             |

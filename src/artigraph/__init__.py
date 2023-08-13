@@ -1,4 +1,4 @@
-__version__ = "0.0.7"
+__version__ = "0.0.8"
 
 from artigraph.api.artifact import (
     delete_artifacts,
@@ -10,6 +10,7 @@ from artigraph.api.artifact import (
 )
 from artigraph.api.filter import (
     ArtifactFilter,
+    Expression,
     Filter,
     NodeFilter,
     NodeRelationshipFilter,
@@ -38,7 +39,7 @@ from artigraph.model.base import (
 from artigraph.model.data import DataModel
 from artigraph.model.filter import ModelFilter, ModelTypeFilter
 from artigraph.model.group import ModelGroup, current_model_group
-from artigraph.orm import BaseArtifact, DatabaseArtifact, Node, RemoteArtifact
+from artigraph.orm import BaseArtifact, DatabaseArtifact, ModelArtifact, Node, RemoteArtifact
 from artigraph.serializer import Serializer
 from artigraph.storage import Storage
 
@@ -54,8 +55,10 @@ __all__ = [
     "delete_models",
     "delete_nodes",
     "engine_context",
+    "Expression",
     "Filter",
     "get_engine",
+    "ModelArtifact",
     "ModelFilter",
     "ModelGroup",
     "ModelTypeFilter",

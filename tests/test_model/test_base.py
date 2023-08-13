@@ -18,7 +18,6 @@ from artigraph.model.base import (
 )
 from artigraph.model.data import DataModel
 from artigraph.model.filter import ModelFilter, ModelTypeFilter
-from artigraph.orm.node import Node
 from artigraph.serializer.json import json_serializer
 
 
@@ -53,7 +52,7 @@ def test_try_convert_value_to_and_from_modeled_type(value):
 async def test_read_model_error_if_not_model_node():
     """Test that an error is raised if the node is not a model node."""
     async with new_session(expire_on_commit=False):
-        node = await write_node(Node(node_parent_id=None))
+        node = await write_node(new_node(node_parent_id=None))
 
         with pytest.raises(ValueError):
             await read_model(ModelFilter(node_id=ValueFilter(eq=node.node_id)))
@@ -112,12 +111,13 @@ async def test_read_model_or_none():
     model = XModel(x=1)
     qual = await write_model(parent_id=None, label="some-label", model=model)
     db_model = await read_model_or_none(ModelFilter(node_id=qual.artifact.node_id))
+    assert db_model is not None
     assert db_model.value == model
     assert await read_model_or_none(ModelFilter(node_id=1234)) is None
 
 
 async def test_model_migration():
-    class SomeModel(DataModel, version=1):
+    class SomeModel(DataModel, version=1):  # type: ignore
         old_field_name: int
 
     old_model = SomeModel(old_field_name=1)
@@ -125,7 +125,7 @@ async def test_model_migration():
 
     del MODEL_TYPE_BY_NAME[SomeModel.__name__]
 
-    class SomeModel(DataModel, version=2):
+    class SomeModel(DataModel, version=2):  # type: ignore
         new_field_name: int
 
         @classmethod
@@ -136,13 +136,13 @@ async def test_model_migration():
 
     new_model = await read_model(ModelFilter(node_id=node_id))
     assert not hasattr(new_model.value, "old_field_name")
-    assert new_model.value.new_field_name == 1
+    assert new_model.value.new_field_name == 1  # type: ignore
 
 
 async def test_filter_by_model_version():
     with allow_model_type_overwrites():
 
-        class SomeModel(DataModel, version=1):
+        class SomeModel(DataModel, version=1):  # type: ignore
             pass
 
         old_model = SomeModel()

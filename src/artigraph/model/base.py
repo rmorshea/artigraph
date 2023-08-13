@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Any, ClassVar, Sequence, TypedDict, TypeVar
+from typing import Any, ClassVar, Iterator, Sequence, TypedDict, TypeVar
 
 from typing_extensions import Self, TypeAlias, TypeGuard
 
@@ -41,6 +42,16 @@ QualifiedModelMetadataArtifact: TypeAlias = "QualifiedArtifact[ModelArtifact, Mo
 
 QualifiedModelArtifact: TypeAlias = "QualifiedArtifact[ModelArtifact, M]"
 """A convenience type for a qualified model artifact."""
+
+
+@contextmanager
+def allow_model_type_overwrites() -> Iterator[None]:
+    """A context in which it's possible to overwrite already defined model types"""
+    reset_token = ALLOW_MODEL_TYPE_OVERWRITES.set(True)
+    try:
+        yield
+    finally:
+        ALLOW_MODEL_TYPE_OVERWRITES.reset(reset_token)
 
 
 async def write_models(
@@ -274,7 +285,7 @@ async def _load_from_artifacts(
     version = qual_artifact.artifact.model_artifact_version
     kwargs: dict[str, Any] = {}
 
-    for child_qual_artifact in artifacts_by_parent_id[qual_artifact.artifact.node_id]:
+    for child_qual_artifact in artifacts_by_parent_id.get(qual_artifact.artifact.node_id, []):
         if _is_qualified_model_artifact(child_qual_artifact):
             kwargs[child_qual_artifact.artifact.artifact_label] = await _load_from_artifacts(
                 child_qual_artifact,

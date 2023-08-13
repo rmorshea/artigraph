@@ -82,16 +82,17 @@ def set_engine(engine: AsyncEngine | str, *, create_tables: bool = False) -> Cal
     return reset
 
 
-async def get_engine(*, create_tables: bool = False) -> AsyncEngine:
+async def get_engine() -> AsyncEngine:
     """Get the current engine."""
     try:
         engine = _CURRENT_ENGINE.get()
     except LookupError:  # nocov
         msg = "No current asynchronous engine"
         raise LookupError(msg) from None
-    if create_tables or _CREATE_TABLES.get():
+    if _CREATE_TABLES.get():
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+        _CREATE_TABLES.set(False)  # no need to create next time
     return engine
 
 

@@ -57,11 +57,9 @@ async def read_node_or_none(node_filter: NodeFilter[N] | Filter) -> N | None:
         return load_node_from_row(result.one_or_none())  # type: ignore
 
 
-async def read_nodes(node_filter: NodeFilter[N] | Filter | None = None) -> Sequence[N]:
+async def read_nodes(node_filter: NodeFilter[N] | Filter) -> Sequence[N]:
     """Read nodes that match the given filter."""
-    cmd = select(Node.__table__)
-    if node_filter is not None:
-        cmd = node_filter.apply(cmd)
+    cmd = node_filter.apply(select(Node.__table__))
     async with current_session() as session:
         result = await session.execute(cmd)
         return load_nodes_from_rows(result.all())

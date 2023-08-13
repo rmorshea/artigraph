@@ -9,6 +9,7 @@ from artigraph.model.base import (
     MODELED_TYPES,
     BaseModel,
     _try_convert_value_to_modeled_type,
+    allow_model_type_overwrites,
     read_model,
     read_model_or_none,
     read_models,
@@ -136,3 +137,24 @@ async def test_model_migration():
     new_model = await read_model(ModelFilter(node_id=node_id))
     assert not hasattr(new_model.value, "old_field_name")
     assert new_model.value.new_field_name == 1
+
+
+async def test_filter_by_model_version():
+    with allow_model_type_overwrites():
+
+        class SomeModel(DataModel, version=1):
+            pass
+
+        old_model = SomeModel()
+        await write_model(label="test", model=old_model)
+        assert (await read_model(ModelFilter())).artifact.model_artifact_version == 1
+
+        class SomeModel(DataModel, version=2):
+            pass
+
+        new_model = SomeModel()
+        await write_model(label="test", model=new_model)
+
+        assert (
+            await read_model(ModelFilter(model_type=ModelTypeFilter(type=SomeModel, version=2)))
+        ).artifact.model_artifact_version == 2

@@ -157,7 +157,6 @@ ban-relative-imports = "all"
 concurrency = ["greenlet", "thread"]
 source_pkgs = ["artigraph"]
 branch = true
-parallel = true
 
 [tool.coverage.paths]
 artigraph = ["src/artigraph"]

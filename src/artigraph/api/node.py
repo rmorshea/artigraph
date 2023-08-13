@@ -32,9 +32,6 @@ def group_nodes_by_parent_id(nodes: Sequence[N]) -> dict[int | None, list[N]]:
 
 def new_node(node_type: Callable[P, N] = Node, *args: P.args, **kwargs: P.kwargs) -> N:
     """Create a new node."""
-    if args:
-        msg = "Positional arguments are not supported - use keyword arguments instead."
-        raise TypeError(msg)
     kwargs.setdefault("node_parent_id", None)
     return node_type(*args, **kwargs)
 
@@ -45,7 +42,7 @@ async def read_nodes_exist(node_filter: NodeFilter[Any] | Filter) -> bool:
 
 
 async def read_node(node_filter: NodeFilter[N] | Filter) -> N:
-    """Read a node by its ID."""
+    """Read a node that matches the given filter."""
     node = await read_node_or_none(node_filter)
     if node is None:
         msg = f"No node found for filter {node_filter}"
@@ -54,16 +51,16 @@ async def read_node(node_filter: NodeFilter[N] | Filter) -> N:
 
 
 async def read_node_or_none(node_filter: NodeFilter[N] | Filter) -> N | None:
-    """Read a node by its ID."""
+    """Read a node that matches the given filter or None if no node is found."""
     async with current_session() as session:
         result = await session.execute(node_filter.apply(select(Node.__table__)))
         return load_node_from_row(result.one_or_none())  # type: ignore
 
 
 async def read_nodes(node_filter: NodeFilter[N] | Filter | None = None) -> Sequence[N]:
-    """Read nodes by their IDs."""
+    """Read nodes that match the given filter."""
     cmd = select(Node.__table__)
-    if node_filter is not None:
+    if node_filter is not None:  # nocov (FIXME: this is covered but not detected)
         cmd = node_filter.apply(cmd)
     async with current_session() as session:
         result = await session.execute(cmd)
@@ -90,7 +87,7 @@ async def write_nodes(
     nodes: Collection[Node], *, refresh_attributes: Sequence[str]
 ) -> Sequence[Node]:
     """Create nodes and, if given, refresh their attributes."""
-    async with current_session() as session:  # nocov (FIXME: actually covered but not detected)
+    async with current_session() as session:
         session.add_all(nodes)
         await session.commit()
         if refresh_attributes:

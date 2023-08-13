@@ -116,8 +116,8 @@ async def read_models(model_filter: ModelFilter[M]) -> Sequence[QualifiedModelAr
 
 
 async def delete_models(model_filter: ModelFilter[Any]) -> None:
-    models = await read_artifacts(model_filter)
-    await delete_artifacts(NodeRelationshipFilter(descendant_of=models))
+    model_ids = [q.artifact.node_id for q in await read_artifacts(model_filter)]
+    await delete_artifacts(NodeRelationshipFilter(descendant_of=model_ids, include_self=True))
 
 
 class FieldConfig(TypedDict, total=False):

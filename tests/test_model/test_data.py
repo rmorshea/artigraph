@@ -9,6 +9,7 @@ from artigraph.api.filter import NodeRelationshipFilter
 from artigraph.api.node import new_node, write_node
 from artigraph.model.base import (
     read_model,
+    read_model_or_none,
     write_model,
     write_models,
 )
@@ -91,17 +92,10 @@ async def test_filter_on_model_type():
     assert db_model.value == sample_model
 
 
-# async def test_read_write_child_artifact_models():
-#     """Test saving and loading a simple artifact model with child models."""
-#     async with create_current(Node):
-#         models = {
-#             "label": SampleModel(some_value="test-value", remote_value=pd.DataFrame()),
-#             "other_label": SampleModel(some_value="other-value", remote_value=pd.DataFrame()),
-#             "another_label": SampleModel(some_value="another-value", remote_value=pd.DataFrame()),
-#         }
-#         await write_models("current", models=models)
-#         assert await read_child_models("current", labels=["label", "other_label"]) == {
-#             "label": models["label"],
-#             "other_label": models["other_label"],
-#         }
-#         assert await read_child_models("current", labels=["does_not_exist"]) == {}
+async def test_read_model_or_none():
+    """Test saving and loading a simple artifact model with child models."""
+    model = SampleModel(some_value="test-value", remote_value=pd.DataFrame())
+    qual = await write_model(parent_id=None, label="some-label", model=model)
+    db_model = await read_model_or_none(ModelFilter(node_id=qual.artifact.node_id))
+    assert db_model.value == model
+    assert await read_model_or_none(ModelFilter(node_id=1234)) is None

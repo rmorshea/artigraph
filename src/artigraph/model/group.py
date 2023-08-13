@@ -2,14 +2,13 @@ from __future__ import annotations
 
 from contextvars import ContextVar, Token
 from typing import Any, Generic, Sequence, TypeVar
-from xml.dom import NodeFilter
 
 from pydantic import BaseModel
 from typing_extensions import Self
 
 from artigraph.api.filter import NodeRelationshipFilter, ValueFilter
-from artigraph.api.node import read_node, read_node_or_none, write_node
-from artigraph.model.base import delete_models, read_model, read_models, write_models
+from artigraph.api.node import read_node_or_none, read_nodes_exist, write_node
+from artigraph.model.base import delete_models, read_models, write_models
 from artigraph.model.filter import ModelFilter
 from artigraph.orm.node import Node
 
@@ -23,6 +22,14 @@ def current_model_group() -> ModelGroup[Node]:
     return _CURRENT_MODEL_GROUP.get()
 
 
+def current_model_group_or_none() -> ModelGroup[Node]:
+    """Get the current model group, or return None if none exists"""
+    try:
+        return current_model_group()
+    except LookupError:
+        return None
+
+
 class ModelGroup(Generic[N]):
     """A group of models that are written to the database together
 
@@ -34,77 +41,69 @@ class ModelGroup(Generic[N]):
     _current_model_group_token: Token[ModelGroup[Node]]
     node: N
 
-    def __init__(self, node: N | int, *, rollback: bool = False) -> None:
-        self.rollback = rollback
+    def __init__(self, node: N | int) -> None:
+        self._node_id = _LazyNodeId(node, current_model_group_or_none())
         self._models: dict[str, BaseModel] = {}
-        self._given_node = node
 
-    async def __aenter__(self) -> Self:
-        if isinstance(self._given_node, int):
-            self.node = await read_node(NodeFilter(node_id=self._given_node))
-        else:
-            self.node = self._given_node
-            if self.node.node_id is None:
-                await write_node(self.node)
-        self._current_model_group_token = _CURRENT_MODEL_GROUP.set(self)
-        return self
-
-    def add_models(
-        self,
-        models: dict[str, BaseModel],
-        *,
-        replace_existing: bool = False,
-    ) -> None:
+    def add_models(self, models: dict[str, BaseModel]) -> None:
         """Add models to the group."""
-        if not replace_existing:
-            label_intersetion = set(models.keys()).intersection(self._models.keys())
-            if label_intersetion:
-                msg = f"Models with labels {label_intersetion} already exist in this group"
-                raise ValueError(msg)
+        label_intersetion = set(models.keys()).intersection(self._models.keys())
+        if label_intersetion:
+            msg = f"Models with labels {list(label_intersetion)} already exist in this group"
+            raise ValueError(msg)
         self._models.update(models)
 
-    def add_model(
-        self,
-        label: str,
-        model: BaseModel,
-        *,
-        replace_existing: bool = False,
-    ) -> None:
+    def add_model(self, label: str, model: BaseModel) -> None:
         """Add a model to the group."""
-        return self.add_models({label: model}, replace_existing=replace_existing)
+        return self.add_models({label: model})
 
-    async def read_models(
+    async def get_models(
         self,
-        labels: Sequence[str],
+        labels: Sequence[str] | None = None,
         *,
-        refresh: bool = False,
-    ) -> dict[str, BaseModel]:
+        fresh: bool = False,
+    ) -> dict[str, BaseModel]:  # nocov (FIXME: this is covered but not detected)
         """Read this group's models from the database."""
-        labels_to_read = set(labels).difference(self._models.keys()) if not refresh else labels
-        self._models.update(
-            {
-                qual.artifact.artifact_label: qual.value
-                for qual in await read_models(
-                    ModelFilter(
-                        relationship=NodeRelationshipFilter(child_of=self._node_id),
-                        artifact_label=ValueFilter(in_=labels_to_read),
+        artifact_label_filter = self._labels_to_refresh(labels, fresh=fresh)
+        if artifact_label_filter:
+            self._models.update(
+                {
+                    qual.artifact.artifact_label: qual.value
+                    for qual in await read_models(
+                        ModelFilter(
+                            relationship=NodeRelationshipFilter(child_of=await self._node_id.get()),
+                            artifact_label=artifact_label_filter,
+                        )
                     )
-                )
-            }
-        )
+                }
+            )
+
         return self._models.copy()
 
-    async def read_model(self, label: str, *, refresh: bool = False) -> BaseModel:
+    async def get_model(self, label: str, *, fresh: bool = False) -> BaseModel:
         """Read this group's model from the database."""
-        if label not in self._models or refresh:
-            qual = await read_model(
+        return (await self.get_models([label], fresh=fresh))[label]
+
+    async def has_model(self, label: str, *, fresh: bool = False) -> bool:
+        """Check if this group has a model with the given label."""
+        return await self.has_models([label], fresh=fresh)
+
+    async def has_models(
+        self,
+        labels: Sequence[str] | None = None,
+        *,
+        fresh: bool = False,
+    ) -> bool:
+        """Check if this group has models with the given labels."""
+        artifact_label_filter = self._labels_to_refresh(labels, fresh=fresh)
+        if artifact_label_filter:
+            return await read_nodes_exist(
                 ModelFilter(
-                    relationship=NodeRelationshipFilter(child_of=self._node_id),
-                    artifact_label=ValueFilter(eq=label),
+                    relationship=NodeRelationshipFilter(child_of=await self._node_id.get()),
+                    artifact_label=artifact_label_filter,
                 )
             )
-            self._models[label] = qual.value
-        return self._models[label]
+        return all(label in self._models for label in labels)
 
     async def remove_model(self, label: str) -> None:
         """Delete this group's model from the database."""
@@ -114,7 +113,7 @@ class ModelGroup(Generic[N]):
         """Delete the specified models, or all models, from this group in database"""
         await delete_models(
             ModelFilter(
-                relationship=NodeRelationshipFilter(child_of=self._node_id),
+                relationship=NodeRelationshipFilter(child_of=await self._node_id.get()),
                 artifact_label=ValueFilter(in_=labels),
             )
         )
@@ -122,32 +121,64 @@ class ModelGroup(Generic[N]):
             self._models.clear()
         else:
             for label in labels:
-                del self._models[label]
+                self._models.pop(label, None)
 
-    async def parent_group(self) -> ModelGroup[Node] | None:
+    async def get_parent_group(self) -> ModelGroup[Node] | None:
         """Get this groups' parent."""
-        parent_node = read_node_or_none(NodeRelationshipFilter(child_of=self._node_id))
-        if parent_node is None:
-            return None
-        return ModelGroup(parent_node)
+        node_filter = NodeRelationshipFilter(parent_of=await self._node_id.get())
+        parent_node = await read_node_or_none(node_filter)
+        return None if parent_node is None else ModelGroup(parent_node)
 
     async def save(self) -> None:
         """Write the models to the database."""
-        await write_models(parent_id=self.node.node_id, models=self._models)
+        await write_models(parent_id=await self._node_id.get(), models=self._models)
 
-    async def __aexit__(self, exc_type: type[Exception] | None, *exc: Any) -> None:
+    async def __aenter__(self) -> Self:
+        self._current_model_group_token = _CURRENT_MODEL_GROUP.set(self)
+        return self
+
+    async def __aexit__(self, *exc: Any) -> None:
         _CURRENT_MODEL_GROUP.reset(self._current_model_group_token)
-        if exc_type is not None:
-            if self.rollback:
-                return
         await self.save()
 
-    @property
-    def _node_id(self) -> int:
-        node_id = (
-            self._given_node if isinstance(self._given_node, int) else self._given_node.node_id
+    def _labels_to_refresh(
+        self,
+        labels: Sequence[str] | None,
+        *,
+        fresh: bool,
+    ) -> ValueFilter | None:
+        labels_to_refresh = (
+            labels
+            if (
+                # if refresh load all given labels
+                fresh
+                # labels=None is equivalent to all labels
+                or labels is None
+            )
+            else set(labels).difference(self._models.keys())
         )
-        if node_id is None:
-            msg = "Node has not been written to the database"
-            raise ValueError(msg)
-        return node_id
+        if labels_to_refresh is None or labels_to_refresh:
+            return ValueFilter(in_=labels_to_refresh)
+        return None
+
+
+class _LazyNodeId:
+    _node_id: int
+
+    def __init__(self, node: Node | int, parent_group: ModelGroup | None) -> None:
+        self._given = node
+        self._parent_group = parent_group
+
+    async def get(self) -> int:
+        node_id = getattr(self, "_node_id", None)
+        if node_id is not None:
+            return node_id
+        if isinstance(self._given, int):
+            self._node_id = self._given
+            return self._given
+        if self._given.node_id is None:
+            if self._parent_group is not None:
+                self._given.node_parent_id = await self._parent_group._node_id.get()
+            await write_node(self._given)
+        self._node_id = self._given.node_id
+        return self._node_id

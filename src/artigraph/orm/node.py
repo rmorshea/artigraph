@@ -2,17 +2,30 @@ from __future__ import annotations
 
 import sys
 from datetime import datetime
-from typing import Any, ClassVar, Optional
+from typing import Any, ClassVar, Optional, Sequence, TypeVar
 
 from sqlalchemy import ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from artigraph.orm.base import Base
+from artigraph.utils import get_subclasses
+
+T = TypeVar("T")
 
 NODE_TYPE_BY_POLYMORPHIC_IDENTITY: dict[str, type[Node]] = {}
 
 
 _node_dataclass_kwargs = {} if sys.version_info < (3, 10) else {"kw_only": True}
+
+
+def get_polymorphic_identities(
+    node_types: Sequence[type[Node]],
+    *,
+    subclasses: bool = False,
+) -> Sequence[str]:
+    """Get the polymorphic identities of the given node types and optionall their subclasses."""
+    node_types = [s for c in node_types for s in get_subclasses(c)] if subclasses else node_types
+    return [nt.polymorphic_identity for nt in node_types if not nt.is_abstract()]
 
 
 class Node(Base, **_node_dataclass_kwargs):
@@ -24,6 +37,11 @@ class Node(Base, **_node_dataclass_kwargs):
         if not cls.__mapper_args__.get("polymorphic_abstract"):
             NODE_TYPE_BY_POLYMORPHIC_IDENTITY[cls.polymorphic_identity] = cls
         super().__init_subclass__(**kwargs)
+
+    @classmethod
+    def is_abstract(cls) -> bool:
+        """Returns True if the class is abstract. That is, it defines a polymorphic identity."""
+        return "polymorphic_identity" not in cls.__dict__
 
     polymorphic_identity: ClassVar[str] = "node"
     """The type of the node - should be overridden by subclasses and passed to mapper args."""

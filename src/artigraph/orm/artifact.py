@@ -17,9 +17,6 @@ class BaseArtifact(Node):
     artifact_serializer: Mapped[str] = mapped_column(nullable=True)
     """The name of the serializer used to serialize the artifact."""
 
-    artifact_detail: Mapped[str] = mapped_column(nullable=True)
-    """Extra information about the artifact"""
-
     artifact_label: Mapped[str] = mapped_column(nullable=True)
     """A label for the node."""
 
@@ -43,5 +40,18 @@ class DatabaseArtifact(BaseArtifact):
     polymorphic_identity = "database_artifact"
     __mapper_args__: ClassVar[dict[str, Any]] = {"polymorphic_identity": polymorphic_identity}
 
-    database_artifact_value: Mapped[Optional[bytes]] = mapped_column(default=None)
+    database_artifact_value: Mapped[Optional[bytes]]
     """The data of the artifact."""
+
+
+class ModelArtifact(DatabaseArtifact):
+    """An artifact that is a model."""
+
+    polymorphic_identity = "model_artifact"
+    __mapper_args__: ClassVar[dict[str, Any]] = {"polymorphic_identity": polymorphic_identity}
+
+    model_artifact_type: Mapped[str] = mapped_column(nullable=True)
+    """The type of the model."""
+
+    model_artifact_version: Mapped[int] = mapped_column(nullable=True)
+    """The version of the model."""

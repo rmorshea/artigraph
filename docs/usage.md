@@ -8,9 +8,9 @@ There are two main concepts in Artigraph:
 ## Setup
 
 First, you need to set up a SQLAlchemy engine and create the Artigraph tables. The
-quickest way to do this is to use the `set_engine` function, pass it a conntection
-string, and set `create_tables=True`. You won't need `create_tables=True` if you're
-using a database that already has the tables created.
+quickest way to do this is to use the [set_engine][artigraph.db.set_engine] function,
+pass it a conntection string, and set `create_tables=True`. You won't need
+`create_tables=True` if you're using a database that already has the tables created.
 
 ```python
 from artigraph import set_engine
@@ -42,9 +42,9 @@ All the examples below assume this setup has already been performed.
 
 ## Data Models
 
-A `DataModel` is a frozen dataclass that describes the structure of data you want to
-save. Instead of using the `@dataclass` decorator, you subclass `DataModel` and declare
-the version of your model.
+A [DataModel][artigraph.DataModel] is a frozen dataclass that describes the structure of
+data you want to save. Instead of using the `@dataclass` decorator, you subclass
+[DataModel][artigraph.DataModel] and declare the version of your model.
 
 ```python
 from dataclasses import field
@@ -60,9 +60,9 @@ You can then create an instance of the model and save it to the database:
 
 ```python
 # construct an artifact
-artifact = MyDataModel(some_value=42, another_value={"foo": "bar"})
+model = MyDataModel(some_value=42, another_value={"foo": "bar"})
 # save it to the database
-artifact_id = await write_model(label="my-data")
+await write_model(label="my-data", model=model)
 ```
 
 Instead of using the `@dataclass` decorator to declare dataclass behavior, pass kwargs
@@ -75,10 +75,10 @@ class MyDataModel(DataModel, version=1, repr=False, kw_only=True):
 
 ### Model Fields
 
-By default the fields of a `DataModel` must be JSON serializable. However, you can
-annotated fields in order to indicate other methods for [serializing](serilizers.md) or
-[storing](storage.md) them. As an example, you can declare a `pandas.DataFrame`` field
-that should be stored in S3:
+By default the fields of a [DataModel][artigraph.DataModel] must be JSON serializable.
+However, you can annotated fields in order to indicate other methods for
+[serializing](serializers.md) or [storing](storage.md) them. As an example, you can
+declare a `pandas.DataFrame`` field that should be stored in S3:
 
 ```python
 from typing import Annotated
@@ -93,7 +93,8 @@ class MyDataModel(DataModel, version=1):
     frame: Annotated[pd.DataFrame, dataframe_serializer, s3_storage]
 ```
 
-You can use this to declare reusable `Annotated` types that can be composed together:
+You can use this to declare reusable `typing.Annotated` types that can be composed
+together:
 
 ```python
 from typing import Annotated, TypeVar
@@ -109,6 +110,7 @@ s3_bucket = S3Storage("my-bucket")
 T = TypeVar("T")
 S3 = Annotated[T, s3_bucket]
 PandasDataframe = Annotated[pd.DataFrame, dataframe_serializer]
+
 
 class MyDataModel(DataModel, version=1):
     db_frame: PandasDataframe
@@ -161,48 +163,70 @@ Now, when you read a model with version 1, it will be automatically converted to
 version when its read.
 
 Note that this does not write the migrated data to the database. With that said you
-could use `model_migrate` to write a migration scripts by reading a series of old models
-into the new class definition, saving the migrated data back to the database, and
-deleting the old data.
+could use [DataModel.model_init][artigraph.model.base.BaseModel.model_init] to write a
+migration scripts by reading a series of old models into the new class definition,
+saving the migrated data back to the database, and deleting the old data.
 
 ## Nodes
 
-Nodes provide a way to group models together. For example, if you have a model that was
-trained on a dataset, you might want to group the model and the dataset together under a
-common node. To do so just establish the node you want to group them under using
-`create_current()`:
+Nodes provide a way to group models together.
 
 ```python
-from artigraph import Node, create_current, write_node_models
+from artigraph import new_node, write_node, write_models
+
+node = await write_node(new_node())
+
+await write_models(
+    parent_id=node.node_id,
+    models={
+        "model1": MyDataModel(...),
+        "model2": MyDataModel(...),
+    }
+)
+```
+
+You can then retrieve the models attached to a node using `read_models()`:
+
+```python
+model_filter = NodeRelationshipFilter(child_of=node.node_id)
+models = await read_models(model_filter)
+```
+
+To make this easier, you can use [ModelGroup][artigraph.ModelGroup]s. You can use a
+[ModelGroup][artigraph.ModelGroup] as a context manager that automatically creates a
+node and, at the end of the context, attaches any models that were added to it. For
+example:
+
+```python
+from artigraph import ModelGroup, new_node
 
 
-async with create_current(Node):
-    await write_node_models(
-        "current",
+async with ModelGroup(new_node()) as group:
+    group.add_models(
         {
-            "training_dataset": Dataset(...),
-            "test_dataset": Dataset(...),
+            "training_dataset": DatasetModel(...),
+            "test_dataset": DatasetModel(...),
             "trained_model": TrainedModel(...),
-        },
+        }
     )
 ```
 
-You can then retrieve artifacts from a spans using `read_node_models()`:
+You can then retrieve artifacts from the group using
+[ModelGroup.get_models()][artigraph.ModelGroup.get_models]:
 
 ```python
-from artigraph import read_node_models
+models = await group.read_models()
+```
 
-async with create_current(Node) as node:
-    await write_node_models(
-        "current",
-        {
-            "training_dataset": Dataset(...),
-            "test_dataset": Dataset(...),
-            "trained_model": TrainedModel(...),
-        },
-    )
+You can also use groups with existing node or node ID:
 
-models = await read_node_models(node.node_id)
+```python
+node_id = 1234
+group = ModelGroup(node=node_id)
+group.add_model("model1", MyDataModel(...))
+await group.save()
+models = await group.get_models()
+await group.remove_models()
 ```
 
 ### Nesting Nodes
@@ -210,17 +234,16 @@ models = await read_node_models(node.node_id)
 Nodes can be nested to create a hierarchy. For example the following code
 
 ```python
-from artigraph import Node, create_current
+from artigraph import ModelGroup, new_node
 
 
-async def main():
-    async with create_current(Node) as parent:
-        async with create_current(Node) as node:
-            async with create_current(Node) as child1:
-                async with create_current(Node) as grandchild:
-                    pass
-            async with create_current(Node) as child2:
+async with ModelGroup(new_node()) as parent:
+    async with ModelGroup(new_node()) as node:
+        async with ModelGroup(new_node()) as child1:
+            async with ModelGroup(new_node()) as grandchild:
                 pass
+        async with ModelGroup(new_node()) as child2:
+            pass
 ```
 
 Will create a node hierarchy like this:
@@ -241,7 +264,7 @@ graph LR
 Attaching artifacts to those nested spans:
 
 ```python
-from artigraph import write_node_models
+from artigraph import ModelGroup, new_node
 
 
 @dataclass
@@ -250,15 +273,14 @@ class MyDataModel(DataModel, version=1):
     another_value: str
 
 
-async def main():
-    async with create_current(Node) as parent:
-        async with create_current(Node) as node:
-            await write_node_models("current", {"model1": MyDataModel(...)})
-            async with create_current(Node) as child1:
-                async with create_current(Node) as grandchild:
-                    await write_node_models("current", {"model2": MyDataModel(...)})
-            async with create_current(Node) as child2:
-                await write_node_models("current", {"model2": MyDataModel(...)})
+async with ModelGroup(new_node()) as parent:
+    async with ModelGroup(new_node()) as group:
+        node.add_model("model1", MyDataModel(...))
+        async with ModelGroup(new_node()) as child1:
+            async with ModelGroup(new_node()) as grandchild:
+                grandchild.add_model("model2", MyDataModel(...))
+        async with ModelGroup(new_node()) as child2:
+            child2.add_model("model3", MyDataModel(...))
 ```
 
 Would then extend the graph:
@@ -268,7 +290,7 @@ Would then extend the graph:
 ```mermaid
 graph LR
     p([parent])
-    n([node])
+    n([group])
     c1([child1])
     c2([child2])
     g([grandchild])
@@ -285,198 +307,7 @@ graph LR
     c2 --> |model3| m3
 ```
 
-### Querying Nodes
-
-Artigraph provides a number of utilities that allow you to traverse the span hierarchy
-and retrieve artifacts from the spans. The examples below show what nodes each query
-would in the [graph above](#span-graph) return by highlighting them in red.
-
----
-
-#### Child Spans
-
-```python
-await read_child_nodes(span.node_id)
-```
-
-```mermaid
-graph LR
-    p([parent])
-    n([node])
-    c1([child1])
-    c2([child2])
-    g([grandchild])
-    m1[MyDataModel]
-    m2[MyDataModel]
-    m3[MyDataModel]
-
-    style c1 stroke:red,stroke-width:2px
-    style c2 stroke:red,stroke-width:2px
-
-    p --> n
-    n --> |model1| m1
-    n --> c1
-    n --> c2
-    c1 --> g
-    g --> |model2| m2
-    c2 --> |model3| m3
-```
-
----
-
-#### Child Artifacts
-
-```python
-await read_child_artifacts(span.node_id)
-```
-
-```mermaid
-graph LR
-    p([parent])
-    n([node])
-    c1([child1])
-    c2([child2])
-    g([grandchild])
-    m1[MyDataModel]
-    m2[MyDataModel]
-    m3[MyDataModel]
-
-    style m1 stroke:red,stroke-width:2px
-
-    p --> n
-    n --> |model1| m1
-    n --> c1
-    n --> c2
-    c1 --> g
-    g --> |model2| m2
-    c2 --> |model3| m3
-```
-
----
-
-#### Descendant Spans
-
-```python
-span_descendants = await read_descendant_spans(span.node_id)
-```
-
-```mermaid
-graph LR
-    p([parent])
-    n([node])
-    c1([child1])
-    c2([child2])
-    g([grandchild])
-    m1[MyDataModel]
-    m2[MyDataModel]
-    m3[MyDataModel]
-
-    style c1 stroke:red,stroke-width:2px
-    style c2 stroke:red,stroke-width:2px
-    style g stroke:red,stroke-width:2px
-
-    p --> n
-    n --> |model1| m1
-    n --> c1
-    n --> c2
-    c1 --> g
-    g --> |model2| m2
-    c2 --> |model3| m3
-```
-
----
-
-#### Descendant Artifacts
-
-```python
-span_descendant_artifacts = await read_descendant_artifacts(span.node_id)
-```
-
-```mermaid
-graph LR
-    p([parent])
-    n([node])
-    c1([child1])
-    c2([child2])
-    g([grandchild])
-    m1[MyDataModel]
-    m2[MyDataModel]
-    m3[MyDataModel]
-
-    style m1 stroke:red,stroke-width:2px
-    style m2 stroke:red,stroke-width:2px
-    style m3 stroke:red,stroke-width:2px
-
-    p --> n
-    n --> |model1| m1
-    n --> c1
-    n --> c2
-    c1 --> g
-    g --> |model2| m2
-    c2 --> |model3| m3
-```
-
----
-
-#### Parent Span
-
-```python
-span_parent = await read_parent_span(span.node_id)
-```
-
-```mermaid
-graph LR
-    p([parent])
-    n([node])
-    c1([child1])
-    c2([child2])
-    g([grandchild])
-    m1[MyDataModel]
-    m2[MyDataModel]
-    m3[MyDataModel]
-
-    style p stroke:red,stroke-width:2px
-
-    p --> n
-    n --> |model1| m1
-    n --> c1
-    n --> c2
-    c1 --> g
-    g --> |model2| m2
-    c2 --> |model3| m3
-```
-
----
-
-#### Ancestor Spans
-
-```python
-grandchild_ancestors = await read_ancestor_spans(grandchild.node_id)
-```
-
-```mermaid
-graph LR
-    p([parent])
-    n([node])
-    c1([child1])
-    c2([child2])
-    g([grandchild])
-    m1[MyDataModel]
-    m2[MyDataModel]
-    m3[MyDataModel]
-
-    style p stroke:red,stroke-width:2px
-    style n stroke:red,stroke-width:2px
-    style c1 stroke:red,stroke-width:2px
-
-    p --> n
-    n --> |model1| m1
-    n --> c1
-    n --> c2
-    c1 --> g
-    g --> |model2| m2
-    c2 --> |model3| m3
-```
+Artigraph provides [powerful utilities](queries.md) for exploring this graph.
 
 ### Customizing Nodes
 
@@ -533,7 +364,7 @@ and end times of the run:
 
 ```python
 from functools import wraps
-from artigraph import write_node_models, read_parent_node
+from artigraph import ModelGroup, new_node
 from artigraph.db import current_session
 
 
@@ -541,11 +372,10 @@ def run(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
 
-        async with create_current(Run(run_started_at=datetime.now(timezone.utc))) as run:
+        async with ModelGroup(new_node(Run, run_started_at=datetime.now(timezone.utc))) as group:
             try:
-                parent = await read_parent_node("current")
-                result = await func(parent, *args, **kwargs)
-                await write_node_models("current", result)
+                result = await func(*args, **kwargs)
+                await group.add_models(result)
                 return result
             finally:
                 async with current_session() as session:
@@ -559,9 +389,8 @@ def run(func):
 You could then use this decorator to create `spanned` functions like this:
 
 ```python
-@spanned
-async def train_model(parent_span, **parameters):
-    dataset = await read_child_models(parent_span.node_id)
+@run
+async def train_model(**parameters):
     model = train_model_on_dataset(dataset, **parameters)
     return {"model": model}
 ```

@@ -8,8 +8,6 @@ from typing import Any, Callable, Coroutine, Generic, Sequence, TypeVar, cast
 from anyio import to_thread
 from typing_extensions import ParamSpec, Self
 
-from artigraph.db import session_context
-
 F = TypeVar("F", bound=Callable[..., Any])
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -73,19 +71,5 @@ class TaskBatch(Generic[R]):
         return await asyncio.gather(*[t() for t in self._funcs])
 
 
-class SessionBatch(TaskBatch[R]):
-    """A batch of coroutines that are each executed with their own session"""
-
-    def __init__(self, **session_kwargs: Any) -> None:
-        self._session_kwargs = session_kwargs
-        super().__init__()
-
-    def _wrap_func(
-        self,
-        func: Callable[[], Coroutine[None, None, R]],
-    ) -> Callable[[], Coroutine[None, None, R]]:
-        async def wrapper():
-            async with session_context(**self._session_kwargs):
-                return await func()
-
-        return wrapper
+def get_subclasses(cls: type[R]) -> list[type[R]]:
+    return [cls, *(s for c in cls.__subclasses__() for s in get_subclasses(c))]

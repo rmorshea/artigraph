@@ -1,18 +1,19 @@
 from __future__ import annotations
 
-from typing import Any, Sequence, TypeVar, overload
+from dataclasses import dataclass
+from typing import Any, Generic, Sequence, TypeVar, overload
 
-from sqlalchemy import select
+from sqlalchemy import inspect
 from typing_extensions import TypeAlias
 
+from artigraph.api.filter import ArtifactFilter, Filter
 from artigraph.api.node import (
-    delete_node,
-    is_node_type,
-    read_child_nodes,
-    read_descendant_nodes,
+    delete_nodes,
     read_node,
+    read_node_or_none,
+    read_nodes,
 )
-from artigraph.db import current_session, session_context
+from artigraph.db import current_session
 from artigraph.orm.artifact import BaseArtifact, DatabaseArtifact, RemoteArtifact
 from artigraph.orm.node import Node
 from artigraph.serializer import get_serializer_by_name
@@ -20,137 +21,171 @@ from artigraph.serializer.core import Serializer
 from artigraph.storage.core import Storage, get_storage_by_name
 from artigraph.utils import TaskBatch
 
-T = TypeVar("T")
+V = TypeVar("V")
+A = TypeVar("A", bound="RemoteArtifact | DatabaseArtifact")
 N = TypeVar("N", bound=Node)
 
-QualifiedArtifact: TypeAlias = "tuple[RemoteArtifact | DatabaseArtifact, Any]"
-"""An artifact with its value."""
+
+@dataclass(frozen=True)
+class QualifiedArtifact(Generic[A, V]):
+    """An artifact and its value."""
+
+    artifact: A
+    """The database record"""
+
+    value: V
+    """The deserialized value"""
+
+
+AnyQualifiedArtifact: TypeAlias = """
+    QualifiedArtifact[RemoteArtifact | DatabaseArtifact, Any]
+    | QualifiedArtifact[DatabaseArtifact, Any]
+    | QualifiedArtifact[RemoteArtifact, Any]
+"""  # noqa: F722
+"""A convenience type for any qualified artifact."""
 
 
 @overload
 def new_artifact(
     label: str,
-    value: Any,
+    value: V,
     serializer: Serializer,
     *,
-    detail: str = ...,
     storage: Storage,
     parent_id: int | None = ...,
-) -> tuple[RemoteArtifact, Any]:
+) -> QualifiedArtifact[RemoteArtifact, V]:
     ...
 
 
 @overload
 def new_artifact(
     label: str,
-    value: Any,
+    value: V,
     serializer: Serializer,
     *,
-    detail: str = ...,
     storage: Storage | None,
     parent_id: int | None = ...,
-) -> tuple[DatabaseArtifact | RemoteArtifact, Any]:
+) -> QualifiedArtifact[RemoteArtifact | DatabaseArtifact, V]:
     ...
 
 
 @overload
 def new_artifact(
     label: str,
-    value: Any,
+    value: V,
     serializer: Serializer,
     *,
-    detail: str = ...,
     storage: None = ...,
     parent_id: int | None = ...,
-) -> tuple[DatabaseArtifact, Any]:
+) -> QualifiedArtifact[DatabaseArtifact, V]:
     ...
 
 
 def new_artifact(
     label: str,
-    value: Any,
+    value: V,
     serializer: Serializer,
     *,
-    detail: str = "",
     storage: Storage | None = None,
     parent_id: int | None = None,
-) -> QualifiedArtifact:
+) -> (
+    QualifiedArtifact[RemoteArtifact | DatabaseArtifact, V]
+    | QualifiedArtifact[RemoteArtifact, V]
+    | QualifiedArtifact[DatabaseArtifact, V]
+):
     """Construct a new artifact and its value"""
-    return (
-        DatabaseArtifact(
-            node_parent_id=parent_id,
-            artifact_label=label,
-            artifact_serializer=serializer.name,
-            artifact_detail=detail,
-            database_artifact_value=serializer.serialize(value),
-        )
-        if storage is None
-        else RemoteArtifact(
-            node_parent_id=parent_id,
-            artifact_label=label,
-            artifact_detail=detail,
-            artifact_serializer=serializer.name,
-            remote_artifact_storage=storage.name,
+    return QualifiedArtifact(
+        artifact=(
+            DatabaseArtifact(
+                node_parent_id=parent_id,
+                artifact_label=label,
+                artifact_serializer=serializer.name,
+                database_artifact_value=None,
+            )
+            if storage is None
+            else RemoteArtifact(
+                node_parent_id=parent_id,
+                artifact_label=label,
+                artifact_serializer=serializer.name,
+                remote_artifact_storage=storage.name,
+            )
         ),
-        value,
+        value=value,
     )
 
 
 def group_artifacts_by_parent_id(
-    qualified_artifacts: Sequence[QualifiedArtifact],
-) -> dict[int | None, list[QualifiedArtifact]]:
+    qualified_artifacts: Sequence[AnyQualifiedArtifact],
+) -> dict[int | None, list[AnyQualifiedArtifact]]:
     """Group artifacts by their parent id."""
-    artifacts_by_parent_id: dict[int | None, list[QualifiedArtifact]] = {}
-    for artifact, value in qualified_artifacts:
-        artifacts_by_parent_id.setdefault(artifact.node_parent_id, []).append((artifact, value))
+    artifacts_by_parent_id: dict[int | None, list[AnyQualifiedArtifact]] = {}
+    for qualart in qualified_artifacts:
+        artifacts_by_parent_id.setdefault(qualart.artifact.node_parent_id, []).append(
+            QualifiedArtifact(qualart.artifact, qualart.value)
+        )
     return artifacts_by_parent_id
 
 
-async def write_artifact(artifact: RemoteArtifact | DatabaseArtifact, value: Any) -> int:
-    """Save the artifact to the database."""
-    result = await write_artifacts([(artifact, value)])
-    return result[0]
+async def delete_artifacts(artifact_filter: ArtifactFilter[Any] | Filter) -> None:
+    """Delete the artifacts from the database."""
+    artifacts = await read_nodes(artifact_filter)
+
+    remote_storage_deletions = TaskBatch()
+    for a in artifacts:
+        if isinstance(a, RemoteArtifact):
+            storage = get_storage_by_name(a.remote_artifact_storage)
+            remote_storage_deletions.add(storage.delete, a.remote_artifact_location)
+
+    await remote_storage_deletions.gather()
+    await delete_nodes(artifact_filter)
 
 
-async def read_artifact_by_id(artifact_id: int) -> QualifiedArtifact:
+async def read_artifact(artifact_filter: ArtifactFilter[A] | Filter) -> QualifiedArtifact[A, Any]:
     """Load the artifact from the database."""
-    cmd = select(Node.node_type).where(Node.node_id == artifact_id)
-    async with current_session() as session:
-        result = await session.execute(cmd)
-        artifact_type = _get_artifact_type_by_name(result.scalar_one())
-        cmd = select(artifact_type).where(artifact_type.node_id == artifact_id)
-        result = await session.execute(cmd)
-        artifact = result.scalar_one()
-
-    serializer = get_serializer_by_name(artifact.artifact_serializer)
-    if isinstance(artifact, RemoteArtifact):
-        storage = get_storage_by_name(artifact.remote_artifact_storage)
-        value = serializer.deserialize(await storage.read(artifact.remote_artifact_location))
-    elif isinstance(artifact, DatabaseArtifact):
-        value = (
-            None
-            if artifact.database_artifact_value is None
-            else serializer.deserialize(artifact.database_artifact_value)
-        )
-    else:  # nocov
-        msg = f"Unknown artifact type: {artifact}"
-        raise RuntimeError(msg)
-
-    return artifact, value
+    return (await _load_qualified_artifacts([await read_node(artifact_filter)]))[0]
 
 
-async def write_artifacts(qualified_artifacts: Sequence[QualifiedArtifact]) -> Sequence[int]:
+async def read_artifact_or_none(
+    artifact_filter: ArtifactFilter[A] | Filter,
+) -> QualifiedArtifact[A, Any] | None:
+    """Load the artifact from the database, or return None if it does not exist."""
+    artifact_node = await read_node_or_none(artifact_filter)
+    return (await _load_qualified_artifacts([artifact_node]))[0] if artifact_node else None
+
+
+async def read_artifacts(
+    artifact_filter: ArtifactFilter[A] | Filter,
+) -> Sequence[QualifiedArtifact[A, Any]]:
+    """Load the artifact from the database."""
+    artifact_nodes = await read_nodes(artifact_filter)
+    return await _load_qualified_artifacts(artifact_nodes)
+
+
+async def write_artifact(qualified_artifact: AnyQualifiedArtifact) -> AnyQualifiedArtifact:
+    """Save the artifact to the database."""
+    return (await write_artifacts([qualified_artifact]))[0]
+
+
+async def write_artifacts(
+    qualified_artifacts: Sequence[AnyQualifiedArtifact],
+) -> Sequence[AnyQualifiedArtifact]:
     """Save the artifacts to the database."""
     qualified_storage_artifacts: list[tuple[RemoteArtifact, Any]] = []
     database_artifacts: list[DatabaseArtifact] = []
 
-    for artifact, value in qualified_artifacts:
-        if isinstance(artifact, RemoteArtifact):
-            qualified_storage_artifacts.append((artifact, value))
-        else:
-            serializer = get_serializer_by_name(artifact.artifact_serializer)
-            artifact.database_artifact_value = serializer.serialize(value)
-            database_artifacts.append(artifact)
+    for qual in qualified_artifacts:
+        if isinstance(qual.artifact, RemoteArtifact):
+            qualified_storage_artifacts.append((qual.artifact, qual.value))
+        elif isinstance(qual.artifact, DatabaseArtifact):
+            if qual.value is not None:
+                serializer = get_serializer_by_name(qual.artifact.artifact_serializer)
+                qual.artifact.database_artifact_value = serializer.serialize(qual.value)
+                database_artifacts.append(qual.artifact)
+            else:
+                qual.artifact.database_artifact_value = None
+        else:  # nocov
+            msg = f"Unknown artifact type: {qual.artifact}"
+            raise RuntimeError(msg)
 
     # Save values to storage first
     remote_artifacts: list[RemoteArtifact] = []
@@ -165,88 +200,47 @@ async def write_artifacts(qualified_artifacts: Sequence[QualifiedArtifact]) -> S
         artifact.remote_artifact_location = location
 
     # Save records in the database
-    async with session_context() as session:
+    async with current_session() as session:
         session.add_all(database_artifacts + remote_artifacts)
         await session.commit()
 
         # We can't do this in asyncio.gather() because of issues with concurrent connections:
         # https://docs.sqlalchemy.org/en/20/errors.html#illegalstatechangeerror-and-concurrency-exceptions
         artifact_ids: list[int] = []
-        for a, _ in qualified_artifacts:
-            await session.refresh(a)
-            artifact_ids.append(a.node_id)
+        for qual in qualified_artifacts:
+            if inspect(qual.artifact).persistent:
+                await session.refresh(qual.artifact)
+            artifact_ids.append(qual.artifact.node_id)
 
-        return artifact_ids
-
-
-async def delete_artifact(artifact_id: int, *, descendants: bool = True) -> None:
-    """Delete the artifacts from the database."""
-    artifact = await read_node(artifact_id)
-
-    remote_artifacts: list[RemoteArtifact] = []
-    if isinstance(artifact, RemoteArtifact):
-        remote_artifacts.append(artifact)
-    if descendants:  # nocov (FIXME: actually covered but not detected)
-        remote_artifacts.extend(await read_descendant_nodes(artifact_id, RemoteArtifact))
-
-    remote_storage_deletions = TaskBatch()
-    for ra in remote_artifacts:
-        storage = get_storage_by_name(ra.remote_artifact_storage)
-        remote_storage_deletions.add(storage.delete, ra.remote_artifact_location)
-    await remote_storage_deletions.gather()
-
-    await delete_node(artifact_id, descendants=descendants)
+        return qualified_artifacts
 
 
-async def read_child_artifacts(root_node_id: int) -> Sequence[QualifiedArtifact]:
-    return await _read_qualified_artifacts(await read_child_nodes(root_node_id))
+async def _load_qualified_artifacts(artifact_nodes: Sequence[A]) -> list[QualifiedArtifact[A, Any]]:
+    artifact_nodes_and_bytes: list[tuple[BaseArtifact, bytes | None]] = []
 
-
-async def read_descendant_artifacts(root_node_id: int) -> Sequence[QualifiedArtifact]:
-    """Load the artifacts from the database."""
-    return await _read_qualified_artifacts(await read_descendant_nodes(root_node_id))
-
-
-async def _read_qualified_artifacts(all_artifacts: Sequence[Any]) -> Sequence[QualifiedArtifact]:
-    remote_artifacts: list[RemoteArtifact] = []
-    database_artifacts: list[DatabaseArtifact] = []
-    for a in all_artifacts:
-        if is_node_type(a, RemoteArtifact):
-            remote_artifacts.append(a)
-        elif is_node_type(a, DatabaseArtifact):
-            database_artifacts.append(a)
+    remote_artifact_nodes: list[RemoteArtifact] = []
+    for node in artifact_nodes:
+        if isinstance(node, DatabaseArtifact):
+            artifact_nodes_and_bytes.append((node, node.database_artifact_value))
+        elif isinstance(node, RemoteArtifact):
+            remote_artifact_nodes.append(node)
         else:  # nocov
-            msg = f"Unknown artifact type: {a}"
+            msg = f"Unknown artifact type: {node}"
             raise RuntimeError(msg)
 
+    remote_artifact_values = TaskBatch()
+    for node in remote_artifact_nodes:
+        storage = get_storage_by_name(node.remote_artifact_storage)
+        remote_artifact_values.add(storage.read, node.remote_artifact_location)
+
+    for node, value in zip(remote_artifact_nodes, await remote_artifact_values.gather()):
+        artifact_nodes_and_bytes.append((node, value))
+
     qualified_artifacts: list[QualifiedArtifact] = []
-
-    for d_artifact in database_artifacts:
-        raw_value = d_artifact.database_artifact_value
-        value = (
-            None
-            if raw_value is None
-            else get_serializer_by_name(d_artifact.artifact_serializer).deserialize(raw_value)
+    for node, value in artifact_nodes_and_bytes:
+        serializer = get_serializer_by_name(node.artifact_serializer)
+        qualified_artifacts.append(
+            QualifiedArtifact(node, value if value is None else serializer.deserialize(value))
         )
-        qualified_artifacts.append((d_artifact, value))
-
-    # Load values from storage
-    storage_data: TaskBatch[Any] = TaskBatch()
-    for r_artifact in remote_artifacts:
-        storage = get_storage_by_name(r_artifact.remote_artifact_storage)
-        storage_data.add(storage.read, r_artifact.remote_artifact_location)
-
-    for r_artifact, data in zip(remote_artifacts, await storage_data.gather()):
-        serializer = get_serializer_by_name(r_artifact.artifact_serializer)
-        qualified_artifacts.append((r_artifact, serializer.deserialize(data)))
 
     return qualified_artifacts
-
-
-def _get_artifact_type_by_name(name: str) -> type[BaseArtifact]:
-    """Get the artifact type by name."""
-    for cls in BaseArtifact.__subclasses__():
-        if cls.polymorphic_identity == name:
-            return cls
-    msg = f"Unknown artifact type {name}"  # nocov
-    raise ValueError(msg)  # nocov

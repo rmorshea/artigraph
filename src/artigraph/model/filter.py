@@ -8,13 +8,12 @@ from sqlalchemy import or_, select
 from artigraph.api.filter import (
     ArtifactFilter,
     Filter,
-    NodeFilter,
     NodeTypeFilter,
     Query,
     ValueFilter,
     to_sequence_or_none,
 )
-from artigraph.orm.artifact import BaseArtifact, ModelArtifact
+from artigraph.orm.artifact import ModelArtifact
 from artigraph.utils import get_subclasses
 
 if TYPE_CHECKING:
@@ -32,8 +31,6 @@ class ModelFilter(ArtifactFilter[ModelArtifact], Generic[M]):
         default_factory=lambda: NodeTypeFilter(type=[ModelArtifact])
     )
     """Models must be one of these types."""
-    is_root: bool = False
-    """Model node must be the root node. That is, it's parent is not an artifact."""
     model_type: Sequence[ModelTypeFilter[M]] | ModelTypeFilter[M] | type[M] | None = None
     """Models must be one of these types."""
 
@@ -58,11 +55,6 @@ class ModelFilter(ArtifactFilter[ModelArtifact], Generic[M]):
                     ]
                 )
             )
-
-        if self.is_root:
-            query = NodeFilter(
-                node_type=NodeTypeFilter(not_type=BaseArtifact.__subclasses__())
-            ).apply(query)
 
         return query
 

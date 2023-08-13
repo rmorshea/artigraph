@@ -17,10 +17,10 @@ from artigraph.api.artifact import (
     read_artifacts,
     write_artifacts,
 )
-from artigraph.api.filter import ArtifactFilter, NodeRelationshipFilter
+from artigraph.api.filter import ArtifactFilter, NodeFilter, NodeRelationshipFilter
 from artigraph.api.node import read_node, write_parent_child_relationships
 from artigraph.db import new_session
-from artigraph.model.filter import ModelFilter, NodeFilter
+from artigraph.model.filter import ModelFilter
 from artigraph.orm import Node
 from artigraph.orm.artifact import ModelArtifact
 from artigraph.serializer import Serializer
@@ -30,6 +30,7 @@ from artigraph.storage import Storage
 ModelData: TypeAlias = "dict[str, tuple[Any, FieldConfig]]"
 M = TypeVar("M", bound="BaseModel")
 
+MODEL_TYPES_BY_NAME_AND_VERSION: dict[tuple[str, int], type[BaseModel]] = {}
 MODEL_TYPES_BY_NAME: dict[str, type[BaseModel]] = {}
 MODELED_TYPES: dict[type[Any], type[BaseModel]] = {}
 
@@ -152,14 +153,21 @@ class BaseModel:
         raise NotImplementedError()
 
     def __init_subclass__(cls, version: int):
+        cls.model_version = version
         if "model_name" not in cls.__dict__:
             cls.model_name = cls.__name__
 
-        if not ALLOW_MODEL_TYPE_OVERWRITES.get() and cls.model_name in MODEL_TYPES_BY_NAME:
-            msg = f"Artifact model named {cls.model_name!r} already exists"
+        n_and_v = (cls.model_name, cls.model_version)
+        if not ALLOW_MODEL_TYPE_OVERWRITES.get() and n_and_v in MODEL_TYPES_BY_NAME_AND_VERSION:
+            msg = f"Artifact model {cls.model_name!r} version {cls.model_version} already exists"
             raise RuntimeError(msg)
-        MODEL_TYPES_BY_NAME[cls.model_name] = cls
-        cls.model_version = version
+
+        MODEL_TYPES_BY_NAME_AND_VERSION[n_and_v] = cls
+        if (
+            cls.model_name in MODEL_TYPES_BY_NAME
+            and cls.model_version > MODEL_TYPES_BY_NAME[cls.model_name].model_version
+        ):
+            MODEL_TYPES_BY_NAME[cls.model_name] = cls
 
 
 class ModelMetadata(TypedDict):
@@ -269,7 +277,7 @@ async def _load_from_artifacts(
     artifacts_by_parent_id: dict[int | None, list[AnyQualifiedArtifact]],
 ) -> BaseModel:
     """Load the artifacts from the database."""
-    cls = _get_model_type_by_name(qual_artifact.artifact.model_artifact_type)
+    cls = _get_model_type_from_model_artifact(qual_artifact.artifact)
     version = qual_artifact.artifact.model_artifact_version
     kwargs: dict[str, Any] = {}
 
@@ -303,13 +311,17 @@ def _try_convert_value_to_modeled_type(value: Any) -> BaseModel | Any:
     return value
 
 
-def _get_model_type_by_name(name: str) -> type[BaseModel]:
+def _get_model_type_from_model_artifact(artifact: ModelArtifact) -> type[BaseModel]:
     """Get an artifact model type by its name."""
+    n_and_v = (artifact.model_artifact_type, artifact.model_artifact_version)
     try:
-        return MODEL_TYPES_BY_NAME[name]
+        return MODEL_TYPES_BY_NAME_AND_VERSION[n_and_v]
     except KeyError:
-        msg = f"Unknown artifact model type {name!r}"
-        raise ValueError(msg) from None
+        if artifact.model_artifact_type not in MODEL_TYPES_BY_NAME:
+            name, version = n_and_v
+            msg = f"Unknown artifact model type {name!r} version {version}"
+            raise ValueError(msg) from None
+        return MODEL_TYPES_BY_NAME[artifact.model_artifact_type]
 
 
 def _is_qualified_model_artifact(

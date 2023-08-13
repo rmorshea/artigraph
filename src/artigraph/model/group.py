@@ -62,7 +62,7 @@ class ModelGroup(Generic[N]):
         labels: Sequence[str] | None = None,
         *,
         fresh: bool = False,
-    ) -> dict[str, BaseModel]:  # nocov (FIXME: this is covered but not detected)
+    ) -> dict[str, BaseModel]:
         """Read this group's models from the database."""
         artifact_label_filter = self._labels_to_refresh(labels, fresh=fresh)
         if artifact_label_filter:
@@ -77,7 +77,6 @@ class ModelGroup(Generic[N]):
                     )
                 }
             )
-
         return self._models.copy()
 
     async def get_model(self, label: str, *, fresh: bool = False) -> BaseModel:
@@ -147,19 +146,18 @@ class ModelGroup(Generic[N]):
         *,
         fresh: bool,
     ) -> ValueFilter | None:
-        labels_to_refresh = (
-            labels
-            if (
-                # if refresh load all given labels
-                fresh
-                # labels=None is equivalent to all labels
-                or labels is None
-            )
-            else set(labels).difference(self._models.keys())
-        )
-        if labels_to_refresh is None or labels_to_refresh:
-            return ValueFilter(in_=labels_to_refresh)
-        return None
+        if fresh:
+            # refresh everything
+            return ValueFilter()
+
+        if labels is None:
+            return None  # do not refresh anything
+
+        labels = set(labels).difference(self._models.keys())
+        if not labels:
+            return None
+
+        return ValueFilter(in_=labels)
 
 
 class _LazyNodeId:

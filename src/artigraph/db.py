@@ -89,7 +89,7 @@ async def get_engine(*, create_tables: bool = False) -> AsyncEngine:
     except LookupError:  # nocov
         msg = "No current asynchronous engine"
         raise LookupError(msg) from None
-    if create_tables or _CREATE_TABLES.get():  # nocov (FIXME: actually covered but not detected)
+    if create_tables or _CREATE_TABLES.get():
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
     return engine

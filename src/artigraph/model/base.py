@@ -164,8 +164,8 @@ class BaseModel:
 
         MODEL_TYPES_BY_NAME_AND_VERSION[n_and_v] = cls
         if (
-            cls.model_name in MODEL_TYPES_BY_NAME
-            and cls.model_version > MODEL_TYPES_BY_NAME[cls.model_name].model_version
+            cls.model_name not in MODEL_TYPES_BY_NAME
+            or cls.model_version > MODEL_TYPES_BY_NAME[cls.model_name].model_version
         ):
             MODEL_TYPES_BY_NAME[cls.model_name] = cls
 

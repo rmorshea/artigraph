@@ -66,6 +66,22 @@ async def test_get_many_models_from_group():
     }
 
 
+async def test_get_all_models_from_group():
+    """Test that many models can be retrieved from a group."""
+    node = new_node()
+    async with ModelGroup(node) as group:
+        group.add_model("test1", SimpleModel(x=1, y=2))
+        group.add_model("test2", SimpleModel(x=3, y=4))
+        group.add_model("test3", SimpleModel(x=5, y=6))
+
+    models = await group.get_models()
+    assert models == {
+        "test1": SimpleModel(x=1, y=2),
+        "test2": SimpleModel(x=3, y=4),
+        "test3": SimpleModel(x=5, y=6),
+    }
+
+
 async def test_get_models_no_refresh():
     node = new_node()
 

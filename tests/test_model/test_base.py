@@ -148,3 +148,4 @@ async def test_read_model_filter_by_version():
     db_v2 = await read_model(ModelFilter(model_type=ModelTypeFilter(type=XModel, version=2)))
     assert db_v2.value == v2
     assert db_v2.artifact.model_artifact_version == 2
+    assert db_v2.artifact.model_artifact_type == XModel.__name__

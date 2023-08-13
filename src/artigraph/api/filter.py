@@ -6,7 +6,7 @@ from dataclasses import dataclass, field, fields, replace
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Callable, Generic, Sequence, TypeVar
 
-from sqlalchemy import BinaryExpression, select
+from sqlalchemy import BinaryExpression, Column, select
 from sqlalchemy.orm import aliased
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.sql.dml import Delete, Update
@@ -14,7 +14,6 @@ from sqlalchemy.sql.selectable import Select
 from typing_extensions import ParamSpec, Self, TypeAlias, dataclass_transform
 
 from artigraph.orm import BaseArtifact, Node, get_polymorphic_identities
-from artigraph.serializer.core import Serializer
 
 P = ParamSpec("P")
 T = TypeVar("T")
@@ -78,22 +77,14 @@ class NodeFilter(Filter, Generic[N]):
     """Nodes must be one of these types."""
     relationship: NodeRelationshipFilter | None = None
     """Nodes must be related to one of these nodes."""
-    created_at: ValueFilter[datetime] | None = None
+    created_at: ValueFilter[datetime] | datetime | None = None
     """Filter nodes by their creation time."""
-    updated_at: ValueFilter[datetime] | None = None
+    updated_at: ValueFilter[datetime] | datetime | None = None
     """Filter nodes by their last update time."""
 
     def apply(self, query: Query) -> Query:
         if self.node_id is not None:
-            query = (
-                (
-                    self.node_id
-                    if isinstance(self.node_id, ValueFilter)
-                    else ValueFilter(eq=self.node_id)
-                )
-                .using(Node.node_id)
-                .apply(query)
-            )
+            query = to_value_filter(self.node_id).using(Node.node_id).apply(query)
 
         if self.node_type is not None:
             query = (
@@ -106,10 +97,10 @@ class NodeFilter(Filter, Generic[N]):
             query = self.relationship.apply(query)
 
         if self.created_at:
-            query = self.created_at.using(Node.node_created_at).apply(query)
+            query = to_value_filter(self.created_at).using(Node.node_created_at).apply(query)
 
         if self.updated_at:
-            query = self.updated_at.using(Node.node_updated_at).apply(query)
+            query = to_value_filter(self.updated_at).using(Node.node_updated_at).apply(query)
 
         return query
 
@@ -240,21 +231,14 @@ class ArtifactFilter(NodeFilter[A]):
         default_factory=lambda: NodeTypeFilter(type=[BaseArtifact])  # type: ignore
     )
     """Artifacts must be one of these types."""
-    artifact_label: ValueFilter[str] | None = None
+    artifact_label: ValueFilter[str] | str | None = None
     """Filter artifacts by their label."""
-    artifact_serializer: Sequence[Serializer] = ()
-    """Filter artifacts by their serializer."""
 
     def apply(self, query: Query) -> Query:
         query = super().apply(query)
 
         if self.artifact_label:
             query = self.artifact_label.using(BaseArtifact.artifact_label).apply(query)
-
-        if self.artifact_serializer:
-            query = query.where(
-                BaseArtifact.artifact_serializer.in_(s.name for s in self.artifact_serializer)
-            )
 
         return query
 
@@ -282,17 +266,17 @@ class ValueFilter(GenericFilter[InstrumentedAttribute[T]]):
     """The column must be less than or equal to this value."""
     eq: T | None = column_op(default=None, op=operator.eq)
     """The column must be equal to this value."""
-    in_: Sequence[T] | None = column_op(default=None, op=lambda col, val: col.in_(val))
+    in_: Sequence[T] | None = column_op(default=None, op=Column.in_)
     """The column must be one of these values."""
-    not_in: Sequence[T] | None = column_op(default=None, op=lambda col, val: col.notin_(val))
+    not_in: Sequence[T] | None = column_op(default=None, op=Column.notin_)
     """The column must not be one of these values."""
-    like: T | None = column_op(default=None, op=lambda col, val: col.like(val))
+    like: T | None = column_op(default=None, op=Column.like)
     """The column must match this pattern."""
-    ilike: T | None = column_op(default=None, op=lambda col, val: col.ilike(val))
+    ilike: T | None = column_op(default=None, op=Column.ilike)
     """The column must match this pattern, case-insensitive."""
-    is_: bool | None = column_op(default=None, op=lambda col, val: col.is_(val))
+    is_: bool | None = column_op(default=None, op=Column.is_)
     """The column must be this value."""
-    is_not: bool | None = column_op(default=None, op=lambda col, val: col.isnot(val))
+    is_not: bool | None = column_op(default=None, op=Column.isnot)
     """The column must not be this value."""
 
     def apply(self, query: Query) -> Query:
@@ -308,3 +292,8 @@ class ValueFilter(GenericFilter[InstrumentedAttribute[T]]):
 def to_sequence_or_none(value: Sequence[T] | T | None) -> Sequence[T] | None:
     """Convert scalar values to a sequence, or None if the value is None."""
     return value if isinstance(value, Sequence) else (None if value is None else (value,))
+
+
+def to_value_filter(value: T | ValueFilter[T]) -> ValueFilter[T]:
+    """If not a `ValueFilter`, cast to one that checks for equivalence."""
+    return value if isinstance(value, ValueFilter) else ValueFilter(eq=value)

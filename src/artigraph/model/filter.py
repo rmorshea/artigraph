@@ -12,6 +12,7 @@ from artigraph.api.filter import (
     Query,
     ValueFilter,
     to_sequence_or_none,
+    to_value_filter,
 )
 from artigraph.orm.artifact import ModelArtifact
 from artigraph.utils import get_subclasses
@@ -81,11 +82,7 @@ class ModelTypeFilter(Generic[M], Filter):
 
         if self.version is not None:
             query = (
-                (
-                    self.version
-                    if isinstance(self.version, ValueFilter)
-                    else ValueFilter(eq=self.version)
-                )
+                to_value_filter(self.version)
                 .using(ModelArtifact.model_artifact_version)
                 .apply(query)
             )

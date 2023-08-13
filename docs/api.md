@@ -12,6 +12,8 @@
 
 ::: artigraph.serializer.pandas
 
+::: artigraph.serializer.plotly
+
 ::: artigraph.serializer.polars
 
 ::: artigraph.serializer.pyarrow

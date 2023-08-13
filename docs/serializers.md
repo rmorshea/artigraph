@@ -17,6 +17,7 @@ All built-in serializers can be found under `artigraph.serializer`:
 | [json.json_sorted_serializer][artigraph.serializer.json.json_sorted_serializer]     | JSON with sorted keys                                                    |
 | [numpy.array_serializer][artigraph.serializer.numpy.array_serializer]               | 1d and 2d [Numpy](https://numpy.org/) Arrays                             |
 | [pandas.dataframe_serializer][artigraph.serializer.pandas.dataframe_serializer]     | [Pandas](https://pandas.pydata.org/) DataFrames                          |
+| [plotly.figure_json_serializer][artigraph.serializer.plotly.figure_json_serializer] | [Plotly](https://plotly.com/python/) Figures                             |
 | [polars.dataframe_serializer][artigraph.serializer.polars.dataframe_serializer]     | [Polars](https://pola-rs.github.io/) DataFrames                          |
 | [pyarrow.feather_serializer][artigraph.serializer.pyarrow.feather_serializer]       | [PyArrow](https://arrow.apache.org/docs/python/index.html) Feather Files |
 | [pyarrow.parquet_serializer][artigraph.serializer.pyarrow.parquet_serializer]       | [PyArrow](https://arrow.apache.org/docs/python/index.html) Parquet Files |

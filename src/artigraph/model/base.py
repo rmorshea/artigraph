@@ -22,6 +22,7 @@ from artigraph.api.filter import ArtifactFilter, Filter, NodeFilter, NodeRelatio
 from artigraph.api.node import read_node, write_parent_child_relationships
 from artigraph.db import new_session
 from artigraph.model.filter import ModelFilter
+from artigraph.model.markdown import render as render_as_markdown
 from artigraph.orm import Node
 from artigraph.orm.artifact import ModelArtifact
 from artigraph.serializer import Serializer
@@ -143,9 +144,6 @@ class FieldConfig(TypedDict, total=False):
     storage: Storage
     """The storage for the artifact model field."""
 
-    annotation: Any
-    """The type annotation for the artifact model field."""
-
 
 class BaseModel:
     """An interface for all modeled artifacts."""
@@ -176,12 +174,22 @@ class BaseModel:
 
         MODEL_TYPE_BY_NAME[cls.model_name] = cls
 
+    _repr_markdown_ = render_as_markdown
+
 
 class ModelMetadata(TypedDict):
     """The metadata for an artifact model."""
 
     artigraph_version: str
     """The version of Artigraph used to generate the model"""
+
+
+def try_convert_value_to_modeled_type(value: Any) -> BaseModel | Any:
+    """Try to convert a value to a modeled type."""
+    modeled_type = MODELED_TYPES.get(type(value))
+    if modeled_type is not None:
+        return modeled_type(value)  # type: ignore
+    return value
 
 
 async def _read_model(qual: QualifiedModelMetadataArtifact) -> BaseModel:
@@ -251,7 +259,7 @@ def _get_models_and_data_by_paths(
     paths: dict[str, tuple[BaseModel, ModelData]] = {path: (model, model_data)}
 
     for label, (value, _) in model_data.items():
-        maybe_model = _try_convert_value_to_modeled_type(value)
+        maybe_model = try_convert_value_to_modeled_type(value)
         if not isinstance(maybe_model, BaseModel):
             continue
         paths.update(_get_models_and_data_by_paths(maybe_model, f"{path}/{label}").items())
@@ -307,14 +315,6 @@ def _get_model_parent_path(path: str) -> str:
 def _get_model_label_from_path(path: str) -> str:
     """Get the name of the artifact model field from a path."""
     return path.rsplit("/", 1)[-1]
-
-
-def _try_convert_value_to_modeled_type(value: Any) -> BaseModel | Any:
-    """Try to convert a value to a modeled type."""
-    modeled_type = MODELED_TYPES.get(type(value))
-    if modeled_type is not None:
-        return modeled_type(value)  # type: ignore
-    return value
 
 
 def _get_model_type_by_name(name: str) -> type[BaseModel]:

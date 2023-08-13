@@ -8,11 +8,11 @@ from artigraph.model.base import (
     MODEL_TYPE_BY_NAME,
     MODELED_TYPES,
     BaseModel,
-    _try_convert_value_to_modeled_type,
     allow_model_type_overwrites,
     read_model,
     read_model_or_none,
     read_models,
+    try_convert_value_to_modeled_type,
     write_model,
     write_models,
 )
@@ -44,7 +44,7 @@ class XYZModel(XYModel, version=1):
     ],
 )
 def test_try_convert_value_to_and_from_modeled_type(value):
-    kwargs = {k: v for k, (v, _) in _try_convert_value_to_modeled_type(value).model_data().items()}
+    kwargs = {k: v for k, (v, _) in try_convert_value_to_modeled_type(value).model_data().items()}
     model_type = MODELED_TYPES[type(value)]
     assert value == model_type.model_init(model_type.model_version, kwargs)
 

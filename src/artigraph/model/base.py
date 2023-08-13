@@ -30,8 +30,7 @@ from artigraph.storage import Storage
 ModelData: TypeAlias = "dict[str, tuple[Any, FieldConfig]]"
 M = TypeVar("M", bound="BaseModel")
 
-MODEL_TYPES_BY_NAME_AND_VERSION: dict[tuple[str, int], type[BaseModel]] = {}
-MODEL_TYPES_BY_NAME: dict[str, type[BaseModel]] = {}
+MODEL_TYPE_BY_NAME: dict[str, type[BaseModel]] = {}
 MODELED_TYPES: dict[type[Any], type[BaseModel]] = {}
 
 # useful in an interactive context (e.g. IPython/Jupyter)
@@ -157,17 +156,11 @@ class BaseModel:
         if "model_name" not in cls.__dict__:
             cls.model_name = cls.__name__
 
-        n_and_v = (cls.model_name, cls.model_version)
-        if not ALLOW_MODEL_TYPE_OVERWRITES.get() and n_and_v in MODEL_TYPES_BY_NAME_AND_VERSION:
-            msg = f"Artifact model {cls.model_name!r} version {cls.model_version} already exists"
+        if not ALLOW_MODEL_TYPE_OVERWRITES.get() and cls.model_name in MODEL_TYPE_BY_NAME:
+            msg = f"Artifact model {cls.model_name!r} already exists"
             raise RuntimeError(msg)
 
-        MODEL_TYPES_BY_NAME_AND_VERSION[n_and_v] = cls
-        if (
-            cls.model_name not in MODEL_TYPES_BY_NAME
-            or cls.model_version > MODEL_TYPES_BY_NAME[cls.model_name].model_version
-        ):
-            MODEL_TYPES_BY_NAME[cls.model_name] = cls
+        MODEL_TYPE_BY_NAME[cls.model_name] = cls
 
 
 class ModelMetadata(TypedDict):
@@ -277,7 +270,7 @@ async def _load_from_artifacts(
     artifacts_by_parent_id: dict[int | None, list[AnyQualifiedArtifact]],
 ) -> BaseModel:
     """Load the artifacts from the database."""
-    cls = _get_model_type_from_model_artifact(qual_artifact.artifact)
+    cls = _get_model_type_by_name(qual_artifact.artifact.model_artifact_type)
     version = qual_artifact.artifact.model_artifact_version
     kwargs: dict[str, Any] = {}
 
@@ -311,17 +304,13 @@ def _try_convert_value_to_modeled_type(value: Any) -> BaseModel | Any:
     return value
 
 
-def _get_model_type_from_model_artifact(artifact: ModelArtifact) -> type[BaseModel]:
+def _get_model_type_by_name(name: str) -> type[BaseModel]:
     """Get an artifact model type by its name."""
-    n_and_v = (artifact.model_artifact_type, artifact.model_artifact_version)
     try:
-        return MODEL_TYPES_BY_NAME_AND_VERSION[n_and_v]
-    except KeyError:
-        if artifact.model_artifact_type not in MODEL_TYPES_BY_NAME:
-            name, version = n_and_v
-            msg = f"Unknown artifact model type {name!r} version {version}"
-            raise ValueError(msg) from None
-        return MODEL_TYPES_BY_NAME[artifact.model_artifact_type]
+        return MODEL_TYPE_BY_NAME[name]
+    except KeyError:  # nocov
+        msg = f"Unknown artifact model type {name!r}"
+        raise ValueError(msg) from None
 
 
 def _is_qualified_model_artifact(

@@ -5,9 +5,9 @@ from artigraph.api.filter import NodeRelationshipFilter, ValueFilter
 from artigraph.api.node import new_node, write_node
 from artigraph.db import new_session
 from artigraph.model.base import (
+    MODEL_TYPE_BY_NAME,
     MODELED_TYPES,
     BaseModel,
-    _get_model_type_from_model_artifact,
     _try_convert_value_to_modeled_type,
     read_model,
     read_model_or_none,
@@ -17,18 +17,11 @@ from artigraph.model.base import (
 )
 from artigraph.model.data import DataModel
 from artigraph.model.filter import ModelFilter, ModelTypeFilter
-from artigraph.orm.artifact import ModelArtifact
 from artigraph.orm.node import Node
 from artigraph.serializer.json import json_serializer
 
 
 class XModel(DataModel, version=1):
-    x: int
-
-
-class XModelV2(DataModel, version=2):
-    model_name = "XModel"
-
     x: int
 
 
@@ -38,24 +31,6 @@ class XYModel(XModel, version=1):
 
 class XYZModel(XYModel, version=1):
     z: int
-
-
-def test_get_model_type_from_unknown_model_artifact():
-    """Test the get_model_type_by_name function."""
-    with pytest.raises(ValueError):
-        assert (
-            _get_model_type_from_model_artifact(
-                ModelArtifact(
-                    node_parent_id=None,
-                    artifact_serializer="something",
-                    artifact_label="something",
-                    database_artifact_value=b"something",
-                    model_artifact_type="DOES-NOT_EXIST",  # <-- doesn't exist
-                    model_artifact_version=1,
-                )
-            )
-            is None
-        )
 
 
 @pytest.mark.parametrize(
@@ -140,12 +115,24 @@ async def test_read_model_or_none():
     assert await read_model_or_none(ModelFilter(node_id=1234)) is None
 
 
-async def test_read_model_filter_by_version():
-    v1 = XModel(x=1)
-    v2 = XModelV2(x=1)
-    await write_models(models={"v1": v1, "v2": v2})
+async def test_model_migration():
+    class SomeModel(DataModel, version=1):
+        old_field_name: int
 
-    db_v2 = await read_model(ModelFilter(model_type=ModelTypeFilter(type=XModel, version=2)))
-    assert db_v2.value == v2
-    assert db_v2.artifact.model_artifact_version == 2
-    assert db_v2.artifact.model_artifact_type == XModel.__name__
+    old_model = SomeModel(old_field_name=1)
+    node_id = (await write_model(label="test", model=old_model)).artifact.node_id
+
+    del MODEL_TYPE_BY_NAME[SomeModel.__name__]
+
+    class SomeModel(DataModel, version=2):
+        new_field_name: int
+
+        @classmethod
+        def model_init(cls, version, kwargs):
+            if version == 1:
+                kwargs["new_field_name"] = kwargs.pop("old_field_name")
+            return super().model_init(2, kwargs)
+
+    new_model = await read_model(ModelFilter(node_id=node_id))
+    assert not hasattr(new_model.value, "old_field_name")
+    assert new_model.value.new_field_name == 1

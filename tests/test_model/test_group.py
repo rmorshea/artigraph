@@ -168,3 +168,18 @@ async def test_group_from_existing_node_id():
     assert db_model == model
     await group.remove_model("test")
     assert not await group.has_model("test")
+
+
+async def test_get_models_all_cached():
+    node = new_node()
+
+    model1 = SimpleModel(x=1, y=2)
+    model2 = SimpleModel(x=3, y=4)
+
+    async with ModelGroup(node) as group:
+        group.add_model("test1", model1)
+        group.add_model("test2", model2)
+
+    models = await group.get_models(["test1", "test2"])
+    assert models["test1"] is model1
+    assert models["test2"] is model2

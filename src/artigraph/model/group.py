@@ -63,11 +63,11 @@ class ModelGroup(Generic[N]):
         fresh: bool = False,
     ) -> dict[str, BaseModel]:
         """Read this group's models from the database."""
-        artifact_label_filter = self._labels_to_refresh(labels, fresh=fresh)
-        if artifact_label_filter:
+        labels_to_refresh = self._labels_to_refresh(labels, fresh=fresh)
+        if labels_to_refresh:
             model_filter = ModelFilter(
                 relationship=NodeRelationshipFilter(child_of=await self._node_id.get()),
-                artifact_label=artifact_label_filter,
+                artifact_label=labels_to_refresh,
             )
             self._models.update(
                 {  # type: ignore
@@ -87,23 +87,20 @@ class ModelGroup(Generic[N]):
 
     async def has_models(
         self,
-        labels: Sequence[str] | None = None,
+        labels: Sequence[str],
         *,
         fresh: bool = False,
     ) -> bool:
         """Check if this group has models with the given labels."""
-        artifact_label_filter = self._labels_to_refresh(labels, fresh=fresh)
-        if artifact_label_filter:
+        labels_to_refresh = self._labels_to_refresh(labels, fresh=fresh)
+        if labels_to_refresh:
             return await read_nodes_exist(
                 ModelFilter(
                     relationship=NodeRelationshipFilter(child_of=await self._node_id.get()),
-                    artifact_label=artifact_label_filter,
+                    artifact_label=labels_to_refresh,
                 )
             )
-        if labels is None:  # nocov
-            msg = "Internal error - lables=None is implicitly fresh"
-            raise RuntimeError(msg)
-        return all(label in self._models for label in labels)
+        return True
 
     async def remove_model(self, label: str) -> None:
         """Delete this group's model from the database."""

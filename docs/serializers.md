@@ -9,17 +9,17 @@ serializer explicitly.
 
 All built-in serializers can be found under `artigraph.serializer`:
 
-| Serializer                      | Description                                                              |
-| ------------------------------- | ------------------------------------------------------------------------ |
-| `datetime.datetime_serializer`  | Date Times                                                               |
-| `datetime.timedelta_serializer` | Time Deltas                                                              |
-| `json.json_serializer`          | JSON                                                                     |
-| `json.json_sorted_serializer`   | JSON with sorted keys                                                    |
-| `numpy.array_serializer`        | 1d and 2d [Numpy](https://numpy.org/) Arrays                             |
-| `pandas.dataframe_serializer`   | [Pandas](https://pandas.pydata.org/) DataFrames                          |
-| `polars.dataframe_serializer`   | [Polars](https://pola-rs.github.io/) DataFrames                          |
-| `pyarrow.feather_serializer`    | [PyArrow](https://arrow.apache.org/docs/python/index.html) Feather Files |
-| `pyarrow.parquet_serializer`    | [PyArrow](https://arrow.apache.org/docs/python/index.html) Parquet Files |
+| Serializer                                                                          | Description                                                              |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| [datetime.datetime_serializer][artigraph.serializer.datetime.datetime_serializer]   | Date Times                                                               |
+| [datetime.timedelta_serializer][artigraph.serializer.datetime.timedelta_serializer] | Time Deltas                                                              |
+| [json.json_serializer][artigraph.serializer.json.json_serializer]                   | JSON                                                                     |
+| [json.json_sorted_serializer][artigraph.serializer.json.json_sorted_serializer]     | JSON with sorted keys                                                    |
+| [numpy.array_serializer][artigraph.serializer.numpy.array_serializer]               | 1d and 2d [Numpy](https://numpy.org/) Arrays                             |
+| [pandas.dataframe_serializer][artigraph.serializer.pandas.dataframe_serializer]     | [Pandas](https://pandas.pydata.org/) DataFrames                          |
+| [polars.dataframe_serializer][artigraph.serializer.polars.dataframe_serializer]     | [Polars](https://pola-rs.github.io/) DataFrames                          |
+| [pyarrow.feather_serializer][artigraph.serializer.pyarrow.feather_serializer]       | [PyArrow](https://arrow.apache.org/docs/python/index.html) Feather Files |
+| [pyarrow.parquet_serializer][artigraph.serializer.pyarrow.parquet_serializer]       | [PyArrow](https://arrow.apache.org/docs/python/index.html) Parquet Files |
 
 ## Custom Serializers
 

@@ -52,7 +52,9 @@ class Node(Base, **_node_dataclass_kwargs):
         "polymorphic_on": "node_type",
     }
 
-    node_parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("artigraph_node.node_id"))
+    node_parent_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("artigraph_node.node_id"), init=False
+    )
     """The ID of the parent node."""
 
     node_id: Mapped[int] = mapped_column(primary_key=True, init=False)

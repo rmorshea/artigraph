@@ -3,13 +3,12 @@ from __future__ import annotations
 from dataclasses import field
 from typing import TYPE_CHECKING, Generic, Sequence, TypeVar
 
-from sqlalchemy import or_, select
-
 from artigraph.api.filter import (
     ArtifactFilter,
+    Expression,
     Filter,
+    MultiFilter,
     NodeTypeFilter,
-    Query,
     ValueFilter,
     to_sequence_or_none,
     to_value_filter,
@@ -35,21 +34,17 @@ class ModelFilter(ArtifactFilter[ModelArtifact], Generic[M]):
     model_type: Sequence[ModelTypeFilter[M]] | ModelTypeFilter[M] | type[M] | None = None
     """Models must be one of these types."""
 
-    def apply(self, query: Query) -> Query:
-        query = super().apply(query)
+    def compose(self, expr: Expression) -> Expression:
+        expr = super().compose(expr)
 
         model_type = to_sequence_or_none(self.model_type)
 
         if model_type is not None:
-            sub_queries = [
-                ModelArtifact.node_id.in_(
-                    _to_model_type_filter(mt).apply(select(ModelArtifact.node_id))
-                )
-                for mt in model_type
-            ]
-            query = query.where(or_(*sub_queries))
+            expr &= MultiFilter(
+                op="or", filters=[_to_model_type_filter(mt) for mt in model_type]
+            ).create()
 
-        return query
+        return expr
 
 
 class ModelTypeFilter(Generic[M], Filter):
@@ -62,24 +57,18 @@ class ModelTypeFilter(Generic[M], Filter):
     subclasses: bool = True
     """If True, include subclasses of the given model type."""
 
-    def apply(self, query: Query) -> Query:
+    def compose(self, expr: Expression) -> Expression:
         if self.subclasses:
-            query = query.where(
-                ModelArtifact.model_artifact_type.in_(
-                    [m.model_name for m in get_subclasses(self.type)]
-                )
+            expr &= ModelArtifact.model_artifact_type.in_(
+                [m.model_name for m in get_subclasses(self.type)]
             )
         else:
-            query = query.where(ModelArtifact.model_artifact_type == self.type.model_name)
+            expr &= ModelArtifact.model_artifact_type == self.type.model_name
 
         if self.version is not None:
-            query = (
-                to_value_filter(self.version)
-                .using(ModelArtifact.model_artifact_version)
-                .apply(query)
-            )
+            expr &= to_value_filter(self.version).use(ModelArtifact.model_artifact_version).create()
 
-        return query
+        return expr
 
 
 def _to_model_type_filter(model_type: type[BaseModel] | ModelTypeFilter) -> ModelTypeFilter:

@@ -4,13 +4,30 @@ import operator
 import sys
 from dataclasses import dataclass, field, fields, replace
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Callable, Collection, Generic, Sequence, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Collection,
+    Generic,
+    Literal,
+    Sequence,
+    TypeVar,
+)
 
-from sqlalchemy import BinaryExpression, Column, select
+from sqlalchemy import (
+    BinaryExpression,
+    BooleanClauseList,
+    Column,
+    ColumnElement,
+    Delete,
+    Exists,
+    Select,
+    Update,
+    select,
+)
 from sqlalchemy.orm import aliased
 from sqlalchemy.orm.attributes import InstrumentedAttribute
-from sqlalchemy.sql.dml import Delete, Update
-from sqlalchemy.sql.selectable import Select
 from typing_extensions import ParamSpec, Self, dataclass_transform
 
 from artigraph.orm import BaseArtifact, Node, get_polymorphic_identities
@@ -19,7 +36,10 @@ P = ParamSpec("P")
 T = TypeVar("T")
 N = TypeVar("N", bound=Node)
 A = TypeVar("A", bound=BaseArtifact)
-Query = TypeVar("Query", bound="Select[Any] | Update | Delete")
+Q = TypeVar("Q", bound="Select | Update | Delete | Exists")
+
+Expression = ColumnElement[bool]
+"""An alias for a sqlalchemy `OperatorExpression`"""
 
 
 @dataclass_transform()
@@ -37,12 +57,64 @@ class _FilterMeta(type):
         return self
 
 
+# An empty filter that does nothing
+_NO_OP = BooleanClauseList.and_()
+
+
 class Filter(metaclass=_FilterMeta):
     """Base class for where clauses."""
 
-    def apply(self, query: Query, /) -> Query:
+    def create(self) -> Expression:
+        """Return the condition represented by this filter."""
+        return self.compose(_NO_OP)
+
+    def compose(self, expr: Expression, /) -> Expression:
         """Apply the where clause to the given query."""
         raise NotImplementedError()
+
+    def __and__(self, other: Filter) -> MultiFilter:
+        """Combine this filter with another."""
+        return MultiFilter(op="and", filters=(self, other))
+
+    def __or__(self, other: Filter) -> MultiFilter:
+        """Combine this filter with another."""
+        return MultiFilter(op="or", filters=(self, other))
+
+
+class MultiFilter(Filter):
+    """A filter that applies multiple filters."""
+
+    op: Literal["and", "or"]
+    """The operator to use when combining filters."""
+
+    filters: Sequence[Filter]
+    """The filters to apply."""
+
+    def compose(self, expr: Expression) -> Expression:
+        if self.op == "and":
+            for f in self.filters:
+                expr &= f.create()
+        else:
+            for f in self.filters:
+                expr |= f.create()
+        return expr
+
+    def __and__(self, other: Filter) -> MultiFilter:
+        """Combine this filter with another."""
+        return self._combine("and", other)
+
+    def __or__(self, other: Filter) -> MultiFilter:
+        """Combine this filter with another."""
+        return self._combine("or", other)
+
+    def _combine(self, new_op: Literal["or", "and"], other: Filter) -> MultiFilter:
+        if self.op == new_op:
+            if isinstance(other, MultiFilter) and other.op == self.op:
+                return MultiFilter(op=self.op, filters=(*self.filters, *other.filters))
+            else:
+                return MultiFilter(op=self.op, filters=(*self.filters, other))
+        else:
+            return MultiFilter(op=new_op, filters=(self, other))
 
 
 class GenericFilter(Filter, Generic[T]):
@@ -55,17 +127,18 @@ class GenericFilter(Filter, Generic[T]):
         def value(self) -> T:  # type: ignore
             """The specific value to filter by."""
 
+        @value.setter
+        def value(self, new: T) -> None:  # type: ignore
+            """Set the value to filter by."""
+
     else:
         value: T = field(init=False, repr=False)
 
-    def using(self, value: T) -> Self:
+    def use(self, value: T) -> Self:
         """Return a new filter that uses the given value."""
         new = replace(self)
-        new.value = value  # type: ignore
+        new.value = value
         return new
-
-    def apply(self, query: Query) -> Query:
-        raise NotImplementedError()
 
 
 class NodeFilter(Filter, Generic[N]):
@@ -82,27 +155,27 @@ class NodeFilter(Filter, Generic[N]):
     updated_at: ValueFilter[datetime] | datetime | None = None
     """Filter nodes by their last update time."""
 
-    def apply(self, query: Query) -> Query:
+    def compose(self, expr: Expression) -> Expression:
         if self.node_id is not None:
-            query = to_value_filter(self.node_id).using(Node.node_id).apply(query)
+            expr &= to_value_filter(self.node_id).use(Node.node_id).create()
 
         if self.node_type is not None:
-            query = (
+            expr &= (
                 self.node_type
                 if isinstance(self.node_type, NodeTypeFilter)
                 else NodeTypeFilter(type=[self.node_type])
-            ).apply(query)
+            ).create()
 
         if self.relationship:
-            query = self.relationship.apply(query)
+            expr &= self.relationship.create()
 
         if self.created_at:
-            query = to_value_filter(self.created_at).using(Node.node_created_at).apply(query)
+            expr &= to_value_filter(self.created_at).use(Node.node_created_at).create()
 
         if self.updated_at:
-            query = to_value_filter(self.updated_at).using(Node.node_updated_at).apply(query)
+            expr &= to_value_filter(self.updated_at).use(Node.node_updated_at).create()
 
-        return query
+        return expr
 
 
 class NodeRelationshipFilter(Filter):
@@ -119,32 +192,28 @@ class NodeRelationshipFilter(Filter):
     ancestor_of: Sequence[int] | int | None = None
     """Nodes must be an ancestor of one of these nodes."""
 
-    def apply(self, query: Query) -> Query:
+    def compose(self, expr: Expression) -> Expression:
         child_of = to_sequence_or_none(self.child_of)
         parent_of = to_sequence_or_none(self.parent_of)
         descendant_of = to_sequence_or_none(self.descendant_of)
         ancestor_of = to_sequence_or_none(self.ancestor_of)
 
         if not self.include_self:
-            query = query.where(
-                Node.node_id.notin_(
-                    [
-                        *(child_of or []),
-                        *(parent_of or []),
-                        *(descendant_of or []),
-                        *(ancestor_of or []),
-                    ]
-                )
+            expr &= Node.node_id.notin_(
+                [
+                    *(child_of or []),
+                    *(parent_of or []),
+                    *(descendant_of or []),
+                    *(ancestor_of or []),
+                ]
             )
 
         if child_of is not None:
-            query = query.where(Node.node_parent_id.in_(n for n in child_of))
+            expr &= Node.node_parent_id.in_(n for n in child_of)
 
         if parent_of is not None:
-            query = query.where(
-                Node.node_id.in_(
-                    select(Node.node_parent_id).where(Node.node_id.in_(n for n in parent_of))
-                )
+            expr &= Node.node_id.in_(
+                select(Node.node_parent_id).where(Node.node_id.in_(n for n in parent_of))
             )
 
         if descendant_of is not None:
@@ -162,11 +231,9 @@ class NodeRelationshipFilter(Filter):
                 )
             )
 
-            query = query.where(
-                Node.node_id.in_(
-                    select(descendant_node_cte.c.descendant_id).where(
-                        descendant_node_cte.c.descendant_id.isnot(None)
-                    )
+            expr &= Node.node_id.in_(
+                select(descendant_node_cte.c.descendant_id).where(
+                    descendant_node_cte.c.descendant_id.isnot(None)
                 )
             )
 
@@ -187,15 +254,13 @@ class NodeRelationshipFilter(Filter):
             )
 
             # Join the CTE with the actual Node table to get the ancestors
-            query = query.where(
-                Node.node_id.in_(
-                    select(ancestor_node_cte.c.ancestor_id).where(
-                        ancestor_node_cte.c.ancestor_id.isnot(None)
-                    )
+            expr &= Node.node_id.in_(
+                select(ancestor_node_cte.c.ancestor_id).where(
+                    ancestor_node_cte.c.ancestor_id.isnot(None)
                 )
             )
 
-        return query
+        return expr
 
 
 class NodeTypeFilter(Filter, Generic[N]):
@@ -208,19 +273,19 @@ class NodeTypeFilter(Filter, Generic[N]):
     not_type: Sequence[type[N]] | type[N] | None = None
     """Nodes must not be one of these types."""
 
-    def apply(self, query: Query) -> Query:
+    def compose(self, expr: Expression) -> Expression:
         type_in = to_sequence_or_none(self.type)
         type_not_in = to_sequence_or_none(self.not_type)
 
         if type_in is not None:
             polys_in = get_polymorphic_identities(type_in, subclasses=self.subclasses)
-            query = query.where(Node.node_type.in_(polys_in))
+            expr &= Node.node_type.in_(polys_in)
 
         if type_not_in is not None:
             polys_not_in = get_polymorphic_identities(type_not_in, subclasses=self.subclasses)
-            query = query.where(Node.node_type.notin_(polys_not_in))
+            expr &= Node.node_type.notin_(polys_not_in)
 
-        return query
+        return expr
 
 
 class ArtifactFilter(NodeFilter[A]):
@@ -234,15 +299,15 @@ class ArtifactFilter(NodeFilter[A]):
     artifact_label: ValueFilter[str] | str | None = None
     """Filter artifacts by their label."""
 
-    def apply(self, query: Query) -> Query:
-        query = super().apply(query)
+    def compose(self, expr: Expression) -> Expression:
+        expr = super().compose(expr)
 
         if self.artifact_label:
-            query = (
-                to_value_filter(self.artifact_label).using(BaseArtifact.artifact_label).apply(query)
+            expr = (
+                to_value_filter(self.artifact_label).use(BaseArtifact.artifact_label).compose(expr)
             )
 
-        return query
+        return expr
 
 
 def column_op(*, op: Callable[[Any, Any], BinaryExpression], **kwargs: Any) -> Any:
@@ -250,7 +315,7 @@ def column_op(*, op: Callable[[Any, Any], BinaryExpression], **kwargs: Any) -> A
     return field(metadata={"op": op}, **kwargs)
 
 
-@dataclass_transform(field_specifiers=())
+@dataclass_transform()
 class ValueFilter(GenericFilter[InstrumentedAttribute[T]]):
     """Filter a column by comparing it to a value."""
 
@@ -277,14 +342,14 @@ class ValueFilter(GenericFilter[InstrumentedAttribute[T]]):
     is_not: bool | None = column_op(default=None, op=Column.isnot)
     """The column must not be this value."""
 
-    def apply(self, query: Query) -> Query:
+    def compose(self, expr: Expression) -> Expression:
         for f in fields(self):
             if "op" in f.metadata:
                 op_value = getattr(self, f.name, None)
                 if op_value is not None:
                     op: Callable[[InstrumentedAttribute[T], T], BinaryExpression] = f.metadata["op"]
-                    query = query.where(op(self.value, op_value))
-        return query
+                    expr &= op(self.value, op_value)
+        return expr
 
 
 def to_sequence_or_none(value: Sequence[T] | T | None) -> Sequence[T] | None:

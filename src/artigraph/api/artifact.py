@@ -9,6 +9,7 @@ from typing_extensions import TypeAlias
 from artigraph.api.filter import ArtifactFilter, Filter
 from artigraph.api.node import (
     delete_nodes,
+    new_node,
     read_node,
     read_node_or_none,
     read_nodes,
@@ -94,16 +95,19 @@ def new_artifact(
     | QualifiedArtifact[DatabaseArtifact, V]
 ):
     """Construct a new artifact and its value"""
+
     return QualifiedArtifact(
         artifact=(
-            DatabaseArtifact(
+            new_node(
+                DatabaseArtifact,
                 node_parent_id=parent_id,
                 artifact_label=label,
                 artifact_serializer=serializer.name,
                 database_artifact_value=None,
             )
             if storage is None
-            else RemoteArtifact(
+            else new_node(
+                RemoteArtifact,
                 node_parent_id=parent_id,
                 artifact_label=label,
                 artifact_serializer=serializer.name,

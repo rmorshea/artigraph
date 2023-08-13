@@ -148,7 +148,7 @@ async def test_read_parent_node():
 
 
 async def create_node(parent=None):
-    node = Node(node_parent_id=parent.node_id if parent else None)
+    node = new_node(node_parent_id=parent.node_id if parent else None)
 
     async with current_session() as session:
         session.add(node)
@@ -196,7 +196,7 @@ class Graph:
         self.children: list[Graph] = []
 
     def add_child(self, node_type: type[Node]):
-        node = node_type(node_parent_id=None)
+        node = new_node(node_type)
         graph = Graph(node)
         self.children.append(graph)
         return graph

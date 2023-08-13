@@ -30,13 +30,17 @@ def group_nodes_by_parent_id(nodes: Sequence[N]) -> dict[int | None, list[N]]:
     return grouped_nodes
 
 
-def new_node(node_type: Callable[P, N] = Node, *args: P.args, **kwargs: P.kwargs) -> N:
+def new_node(
+    node_type: Callable[P, N] = Node,
+    node_id: int | None = None,
+    node_parent_id: int | None = None,
+    *args: P.args,
+    **kwargs: P.kwargs,
+) -> N:
     """Create a new node."""
-    kwargs.setdefault("node_parent_id", None)
-    node_id = kwargs.pop("node_id", None)
     node = node_type(*args, **kwargs)
-    if node_id is not None:
-        node.node_id = node_id  # type: ignore
+    node.node_id = node_id  # type: ignore
+    node.node_parent_id = node_parent_id
     return node
 
 
@@ -57,13 +61,13 @@ async def read_node(node_filter: NodeFilter[N] | Filter) -> N:
 async def read_node_or_none(node_filter: NodeFilter[N] | Filter) -> N | None:
     """Read a node that matches the given filter or None if no node is found."""
     async with current_session() as session:
-        result = await session.execute(node_filter.apply(select(Node.__table__)))
+        result = await session.execute(select(Node.__table__).where(node_filter.create()))
         return load_node_from_row(result.one_or_none())  # type: ignore
 
 
 async def read_nodes(node_filter: NodeFilter[N] | Filter) -> Sequence[N]:
     """Read nodes that match the given filter."""
-    cmd = node_filter.apply(select(Node.__table__))
+    cmd = select(Node.__table__).where(node_filter.create())
     async with current_session() as session:
         result = await session.execute(cmd)
         return load_nodes_from_rows(result.all())
@@ -73,9 +77,7 @@ async def delete_nodes(node_filter: NodeFilter[Any] | Filter) -> None:
     """Delete nodes matching the given filter."""
 
     async with current_session() as session:
-        # node_ids_cmd: Select[tuple[int]] = node_filter.apply(select(Node.node_id))
-        # node_ids = (await session.execute(node_ids_cmd)).scalars().all()
-        delete_cmd = node_filter.apply(delete(Node))
+        delete_cmd = delete(Node).where(node_filter.create())
         await session.execute(delete_cmd)
         await session.commit()
 

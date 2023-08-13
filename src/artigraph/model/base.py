@@ -18,7 +18,7 @@ from artigraph.api.artifact import (
     read_artifacts,
     write_artifacts,
 )
-from artigraph.api.filter import ArtifactFilter, NodeFilter, NodeRelationshipFilter
+from artigraph.api.filter import ArtifactFilter, Filter, NodeFilter, NodeRelationshipFilter
 from artigraph.api.node import read_node, write_parent_child_relationships
 from artigraph.db import new_session
 from artigraph.model.filter import ModelFilter
@@ -104,13 +104,15 @@ async def write_model(
     return root_node
 
 
-async def read_model(model_filter: ModelFilter[M]) -> QualifiedModelArtifact[M]:
+async def read_model(model_filter: ModelFilter[M] | Filter) -> QualifiedModelArtifact[M]:
     """Load the model from the database."""
     qual = await read_artifact(model_filter)
     return QualifiedArtifact(qual.artifact, await _read_model(qual))  # type: ignore
 
 
-async def read_model_or_none(model_filter: ModelFilter[M]) -> QualifiedModelArtifact[M] | None:
+async def read_model_or_none(
+    model_filter: ModelFilter[M] | Filter,
+) -> QualifiedModelArtifact[M] | None:
     """Load the model from the database or return None if it doesn't exist."""
     qual = await read_artifact_or_none(model_filter)
     if qual is None:
@@ -118,7 +120,7 @@ async def read_model_or_none(model_filter: ModelFilter[M]) -> QualifiedModelArti
     return QualifiedArtifact(qual.artifact, await _read_model(qual))  # type: ignore
 
 
-async def read_models(model_filter: ModelFilter[M]) -> Sequence[QualifiedModelArtifact[M]]:
+async def read_models(model_filter: ModelFilter[M] | Filter) -> Sequence[QualifiedModelArtifact[M]]:
     """Load the models from the database."""
     return [  # type: ignore
         QualifiedArtifact(m.artifact, await _read_model(m))
@@ -126,7 +128,8 @@ async def read_models(model_filter: ModelFilter[M]) -> Sequence[QualifiedModelAr
     ]
 
 
-async def delete_models(model_filter: ModelFilter[Any]) -> None:
+async def delete_models(model_filter: ModelFilter[Any] | Filter) -> None:
+    """Delete the models from the database."""
     model_ids = [q.artifact.node_id for q in await read_artifacts(model_filter)]
     await delete_artifacts(NodeRelationshipFilter(descendant_of=model_ids, include_self=True))
 
@@ -229,7 +232,6 @@ def _get_model_artifact(label: str, model: BaseModel) -> QualifiedModelMetadataA
     """Get the artifact model for the given artifact label."""
     return QualifiedArtifact(
         artifact=ModelArtifact(
-            node_parent_id=None,
             artifact_label=label,
             artifact_serializer=json_sorted_serializer.name,
             model_artifact_type=model.model_name,

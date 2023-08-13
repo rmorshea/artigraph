@@ -99,13 +99,14 @@ together:
 ```python
 from typing import Annotated, TypeVar
 
+from boto3 import client
 import pandas as pd
 
 from artigraph.storage.aws import S3Storage
 from artigraph.serializer.pandas import dataframe_serializer
 from artigraph.serializer.numpy import numpy_serializer
 
-s3_bucket = S3Storage("my-bucket")
+s3_bucket = S3Storage("my-bucket", s3_client=client("s3"))
 
 T = TypeVar("T")
 S3 = Annotated[T, s3_bucket]
@@ -185,7 +186,8 @@ await write_models(
 )
 ```
 
-You can then retrieve the models attached to a node using `read_models()`:
+You can then retrieve the models attached to a node using
+[read_models()][artigraph.read_models]:
 
 ```python
 model_filter = NodeRelationshipFilter(child_of=node.node_id)
@@ -199,7 +201,6 @@ example:
 
 ```python
 from artigraph import ModelGroup, new_node
-
 
 async with ModelGroup(new_node()) as group:
     group.add_models(
@@ -235,7 +236,6 @@ Nodes can be nested to create a hierarchy. For example the following code
 
 ```python
 from artigraph import ModelGroup, new_node
-
 
 async with ModelGroup(new_node()) as parent:
     async with ModelGroup(new_node()) as node:
@@ -311,9 +311,10 @@ Artigraph provides [powerful utilities](queries.md) for exploring this graph.
 
 ### Customizing Nodes
 
-The built-in `Node` is pretty bare bones. If you want to add additional metadata to
-spans, you can create a custom span class by subclassing `Node` using SQLAlchemy's
-[Singletable Inheritance](https://docs.sqlalchemy.org/en/14/orm/inheritance.html#single-table-inheritance).
+The built-in [Node][artigraph.Node] is pretty bare bones. If you want to add additional
+metadata to spans, you can create a custom node class by subclassing
+[Node][artigraph.Node] using SQLAlchemy's
+[single table inheritance](schema.md#single-table-inheritance).
 
 ```python
 from artigraph import Node
@@ -323,11 +324,9 @@ class Run(Node):
     __mapper_args__ = {"polymorphic_identity": "run"}
 ```
 
-Since this uses single table inheritance, all fields from the base `Node` class (from
-which `Span` inherits) will need to live in the same table as your custom span. This
-means any new columns you add should be nullable, have a default, and have a unique name
-that doesn't conflict with any existing columns. The latter is achieved by prefixing the
-column name with the name of your custom span class:
+Any new columns you add should be nullable or have a default as well as have a unique
+name that doesn't conflict with any existing columns. The latter is most easily achieved
+by prefixing the column name with the name of your custom node class:
 
 ```python
 from typing import Any
@@ -343,16 +342,15 @@ class Run(Node):
     run_ended_at: Mapped[datetime | None] = None
 ```
 
-You can then use your custom span class by passing it to `span_context()`:
+You can then use your custom node class by passing it to `ModelGroup()`:
 
 ```python
-from artigraph import create_current
+from artigraph import ModelNode, new_node
 from datetime import datetime, timezone
 
-
-async def main():
-    async with create_current(Run(run_started_at=datetime.now(timezone.utc))):
-        ...
+run = new_node(Run, run_started_at=datetime.now(timezone.utc))
+async with ModelNode(run):
+    ...
 ```
 
 ### Building Upon Nodes
@@ -364,15 +362,14 @@ and end times of the run:
 
 ```python
 from functools import wraps
-from artigraph import ModelGroup, new_node
-from artigraph.db import current_session
+from artigraph import ModelGroup, new_node, current_session
 
 
 def run(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
-
-        async with ModelGroup(new_node(Run, run_started_at=datetime.now(timezone.utc))) as group:
+        run = new_node(Run, run_started_at=datetime.now(timezone.utc))
+        async with ModelGroup(run) as group:
             try:
                 result = await func(*args, **kwargs)
                 await group.add_models(result)
@@ -386,11 +383,11 @@ def run(func):
     return wrapper
 ```
 
-You could then use this decorator to create `spanned` functions like this:
+You could then use this decorator to create `run` functions like this:
 
 ```python
 @run
 async def train_model(**parameters):
-    model = train_model_on_dataset(dataset, **parameters)
+    model = train_model(**parameters)
     return {"model": model}
 ```

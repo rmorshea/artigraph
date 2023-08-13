@@ -10,7 +10,12 @@ from artigraph.utils import slugify
 
 
 class FileSystemStorage(Storage):
-    """A storage backend that saves artifacts to the filesystem."""
+    """A storage backend that saves artifacts to the filesystem.
+
+    Parameters:
+        directory: The directory to save artifacts to.
+        name: The name of the storage backend.
+    """
 
     def __init__(self, directory: str | Path, name: str = "") -> None:
         self.dir = Path(directory)

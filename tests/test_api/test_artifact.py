@@ -9,16 +9,21 @@ from artigraph.api.artifact import (
     write_artifacts,
 )
 from artigraph.api.filter import ArtifactFilter, NodeRelationshipFilter, ValueFilter
-from artigraph.api.node import read_nodes_exist, write_node, write_parent_child_relationships
+from artigraph.api.node import (
+    new_node,
+    read_nodes_exist,
+    write_node,
+    write_parent_child_relationships,
+)
 from artigraph.orm.artifact import DatabaseArtifact, RemoteArtifact
-from artigraph.orm.node import Node
 from artigraph.serializer.json import json_serializer
 from artigraph.storage.file import temp_file_storage
 
 
 async def test_create_read_delete_database_artifact():
     """Test creating an artifact."""
-    artifact = DatabaseArtifact(
+    artifact = new_node(
+        DatabaseArtifact,
         node_parent_id=None,
         artifact_label="test-label",
         artifact_serializer=json_serializer.name,
@@ -41,7 +46,8 @@ async def test_read_artifact_or_none():
     artifact_filter = ArtifactFilter(node_id=ValueFilter(eq=123))
     assert await read_artifact_or_none(artifact_filter) is None
 
-    artifact = DatabaseArtifact(
+    artifact = new_node(
+        DatabaseArtifact,
         node_parent_id=None,
         artifact_label="test-label",
         artifact_serializer=json_serializer.name,
@@ -121,7 +127,7 @@ async def test_delete_many_artifacts():
 
 
 async def test_read_child_artifacts():
-    node = await write_node(Node(node_parent_id=None), refresh_attributes=["node_id"])
+    node = await write_node(new_node(), refresh_attributes=["node_id"])
     qual_artifacts = [
         new_artifact(str(i), i, json_serializer, parent_id=node.node_id) for i in range(10)
     ]

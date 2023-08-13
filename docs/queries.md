@@ -57,14 +57,34 @@ graph LR
 
 A [Filter][artigraph.Filter] is a base class for all filters. A filter is simply a class
 that implements an [apply()][artigraph.Filter.apply] method that takes a SQLAlchemy
-`Select`, `Update`, or `Delete` object and applies the filter to it.
+`Select`, `Update`, or `Delete` object and applies the filter to it. You can create your
+own filters by subclassing [Filter][artigraph.Filter]:
+
+```python
+from artigraph import Filter, Node
+
+class MyFilter(Filter):
+   must_have_parent: bool = False
+
+   def compose(self, expr):
+         if self.must_have_parent:
+              expr = expr.where(Node.node_parent_id != None)
+         return expr
+```
+
+You can also compose multiple filters using the `&` and `|` operators:
+
+```python
+await read_node(NodeFilter(node_id=2) & MyFilter(must_have_parent=True))
+```
 
 ### Node Filter
 
-A [NodeFilter][artigraph.NodeFilter] allows you to select all [Node][artigraph.Node]
-subclasses based on their properties.
-
-#### Select by ID
+A [NodeFilter][artigraph.NodeFilter] is a higher-level filter that allows you to compose
+common node-related filter conditions together. It is also the base class for filters
+that apply to node subclasses such as [ArtifactFilter][artigraph.ArtifactFilter] and
+[ModelFilter][artigraph.ModelFilter]. It can be used to select nodes based on their
+properties, relationships, or type. For example you can select by node id:
 
 ```python
 from artigraph import NodeFilter, read_node
@@ -94,17 +114,17 @@ graph LR
     c2 --> |model3| m3
 ```
 
-### Node Type Filter
+### Artifact Filter
 
-The [NodeTypeFilter][artigraph.NodeTypeFilter] allows you to select nodes based on their
-type. By default, it will select all nodes that are instances of the given type or any
-of its subclasses. You can change this behavior by setting `subclasses=False` to only
-select nodes that are instances of the given type.
+The [ArtifactFilter][artigraph.ArtifactFilter] allows you to select nodes which inherit
+from [BaseArtifact][artigraph.BaseArtifact]. It accomplished this by setting a default
+value for [NodeFilter.node_type][artigraph.NodeFilter.node_type]. For example, you can
+select artifacts by their label:
 
 ```python
-from artigraph import Node, NodeFilter, NodeTypeFilter, read_nodes
+from artigraph import ArtifactFilter, read_artifacts
 
-await read_nodes(NodeFilter(node_type=NodeTypeFilter(type=Node, subclasses=False)))
+await read_artifacts(ArtifactFilter(artifact_label="model1"))
 ```
 
 ```mermaid
@@ -118,11 +138,7 @@ graph LR
     m2[MyDataModel]
     m3[MyDataModel]
 
-    style p stroke:red,stroke-width:2px
-    style n stroke:red,stroke-width:2px
-    style c1 stroke:red,stroke-width:2px
-    style c2 stroke:red,stroke-width:2px
-    style g stroke:red,stroke-width:2px
+    style m1 stroke:red,stroke-width:2px
 
     p --> n
     n --> |model1| m1
@@ -131,6 +147,43 @@ graph LR
     c1 --> g
     g --> |model2| m2
     c2 --> |model3| m3
+```
+
+### Model Filter
+
+The [ModelFilter][artigraph.ModelFilter] allows you to select nodes which inherit from
+[ModelArtifact][artigraph.ModelArtifact]. It accomplished this by setting a default
+value for [NodeFilter.node_type][artigraph.NodeFilter.node_type]. You can use this to
+select models by their type.
+
+```python
+from artigraph import ModelFilter, read_models
+
+await read_models(ModelFilter(model_type=MyDataModel))
+```
+
+```mermaid
+graph LR
+    p([parent])
+    n([group])
+    c1([child1])
+    c2([child2])
+    g([grandchild])
+    m1[MyDataModel]
+    m2[MyDataModel]
+    m3[MyDataModel]
+
+    style m1 stroke:red,stroke-width:2px
+    style m2 stroke:red,stroke-width:2px
+    style m3 stroke:red,stroke-width:2px
+
+    p --> n
+    n --> |model1| m1
+    n --> c1
+    n --> c2
+    c1 --> g
+    g --> m2
+    c2 --> m3
 ```
 
 ### Relationship Filter
@@ -143,7 +196,7 @@ nodes based on their relationships to other nodes.
 ```python
 from artigraph import NodeFilter, NodeRelationshipFilter, read_nodes
 
-await read_nodes(NodeFilter(relationship=NodeRelationshipFilter(child_of=1)))
+await read_nodes(NodeRelationshipFilter(child_of=1))
 ```
 
 ```mermaid
@@ -176,7 +229,7 @@ graph LR
 ```python
 from artigraph import NodeFilter, NodeRelationshipFilter, read_nodes
 
-await read_nodes(NodeFilter(relationship=NodeRelationshipFilter(parent_of=2)))
+await read_nodes(NodeRelationshipFilter(parent_of=2))
 ```
 
 ```mermaid
@@ -207,7 +260,7 @@ graph LR
 ```python
 from artigraph import NodeFilter, NodeRelationshipFilter, read_nodes
 
-await read_nodes(NodeFilter(relationship=NodeRelationshipFilter(descendant_of=2)))
+await read_nodes(NodeRelationshipFilter(descendant_of=2))
 ```
 
 ```mermaid
@@ -243,7 +296,7 @@ graph LR
 ```python
 from artigraph import NodeFilter, NodeRelationshipFilter, read_nodes
 
-await read_nodes(NodeFilter(relationship=NodeRelationshipFilter(ancestor_of=4)))
+await read_nodes(NodeRelationshipFilter(ancestor_of=4))
 ```
 
 ```mermaid
@@ -310,18 +363,17 @@ graph LR
     c2 --> |model3| m3
 ```
 
-### Artifact Filter
+### Node Type Filter
 
-The [ArtifactFilter][artigraph.ArtifactFilter] allows you to select nodes which inherit
-from [BaseArtifact][artigraph.BaseArtifact]. It accomplished this by setting a default
-value for [NodeFilter.node_type][artigraph.NodeFilter.node_type].
-
-### Select by Label
+The [NodeTypeFilter][artigraph.NodeTypeFilter] allows you to select nodes based on their
+type. By default, it will select all nodes that are instances of the given type or any
+of its subclasses. You can change this behavior by setting `subclasses=False` to only
+select nodes that are instances of the given type.
 
 ```python
-from artigraph import ArtifactFilter, read_artifacts
+from artigraph import Node, NodeFilter, NodeTypeFilter, read_nodes
 
-await read_artifacts(ArtifactFilter(artifact_label="model1"))
+await read_nodes(NodeTypeFilter(type=Node, subclasses=False))
 ```
 
 ```mermaid
@@ -335,7 +387,11 @@ graph LR
     m2[MyDataModel]
     m3[MyDataModel]
 
-    style m1 stroke:red,stroke-width:2px
+    style p stroke:red,stroke-width:2px
+    style n stroke:red,stroke-width:2px
+    style c1 stroke:red,stroke-width:2px
+    style c2 stroke:red,stroke-width:2px
+    style g stroke:red,stroke-width:2px
 
     p --> n
     n --> |model1| m1
@@ -346,13 +402,7 @@ graph LR
     c2 --> |model3| m3
 ```
 
-### Model Filter
-
-The [ModelFilter][artigraph.ModelFilter] allows you to select nodes which inherit from
-[ModelArtifact][artigraph.ModelArtifact]. It accomplished this by setting a default
-value for [NodeFilter.node_type][artigraph.NodeFilter.node_type].
-
-### ModelTypeFilter
+### Model Type Filter
 
 The [ModelTypeFilter][artigraph.ModelTypeFilter] allows you to select nodes based on
 their [BaseModel][artigraph.BaseModel] type. By default, it will select all nodes that
@@ -363,7 +413,7 @@ or [`ValueFilter`](#value-filter).
 ```python
 from artigraph import ModelFilter, ModelTypeFilter, read_models
 
-await read_models(ModelFilter(model_type=ModelTypeFilter(type=MyDataModel, version=1)))
+await read_models(ModelTypeFilter(type=MyDataModel, version=1))
 ```
 
 ```mermaid

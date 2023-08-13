@@ -4,14 +4,14 @@ import operator
 import sys
 from dataclasses import dataclass, field, fields, replace
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Callable, Generic, Sequence, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Collection, Generic, Sequence, TypeVar
 
 from sqlalchemy import BinaryExpression, Column, select
 from sqlalchemy.orm import aliased
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.sql.dml import Delete, Update
 from sqlalchemy.sql.selectable import Select
-from typing_extensions import ParamSpec, Self, TypeAlias, dataclass_transform
+from typing_extensions import ParamSpec, Self, dataclass_transform
 
 from artigraph.orm import BaseArtifact, Node, get_polymorphic_identities
 
@@ -19,7 +19,7 @@ P = ParamSpec("P")
 T = TypeVar("T")
 N = TypeVar("N", bound=Node)
 A = TypeVar("A", bound=BaseArtifact)
-Query: TypeAlias = "Select[Any] | Update | Delete"
+Query = TypeVar("Query", bound="Select[Any] | Update | Delete")
 
 
 @dataclass_transform()
@@ -238,16 +238,14 @@ class ArtifactFilter(NodeFilter[A]):
         query = super().apply(query)
 
         if self.artifact_label:
-            query = self.artifact_label.using(BaseArtifact.artifact_label).apply(query)
+            query = (
+                to_value_filter(self.artifact_label).using(BaseArtifact.artifact_label).apply(query)
+            )
 
         return query
 
 
-def column_op(
-    *,
-    op: Callable[[InstrumentedAttribute[Any], Any], BinaryExpression],
-    **kwargs: Any,
-) -> Any:
+def column_op(*, op: Callable[[Any, Any], BinaryExpression], **kwargs: Any) -> Any:
     """Apply a comparison operator to a column."""
     return field(metadata={"op": op}, **kwargs)
 
@@ -266,9 +264,9 @@ class ValueFilter(GenericFilter[InstrumentedAttribute[T]]):
     """The column must be less than or equal to this value."""
     eq: T | None = column_op(default=None, op=operator.eq)
     """The column must be equal to this value."""
-    in_: Sequence[T] | None = column_op(default=None, op=Column.in_)
+    in_: Collection[T] | None = column_op(default=None, op=Column.in_)
     """The column must be one of these values."""
-    not_in: Sequence[T] | None = column_op(default=None, op=Column.notin_)
+    not_in: Collection[T] | None = column_op(default=None, op=Column.notin_)
     """The column must not be one of these values."""
     like: T | None = column_op(default=None, op=Column.like)
     """The column must match this pattern."""

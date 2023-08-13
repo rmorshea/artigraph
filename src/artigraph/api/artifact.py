@@ -126,7 +126,7 @@ def group_artifacts_by_parent_id(
     return artifacts_by_parent_id
 
 
-async def delete_artifacts(artifact_filter: ArtifactFilter | Filter) -> None:
+async def delete_artifacts(artifact_filter: ArtifactFilter[Any] | Filter) -> None:
     """Delete the artifacts from the database."""
     artifacts = await read_nodes(artifact_filter)
 

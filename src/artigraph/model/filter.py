@@ -41,21 +41,13 @@ class ModelFilter(ArtifactFilter[ModelArtifact], Generic[M]):
         model_type = to_sequence_or_none(self.model_type)
 
         if model_type is not None:
-            # or the model type queries together
-            query = query.where(
-                or_(
-                    *[
-                        ModelArtifact.node_id.in_(
-                            (
-                                mt
-                                if isinstance(mt, ModelTypeFilter)
-                                else ModelTypeFilter(type=mt, version=mt.model_version)
-                            ).apply(select(ModelArtifact.node_id))
-                        )
-                        for mt in model_type
-                    ]
+            sub_queries = [
+                ModelArtifact.node_id.in_(
+                    _to_model_type_filter(mt).apply(select(ModelArtifact.node_id))
                 )
-            )
+                for mt in model_type
+            ]
+            query = query.where(or_(*sub_queries))
 
         return query
 
@@ -88,3 +80,11 @@ class ModelTypeFilter(Generic[M], Filter):
             )
 
         return query
+
+
+def _to_model_type_filter(model_type: type[BaseModel] | ModelTypeFilter) -> ModelTypeFilter:
+    return (
+        model_type
+        if isinstance(model_type, ModelTypeFilter)
+        else ModelTypeFilter(type=model_type, version=model_type.model_version)
+    )

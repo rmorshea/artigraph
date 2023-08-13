@@ -65,7 +65,7 @@ async def read_nodes(node_filter: NodeFilter[N] | Filter) -> Sequence[N]:
         return load_nodes_from_rows(result.all())
 
 
-async def delete_nodes(node_filter: NodeFilter[Node]) -> None:
+async def delete_nodes(node_filter: NodeFilter[Any] | Filter) -> None:
     """Delete nodes matching the given filter."""
 
     async with current_session() as session:

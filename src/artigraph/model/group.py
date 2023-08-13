@@ -1,28 +1,27 @@
 from __future__ import annotations
 
 from contextvars import ContextVar, Token
-from typing import Any, Generic, Sequence, TypeVar
+from typing import Any, Collection, Generic, Sequence, TypeVar
 
-from pydantic import BaseModel
 from typing_extensions import Self
 
 from artigraph.api.filter import NodeRelationshipFilter, ValueFilter
 from artigraph.api.node import read_node_or_none, read_nodes_exist, write_node
-from artigraph.model.base import delete_models, read_models, write_models
+from artigraph.model.base import BaseModel, delete_models, read_models, write_models
 from artigraph.model.filter import ModelFilter
 from artigraph.orm.node import Node
 
 N = TypeVar("N", bound=Node)
 
-_CURRENT_MODEL_GROUP: ContextVar[ModelGroup[Node]] = ContextVar("CURRENT_MODEL_GROUP")
+_CURRENT_MODEL_GROUP: ContextVar[ModelGroup[Any]] = ContextVar("CURRENT_MODEL_GROUP")
 
 
-def current_model_group() -> ModelGroup[Node]:
+def current_model_group() -> ModelGroup[Any]:
     """Get the current model group."""
     return _CURRENT_MODEL_GROUP.get()
 
 
-def current_model_group_or_none() -> ModelGroup[Node]:
+def current_model_group_or_none() -> ModelGroup[Any] | None:
     """Get the current model group, or return None if none exists"""
     try:
         return current_model_group()
@@ -66,15 +65,14 @@ class ModelGroup(Generic[N]):
         """Read this group's models from the database."""
         artifact_label_filter = self._labels_to_refresh(labels, fresh=fresh)
         if artifact_label_filter:
+            model_filter = ModelFilter(
+                relationship=NodeRelationshipFilter(child_of=await self._node_id.get()),
+                artifact_label=artifact_label_filter,
+            )
             self._models.update(
-                {
+                {  # type: ignore
                     qual.artifact.artifact_label: qual.value
-                    for qual in await read_models(
-                        ModelFilter(
-                            relationship=NodeRelationshipFilter(child_of=await self._node_id.get()),
-                            artifact_label=artifact_label_filter,
-                        )
-                    )
+                    for qual in await read_models(model_filter)
                 }
             )
         return self._models.copy()
@@ -102,6 +100,9 @@ class ModelGroup(Generic[N]):
                     artifact_label=artifact_label_filter,
                 )
             )
+        if labels is None:  # nocov
+            msg = "Internal error - lables=None is implicitly fresh"
+            raise RuntimeError(msg)
         return all(label in self._models for label in labels)
 
     async def remove_model(self, label: str) -> None:
@@ -142,16 +143,13 @@ class ModelGroup(Generic[N]):
 
     def _labels_to_refresh(
         self,
-        labels: Sequence[str] | None,
+        labels: Collection[str] | None,
         *,
         fresh: bool,
     ) -> ValueFilter | None:
-        if fresh:
+        if fresh or labels is None:
             # refresh everything
             return ValueFilter()
-
-        if labels is None:
-            return None  # do not refresh anything
 
         labels = set(labels).difference(self._models.keys())
         if not labels:

@@ -1,9 +1,8 @@
 # Artigraph
 
-Artigraph is library for creating interrelated graphs of artifacts. It aims to provide a
-foundational set of primitives for doing so rather than an opinionated framework. As
-such, it's often best used in conjunction with existing data pipeline tools like
-[Prefect](https://www.prefect.io/) or [Dask](https://dask.org/). Artigraph is backed by
+Artigraph is a library for creating and working with interrelated graphs of data
+artifacts. It's best used in conjunction with existing data pipeline tools like
+[Prefect](https://www.prefect.io/) or [Dask](https://dask.org/). Artigraph uses
 [SQLAlchemy](https://www.sqlalchemy.org/) and is compatible with most major relational
 databases including PostgreSQL, MySQL, and SQLite.
 
@@ -20,6 +19,7 @@ To install only a select set of dependencies replace `all` with any of:
 -   `numpy`
 -   `polars`
 -   `pyarrow`
+-   `plotly`
 
 ## At a Glance
 

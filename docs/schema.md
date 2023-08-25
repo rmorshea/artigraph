@@ -63,15 +63,21 @@ Artigraph uses
 compared to
 [concrete table inheritance](https://docs.sqlalchemy.org/en/20/orm/inheritance.html#concrete-table-inheritance).
 The primary advantage of STI is that the database schema is drastically simplified since
-there's only one table to manage - queries can avoid joins and thus be simpler and,
-potentially, more performant. The disadvantages of STI come from a lack of separation -
-making independent schema changes may be challenging and, as the number of `Node`
-subclasses grows, the table will become more and more sparse.
+there's only one table to manage - queries can avoid joins and thus be more performant.
+The disadvantages of STI come from a lack of separation - making independent schema
+changes may be challenging.
 
 It's worth keeping these tradeoffs in mind as you extend Artigraph. The main way to
 mitigate the disadvantages of STI is to keep the number of `Node` subclasses to a
 minimum. Thankfully, the base primitives of Artigraph are powerful enough to support a
 wide variety of use cases. In general, if you find yourself needing to add a new
+
+!!! note
+
+    Thankfully most modern databases do not suffer from size issues if a table is
+    sparse. For example, in PostgreSQL a null bitmap is used to mark which columns
+    are null for any row with at least one null value. As such, the size of a sparse
+    row is identical to one that is well (but not completely) populated.
 
 ## Base Artifact
 
@@ -86,20 +92,6 @@ Its columns are:
 
 Of note is the `artifact_serializer` which maps to a [serializer](serializers.md) by
 name.
-
-### Remote Artifact
-
-`RemoteArtifact` is a subclass of [`BaseArtifact`](#base-artifact) that represents an
-artifact that is stored somewhere else other than the database. Since the data itself is
-stored elsewhere, all that is stored in the database is a pointer to the artifact. To do
-this it defines:
-
-| Column                     | Type     | Description                                         |
-| -------------------------- | -------- | --------------------------------------------------- |
-| `remote_artifact_storage`  | `String` | The name of the storage backend.                    |
-| `remote_artifact_location` | `String` | The location of the data in in the storage backend. |
-
-The `remote_artifact_storage` column maps to a [storage backend](storage.md) by name.
 
 ### Database Artifact
 
@@ -119,6 +111,20 @@ the root node of a [DataModel][artigraph.DataModel].
 | ------------------------ | ----- | ------------------------ |
 | `model_artifact_type`    | `str` | The name of the model    |
 | `model_artifact_version` | `int` | The version of the model |
+
+### Remote Artifact
+
+`RemoteArtifact` is a subclass of [`BaseArtifact`](#base-artifact) that represents an
+artifact that is stored somewhere else other than the database. Since the data itself is
+stored elsewhere, all that is stored in the database is a pointer to the artifact. To do
+this it defines:
+
+| Column                     | Type     | Description                                         |
+| -------------------------- | -------- | --------------------------------------------------- |
+| `remote_artifact_storage`  | `String` | The name of the storage backend.                    |
+| `remote_artifact_location` | `String` | The location of the data in in the storage backend. |
+
+The `remote_artifact_storage` column maps to a [storage backend](storage.md) by name.
 
 ## Data Model
 
@@ -160,10 +166,10 @@ graph TB
 
 With the table contents below
 
-| node_id | node_parent_id | node_polymorphic_identity | artifact_label | artifact_serializer   | model_artifact_type | model_artifact_version | database_artifact_data        | node_created_at | node_updated_at |
-| ------- | -------------- | ------------------------- | -------------- | --------------------- | ------------------- | ---------------------- | ----------------------------- | --------------- | --------------- |
-| 1       | null           | model_artifact            | my-data        | artigraph-json-sorted | MyDataModel         | 1                      | {'artigraph_version':'x.y.z'} | ...             | ...             |
-| 2       | 1              | database_artifact         | some_value     | artigraph-json        | null                | null                   | 1                             | ...             | ...             |
-| 3       | 1              | model_artifact            | inner_model    | artigraph-json-sorted | MyDataModel         | 1                      | {'artigraph_version':'x.y.z'} | ...             | ...             |
-| 4       | 3              | database_artifact         | some_value     | artigraph-json        | null                | null                   | 2                             | ...             | ...             |
-| 5       | 3              | database_artifact         | inner_model    | artigraph-json        | null                | null                   | null                          | ...             | ...             |
+| node_id | node_parent_id | node_polymorphic_identity | node_created_at | node_updated_at | artifact_label | artifact_serializer   | model_artifact_type | model_artifact_version | database_artifact_data        | remote_artifact_storage | remote_artifact_location |
+| ------- | -------------- | ------------------------- | --------------- | --------------- | -------------- | --------------------- | ------------------- | ---------------------- | ----------------------------- | ----------------------- | ------------------------ |
+| 1       |                | model_artifact            | ...             | ...             | my-data        | artigraph-json-sorted | MyDataModel         | 1                      | {'artigraph_version':'x.y.z'} |                         |                          |
+| 2       | 1              | database_artifact         | ...             | ...             | some_value     | artigraph-json        |                     |                        | 1                             |                         |                          |
+| 3       | 1              | model_artifact            | ...             | ...             | inner_model    | artigraph-json-sorted | MyDataModel         | 1                      | {'artigraph_version':'x.y.z'} |                         |                          |
+| 4       | 3              | database_artifact         | ...             | ...             | some_value     | artigraph-json        |                     |                        | 2                             |                         |                          |
+| 5       | 3              | database_artifact         | ...             | ...             | inner_model    | artigraph-json        |                     |                        |                               |                         |                          |

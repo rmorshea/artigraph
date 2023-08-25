@@ -1,9 +1,37 @@
 # Queries
 
-Artigraph makes it easy to inspect and operate on the graph of nodes defined by the
-underlying [database schema](schema.md) using [Filter][artigraph.Filter]s. This section
-does not attempt to describe all the ways in which you can query the graph but rather to
-provide a few examples of how to use the available filters.
+Artigraph allows you to inspect and operate on the graph of nodes defined by the
+underlying [database schema](schema.md) using [Filter][artigraph.Filter]s. Filters can
+be composed together to create complex queries. Due to the large number of possible
+combinations, this document does not attempt to describe all the ways in which filters
+can be used. Instead, it will describe the tools that are available along with a few
+examples that will give a sense for how they can be used.
+
+## Filter
+
+A [Filter][artigraph.Filter] is a base class for all filters. A filter is simply a class
+that implements a [compose()][artigraph.Filter.compose] method that takes and returns a
+SQLAlchemy expression object. Inside the [compose()][artigraph.Filter.compose] method
+you can modify the expression object to add conditions to the query. For example, the
+following filter will only select nodes that have a parent:
+
+```python
+from artigraph import Filter, Node
+
+class MyFilter(Filter):
+   must_have_parent: bool = False
+
+   def compose(self, expr):
+         if self.must_have_parent:
+              expr = expr.where(Node.node_parent_id != None)
+         return expr
+```
+
+You can then compose multiple filters using the `&` and `|` operators:
+
+```python
+await read_node(NodeFilter(node_id=2) & MyFilter(must_have_parent=True))
+```
 
 ## Example Graph
 
@@ -51,31 +79,6 @@ graph LR
     c1 --> g
     g --> |model2| m2
     c2 --> |model3| m3
-```
-
-## Filter
-
-A [Filter][artigraph.Filter] is a base class for all filters. A filter is simply a class
-that implements an [apply()][artigraph.Filter.apply] method that takes a SQLAlchemy
-`Select`, `Update`, or `Delete` object and applies the filter to it. You can create your
-own filters by subclassing [Filter][artigraph.Filter]:
-
-```python
-from artigraph import Filter, Node
-
-class MyFilter(Filter):
-   must_have_parent: bool = False
-
-   def compose(self, expr):
-         if self.must_have_parent:
-              expr = expr.where(Node.node_parent_id != None)
-         return expr
-```
-
-You can also compose multiple filters using the `&` and `|` operators:
-
-```python
-await read_node(NodeFilter(node_id=2) & MyFilter(must_have_parent=True))
 ```
 
 ### Node Filter

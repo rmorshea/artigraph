@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Generic, Sequence, TypeVar, overload
+from typing import Any, Generic, Sequence, TypeVar
 
 from sqlalchemy import inspect
 from typing_extensions import TypeAlias
@@ -9,7 +9,6 @@ from typing_extensions import TypeAlias
 from artigraph.api.filter import ArtifactFilter, Filter
 from artigraph.api.node import (
     delete_nodes,
-    new_node,
     read_node,
     read_node_or_none,
     read_nodes,
@@ -18,8 +17,7 @@ from artigraph.db import current_session
 from artigraph.orm.artifact import BaseArtifact, DatabaseArtifact, RemoteArtifact
 from artigraph.orm.node import Node
 from artigraph.serializer import get_serializer_by_name
-from artigraph.serializer.core import Serializer
-from artigraph.storage.core import Storage, get_storage_by_name
+from artigraph.storage.core import get_storage_by_name
 from artigraph.utils import TaskBatch
 
 V = TypeVar("V")
@@ -44,90 +42,6 @@ AnyQualifiedArtifact: TypeAlias = """
     | QualifiedArtifact[RemoteArtifact, Any]
 """  # noqa: F722
 """A convenience type for any qualified artifact."""
-
-
-@overload
-def new_artifact(
-    label: str,
-    value: V,
-    serializer: Serializer,
-    *,
-    storage: Storage,
-    parent_id: int | None = ...,
-) -> QualifiedArtifact[RemoteArtifact, V]:
-    ...
-
-
-@overload
-def new_artifact(
-    label: str,
-    value: V,
-    serializer: Serializer,
-    *,
-    storage: Storage | None,
-    parent_id: int | None = ...,
-) -> QualifiedArtifact[RemoteArtifact | DatabaseArtifact, V]:
-    ...
-
-
-@overload
-def new_artifact(
-    label: str,
-    value: V,
-    serializer: Serializer,
-    *,
-    storage: None = ...,
-    parent_id: int | None = ...,
-) -> QualifiedArtifact[DatabaseArtifact, V]:
-    ...
-
-
-def new_artifact(
-    label: str,
-    value: V,
-    serializer: Serializer,
-    *,
-    storage: Storage | None = None,
-    parent_id: int | None = None,
-) -> (
-    QualifiedArtifact[RemoteArtifact | DatabaseArtifact, V]
-    | QualifiedArtifact[RemoteArtifact, V]
-    | QualifiedArtifact[DatabaseArtifact, V]
-):
-    """Construct a new artifact and its value"""
-
-    return QualifiedArtifact(
-        artifact=(
-            new_node(
-                DatabaseArtifact,
-                node_parent_id=parent_id,
-                artifact_label=label,
-                artifact_serializer=serializer.name,
-                database_artifact_value=None,
-            )
-            if storage is None
-            else new_node(
-                RemoteArtifact,
-                node_parent_id=parent_id,
-                artifact_label=label,
-                artifact_serializer=serializer.name,
-                remote_artifact_storage=storage.name,
-            )
-        ),
-        value=value,
-    )
-
-
-def group_artifacts_by_parent_id(
-    qualified_artifacts: Sequence[AnyQualifiedArtifact],
-) -> dict[int | None, list[AnyQualifiedArtifact]]:
-    """Group artifacts by their parent id."""
-    artifacts_by_parent_id: dict[int | None, list[AnyQualifiedArtifact]] = {}
-    for qualart in qualified_artifacts:
-        artifacts_by_parent_id.setdefault(qualart.artifact.node_parent_id, []).append(
-            QualifiedArtifact(qualart.artifact, qualart.value)
-        )
-    return artifacts_by_parent_id
 
 
 async def delete_artifacts(artifact_filter: ArtifactFilter[Any] | Filter) -> None:
@@ -210,7 +124,7 @@ async def write_artifacts(
 
         # We can't do this in asyncio.gather() because of issues with concurrent connections:
         # https://docs.sqlalchemy.org/en/20/errors.html#illegalstatechangeerror-and-concurrency-exceptions
-        artifact_ids: list[int] = []
+        artifact_ids: list[str] = []
         for qual in qualified_artifacts:
             if inspect(qual.artifact).persistent:
                 await session.refresh(qual.artifact)

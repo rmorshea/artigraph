@@ -1,12 +1,12 @@
 from datetime import datetime, timezone
 
 from artigraph.api.filter import MultiFilter, NodeFilter, ValueFilter
-from artigraph.api.node import new_node, read_node, write_node
+from artigraph.api.node import read_node, write_node
 from artigraph.orm.node import Node
 
 
 async def test_filter_by_node_created_and_update_at():
-    node = new_node()
+    node = Node()
     created_at = node.node_created_at = datetime(1993, 2, 6, tzinfo=timezone.utc)
     updated_at = node.node_updated_at = datetime(1995, 7, 25, tzinfo=timezone.utc)
 

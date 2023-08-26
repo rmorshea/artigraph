@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import sys
-from datetime import datetime
-from typing import Any, ClassVar, Optional, Sequence, TypeVar
+from typing import Any, ClassVar, Sequence, TypeVar
+from uuid import uuid1
 
-from sqlalchemy import ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from artigraph.orm.base import Base
@@ -52,31 +51,15 @@ class Node(Base, **_node_dataclass_kwargs):
         "polymorphic_on": "node_type",
     }
 
-    node_parent_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("artigraph_node.node_id"), init=False
+    node_id: Mapped[str] = mapped_column(
+        primary_key=True,
+        init=False,
+        default_factory=lambda: uuid1().hex,
     )
-    """The ID of the parent node."""
-
-    node_id: Mapped[int] = mapped_column(primary_key=True, init=False)
     """The unique ID of this node"""
 
     node_type: Mapped[str] = mapped_column(nullable=False, init=False)
     """The type of the node link."""
-
-    node_created_at: Mapped[datetime] = mapped_column(
-        nullable=False,
-        default_factory=func.now,
-        init=False,
-    )
-    """The time that this node link was created."""
-
-    node_updated_at: Mapped[datetime] = mapped_column(
-        nullable=False,
-        default_factory=func.now,
-        onupdate=func.now(),
-        init=False,
-    )
-    """The time that this node link was last updated."""
 
     @classmethod
     def _shuttle_table_args(cls: type[Node]) -> None:

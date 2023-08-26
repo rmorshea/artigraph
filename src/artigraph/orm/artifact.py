@@ -6,6 +6,7 @@ from sqlalchemy import UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from artigraph.orm.node import Node
+from artigraph.serializer.json import json_serializer
 
 
 class BaseArtifact(Node):
@@ -16,9 +17,6 @@ class BaseArtifact(Node):
 
     artifact_serializer: Mapped[str] = mapped_column(nullable=True)
     """The name of the serializer used to serialize the artifact."""
-
-    artifact_label: Mapped[str] = mapped_column(nullable=True)
-    """A label for the node."""
 
 
 class RemoteArtifact(BaseArtifact):
@@ -40,7 +38,7 @@ class DatabaseArtifact(BaseArtifact):
     polymorphic_identity = "database_artifact"
     __mapper_args__: ClassVar[dict[str, Any]] = {"polymorphic_identity": polymorphic_identity}
 
-    database_artifact_value: Mapped[Optional[bytes]]
+    database_artifact_value: Mapped[Optional[bytes]] = None
     """The data of the artifact."""
 
 
@@ -49,6 +47,9 @@ class ModelArtifact(DatabaseArtifact):
 
     polymorphic_identity = "model_artifact"
     __mapper_args__: ClassVar[dict[str, Any]] = {"polymorphic_identity": polymorphic_identity}
+
+    artifact_serializer: ClassVar[str] = json_serializer.name
+    """The name of the serializer used to serialize the artifact."""
 
     model_artifact_type: Mapped[str] = mapped_column(nullable=True)
     """The type of the model."""

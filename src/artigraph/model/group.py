@@ -5,7 +5,7 @@ from typing import Any, Collection, Generic, Sequence, TypeVar
 
 from typing_extensions import Self
 
-from artigraph.api.filter import NodeRelationshipFilter, ValueFilter
+from artigraph.api.filter import NodeLinkFilter, ValueFilter
 from artigraph.api.node import read_node_or_none, read_nodes_exist, write_node
 from artigraph.model.base import BaseModel, delete_models, read_models, write_models
 from artigraph.model.filter import ModelFilter
@@ -64,7 +64,7 @@ class ModelGroup(Generic[N]):
         labels_to_refresh = self._labels_to_refresh(labels, fresh=fresh)
         if labels_to_refresh:
             model_filter = ModelFilter(
-                relationship=NodeRelationshipFilter(child_of=await self._node_id.get()),
+                child=NodeLinkFilter(child_of=await self._node_id.get()),
                 artifact_label=labels_to_refresh,
             )
             self._models.update(
@@ -94,7 +94,7 @@ class ModelGroup(Generic[N]):
         if labels_to_refresh:
             return await read_nodes_exist(
                 ModelFilter(
-                    relationship=NodeRelationshipFilter(child_of=await self._node_id.get()),
+                    child=NodeLinkFilter(child_of=await self._node_id.get()),
                     artifact_label=labels_to_refresh,
                 )
             )
@@ -108,7 +108,7 @@ class ModelGroup(Generic[N]):
         """Delete the specified models, or all models, from this group in database"""
         await delete_models(
             ModelFilter(
-                relationship=NodeRelationshipFilter(child_of=await self._node_id.get()),
+                child=NodeLinkFilter(child_of=await self._node_id.get()),
                 artifact_label=ValueFilter(in_=labels),
             )
         )
@@ -120,7 +120,7 @@ class ModelGroup(Generic[N]):
 
     async def get_parent_group(self) -> ModelGroup[Node] | None:
         """Get this groups' parent."""
-        node_filter = NodeRelationshipFilter(parent_of=await self._node_id.get())
+        node_filter = NodeLinkFilter(parent_of=await self._node_id.get())
         parent_node = await read_node_or_none(node_filter)
         return None if parent_node is None else ModelGroup(parent_node)
 

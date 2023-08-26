@@ -1,7 +1,6 @@
 import pytest
 from sqlalchemy import select
 
-from artigraph.api.node import new_node
 from artigraph.db import current_session
 from artigraph.orm.node import Node
 
@@ -9,7 +8,7 @@ from artigraph.orm.node import Node
 async def test_current_session_auto_rollback():
     with pytest.raises(RuntimeError):
         async with current_session() as session:
-            node = new_node()
+            node = Node()
             session.add(node)
             await session.flush()
             result = await session.execute(select(Node))

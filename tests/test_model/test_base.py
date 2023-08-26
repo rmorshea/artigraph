@@ -1,14 +1,13 @@
 import pytest
 
-from artigraph.api.artifact import new_artifact, write_artifact
-from artigraph.api.filter import NodeRelationshipFilter, ValueFilter
-from artigraph.api.node import new_node, write_node
+from artigraph.api.artifact import write_artifact
+from artigraph.api.filter import NodeLinkFilter, ValueFilter
+from artigraph.api.node import write_node
 from artigraph.db import new_session
 from artigraph.model.base import (
     MODEL_TYPE_BY_NAME,
     MODELED_TYPES,
     BaseModel,
-    _try_convert_value_to_modeled_type,
     allow_model_type_overwrites,
     read_model,
     read_model_or_none,
@@ -81,7 +80,7 @@ async def test_filter_on_model_type():
     await write_models(parent_id=root.node_id, models={"x": x_model, "xy": xy_model})
     db_model = await read_model(
         ModelFilter(
-            relationship=NodeRelationshipFilter(child_of=root.node_id),
+            child=NodeLinkFilter(child_of=root.node_id),
             model_type=ModelTypeFilter(type=XModel, subclasses=False),
         )
     )
@@ -98,7 +97,7 @@ async def test_filter_on_model_type_with_subclasses():
     )
     db_models = await read_models(
         ModelFilter(
-            relationship=NodeRelationshipFilter(child_of=root.node_id),
+            child=NodeLinkFilter(child_of=root.node_id),
             model_type=ModelTypeFilter(type=XModel, subclasses=True),
         )
     )

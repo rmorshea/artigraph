@@ -1,28 +1,27 @@
 from artigraph.api.artifact import (
     QualifiedArtifact,
     delete_artifacts,
-    new_artifact,
     read_artifact,
     read_artifact_or_none,
     read_artifacts,
     write_artifact,
     write_artifacts,
 )
-from artigraph.api.filter import ArtifactFilter, NodeRelationshipFilter, ValueFilter
+from artigraph.api.filter import ArtifactFilter, NodeLinkFilter, ValueFilter
 from artigraph.api.node import (
-    new_node,
     read_nodes_exist,
     write_node,
-    write_parent_child_relationships,
+    write_node_links,
 )
 from artigraph.orm.artifact import DatabaseArtifact, RemoteArtifact
+from artigraph.orm.node import Node
 from artigraph.serializer.json import json_serializer
 from artigraph.storage.file import temp_file_storage
 
 
 async def test_create_read_delete_database_artifact():
     """Test creating an artifact."""
-    artifact = new_node(
+    artifact = Node(
         DatabaseArtifact,
         node_parent_id=None,
         artifact_label="test-label",
@@ -46,7 +45,7 @@ async def test_read_artifact_or_none():
     artifact_filter = ArtifactFilter(node_id=ValueFilter(eq=123))
     assert await read_artifact_or_none(artifact_filter) is None
 
-    artifact = new_node(
+    artifact = Node(
         DatabaseArtifact,
         node_parent_id=None,
         artifact_label="test-label",
@@ -95,7 +94,7 @@ async def test_delete_many_artifacts():
     await write_artifacts(artifacts)
 
     # create parent-child relationships
-    await write_parent_child_relationships(
+    await write_node_links(
         [
             (None, grandparent.artifact.node_id),
             (grandparent.artifact.node_id, parent.artifact.node_id),
@@ -105,7 +104,7 @@ async def test_delete_many_artifacts():
     )
 
     artifact_filter = ArtifactFilter(
-        relationship=NodeRelationshipFilter(
+        child=NodeLinkFilter(
             descendant_of=grandparent.artifact.node_id,
             include_self=True,
         )
@@ -127,7 +126,7 @@ async def test_delete_many_artifacts():
 
 
 async def test_read_child_artifacts():
-    node = await write_node(new_node(), refresh_attributes=["node_id"])
+    node = await write_node(Node(), refresh_attributes=["node_id"])
     qual_artifacts = [
         new_artifact(str(i), i, json_serializer, parent_id=node.node_id) for i in range(10)
     ]
@@ -135,7 +134,7 @@ async def test_read_child_artifacts():
     db_artifact_ids = {
         qual.artifact.node_id
         for qual in await read_artifacts(
-            ArtifactFilter(relationship=NodeRelationshipFilter(child_of=[node.node_id]))
+            ArtifactFilter(child=NodeLinkFilter(child_of=[node.node_id]))
         )
     }
     assert db_artifact_ids == {q.artifact.node_id for q in quals}

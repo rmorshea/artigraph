@@ -4,44 +4,21 @@ from collections.abc import Collection
 from dataclasses import fields
 from typing import (
     Any,
-    Callable,
-    Iterable,
     Sequence,
     TypeVar,
     overload,
 )
 
-from sqlalchemy import case, delete, select, update
+from sqlalchemy import delete, select
 from typing_extensions import ParamSpec
 
-from artigraph.api.filter import Filter, NodeFilter
+from artigraph.api.filter import Filter, NodeFilter, NodeLinkFilter
 from artigraph.db import current_session
+from artigraph.orm.link import NodeLink
 from artigraph.orm.node import NODE_TYPE_BY_POLYMORPHIC_IDENTITY, Node
 
 P = ParamSpec("P")
 N = TypeVar("N", bound=Node)
-
-
-def group_nodes_by_parent_id(nodes: Sequence[N]) -> dict[int | None, list[N]]:
-    """Group nodes by their parent ID."""
-    grouped_nodes: dict[int | None, list[N]] = {}
-    for node in nodes:
-        grouped_nodes.setdefault(node.node_parent_id, []).append(node)
-    return grouped_nodes
-
-
-def new_node(
-    node_type: Callable[P, N] = Node,
-    node_id: int | None = None,
-    node_parent_id: int | None = None,
-    *args: P.args,
-    **kwargs: P.kwargs,
-) -> N:
-    """Create a new node."""
-    node = node_type(*args, **kwargs)
-    node.node_id = node_id  # type: ignore
-    node.node_parent_id = node_parent_id
-    return node
 
 
 async def read_nodes_exist(node_filter: NodeFilter[Any] | Filter) -> bool:
@@ -53,7 +30,7 @@ async def read_node(node_filter: NodeFilter[N] | Filter) -> N:
     """Read a node that matches the given filter."""
     node = await read_node_or_none(node_filter)
     if node is None:
-        msg = f"No node found for filter {node_filter}"
+        msg = f"No node found for filter {node_filter!r}"
         raise ValueError(msg)
     return node
 
@@ -75,11 +52,15 @@ async def read_nodes(node_filter: NodeFilter[N] | Filter) -> Sequence[N]:
 
 async def delete_nodes(node_filter: NodeFilter[Any] | Filter) -> None:
     """Delete nodes matching the given filter."""
-
     async with current_session() as session:
-        delete_cmd = delete(Node).where(node_filter.create())
-        await session.execute(delete_cmd)
+        node_ids = select(Node.node_id).where(node_filter.create())
+        delete_nodes_cmd = delete(Node).where(Node.node_id.in_(node_ids))
+        node_link_filter = NodeLinkFilter(parent=node_ids) | NodeLinkFilter(child=node_ids)
+        delete_links_cmd = delete(NodeLink).where(node_link_filter.create())
+        await session.execute(delete_nodes_cmd)
+        await session.execute(delete_links_cmd)
         await session.commit()
+        await delete_node_links(node_link_filter)
 
 
 async def write_node(node: Node, *, refresh_attributes: Sequence[str] = ()) -> Node:
@@ -102,28 +83,52 @@ async def write_nodes(
     return tuple(nodes)
 
 
-async def write_parent_child_relationships(
-    parent_child_id_pairs: Iterable[tuple[int | None, int]]
-) -> None:
+async def read_node_link(node_link_filter: NodeLinkFilter[Any] | Filter) -> NodeLink:
+    """Read a parent-to-child link between nodes."""
+    node_link = await read_node_link_or_none(node_link_filter)
+    if node_link is None:
+        msg = f"No node link found for filter {node_link_filter!r}"
+        raise ValueError(msg)
+    return node_link
+
+
+async def read_node_link_or_none(node_link_filter: NodeLinkFilter[Any] | Filter) -> NodeLink | None:
+    """Read a parent-to-child link between nodes."""
+    async with current_session() as session:
+        result = await session.execute(select(NodeLink).where(node_link_filter.create()))
+        return result.scalar_one_or_none()
+
+
+async def read_node_links(node_link_filter: NodeLinkFilter[Any] | Filter) -> Sequence[NodeLink]:
+    """Read parent-to-child links between nodes."""
+    cmd = select(NodeLink).where(node_link_filter.create())
+    async with current_session() as session:
+        return (await session.execute(cmd)).scalars().all()
+
+
+async def write_node_link(node_link: NodeLink) -> None:
+    """Create a parent-to-child link between nodes.
+
+    Updates the existing child node's node_parent_id.
+    """
+    await write_node_links([node_link])
+
+
+async def write_node_links(node_links: Sequence[NodeLink]) -> None:
     """Create parent-to-child links between nodes.
 
     Updates the existing child node's node_parent_id.
     """
-
-    # Build the CASE statement for the update query
-    parent_id_conditions = [
-        (Node.node_id == child_id, parent_id) for parent_id, child_id in parent_child_id_pairs
-    ]
-
-    # Build the update query
-    cmd = (
-        update(Node)
-        .where(Node.node_id.in_([child_id for _, child_id in parent_child_id_pairs]))
-        .values(node_parent_id=case(*parent_id_conditions))
-    )
-
     async with current_session() as session:
-        await session.execute(cmd)
+        session.add_all(node_links)
+        await session.commit()
+
+
+async def delete_node_links(node_filter: NodeFilter[Any] | Filter) -> None:
+    """Delete parent-to-child links between nodes."""
+    async with current_session() as session:
+        delete_cmd = delete(NodeLink).where(node_filter.create())
+        await session.execute(delete_cmd)
         await session.commit()
 
 

@@ -31,6 +31,7 @@ from sqlalchemy.orm.attributes import InstrumentedAttribute
 from typing_extensions import ParamSpec, Self, dataclass_transform
 
 from artigraph.orm import BaseArtifact, Node, get_polymorphic_identities
+from artigraph.orm.link import NodeLink
 
 P = ParamSpec("P")
 T = TypeVar("T")
@@ -79,6 +80,9 @@ class Filter(metaclass=_FilterMeta):
     def __or__(self, other: Filter) -> MultiFilter:
         """Combine this filter with another."""
         return MultiFilter(op="or", filters=(self, other))
+
+    def __str__(self) -> str:
+        return str(self.create().compile(compile_kwargs={"literal_binds": True}))
 
 
 class MultiFilter(Filter):
@@ -144,20 +148,28 @@ class GenericFilter(Filter, Generic[T]):
 class NodeFilter(Filter, Generic[N]):
     """Filter nodes that meet the given conditions"""
 
-    node_id: ValueFilter[int] | int | None = None
+    node_id: ValueFilter[str] | Sequence[str] | str | None = None
     """Nodes must have this ID or meet this condition."""
     node_type: NodeTypeFilter[N] | type[N] | None = None
     """Nodes must be one of these types."""
-    relationship: NodeRelationshipFilter | None = None
-    """Nodes must be related to one of these nodes."""
     created_at: ValueFilter[datetime] | datetime | None = None
     """Filter nodes by their creation time."""
     updated_at: ValueFilter[datetime] | datetime | None = None
     """Filter nodes by their last update time."""
+    parent_of: NodeFilter | Sequence[str] | str | None = None
+    """Nodes must be the parent of one of these nodes."""
+    child_of: NodeFilter | Sequence[str] | str | None = None
+    """Nodes must be the child of one of these nodes."""
+    descendant_of: NodeFilter | Sequence[str] | str | None = None
+    """Nodes must be the descendant of one of these nodes."""
+    ancestor_of: NodeFilter | Sequence[str] | str | None = None
+    """Nodes must be the ancestor of one of these nodes."""
 
     def compose(self, expr: Expression) -> Expression:
-        if self.node_id is not None:
-            expr &= to_value_filter(self.node_id).use(Node.node_id).create()
+        node_id = to_value_filter(self.node_id)
+
+        if node_id is not None:
+            expr &= node_id.use(Node.node_id).create()
 
         if self.node_type is not None:
             expr &= (
@@ -166,95 +178,90 @@ class NodeFilter(Filter, Generic[N]):
                 else NodeTypeFilter(type=[self.node_type])
             ).create()
 
-        if self.relationship:
-            expr &= self.relationship.create()
-
         if self.created_at:
-            expr &= to_value_filter(self.created_at).use(Node.node_created_at).create()
+            expr &= to_value_filter(self.created_at).use(Node.created_at).create()
 
         if self.updated_at:
-            expr &= to_value_filter(self.updated_at).use(Node.node_updated_at).create()
+            expr &= to_value_filter(self.updated_at).use(Node.updated_at).create()
+
+        if self.parent_of or self.ancestor_of:
+            expr &= Node.node_id.in_(
+                select(NodeLink.parent_id).where(
+                    NodeLinkFilter(child=self.parent_of, descendant=self.ancestor_of).create()
+                )
+            )
+
+        if self.child_of or self.descendant_of:
+            expr &= Node.node_id.in_(
+                select(NodeLink.child_id).where(
+                    NodeLinkFilter(parent=self.child_of, ancestor=self.descendant_of).create()
+                )
+            )
 
         return expr
 
 
-class NodeRelationshipFilter(Filter):
-    """Filter nodes by their relationships to other nodes."""
+class NodeLinkFilter(Filter):
+    """Filter node links."""
 
-    include_self: bool = False
-    """Include the given nodes in the results."""
-    child_of: Sequence[int] | int | None = None
-    """Nodes must be a child of one of these nodes."""
-    parent_of: Sequence[int] | int | None = None
-    """Nodes must be a parent of one of these nodes."""
-    descendant_of: Sequence[int] | int | None = None
-    """Nodes must be a descendant of one of these nodes."""
-    ancestor_of: Sequence[int] | int | None = None
-    """Nodes must be an ancestor of one of these nodes."""
+    parent: NodeFilter | Sequence[str] | str | None = None
+    child: NodeFilter | Sequence[str] | str | None = None
+    descendant: NodeFilter | Sequence[str] | str | None = None
+    ancestor: NodeFilter | Sequence[str] | str | None = None
 
     def compose(self, expr: Expression) -> Expression:
-        child_of = to_sequence_or_none(self.child_of)
-        parent_of = to_sequence_or_none(self.parent_of)
-        descendant_of = to_sequence_or_none(self.descendant_of)
-        ancestor_of = to_sequence_or_none(self.ancestor_of)
+        parent_id = to_node_id_selector(self.parent)
+        child_id = to_node_id_selector(self.child)
+        descendant_id = to_node_id_selector(self.descendant)
+        ancestor_id = to_node_id_selector(self.ancestor)
 
-        if not self.include_self:
-            expr &= Node.node_id.notin_(
-                [
-                    *(child_of or []),
-                    *(parent_of or []),
-                    *(descendant_of or []),
-                    *(ancestor_of or []),
-                ]
-            )
+        if parent_id is not None:
+            expr &= NodeLink.parent_id.in_(parent_id)
 
-        if child_of is not None:
-            expr &= Node.node_parent_id.in_(n for n in child_of)
+        if child_id is not None:
+            expr &= NodeLink.child_id.in_(child_id)
 
-        if parent_of is not None:
-            expr &= Node.node_id.in_(
-                select(Node.node_parent_id).where(Node.node_id.in_(n for n in parent_of))
-            )
-
-        if descendant_of is not None:
+        if ancestor_id is not None:
+            # Create a CTE to get the descendants recursively
             descendant_node_cte = (
-                select(Node.node_id.label("descendant_id"), Node.node_parent_id)
-                .where(Node.node_id.in_(descendant_of))
+                select(NodeLink.parent_id.label("descendant_id"), NodeLink.child_id)
+                .where(NodeLink.parent_id.in_(ancestor_id))
                 .cte(name="descendants", recursive=True)
             )
 
             # Recursive case: select the children of the current nodes
-            parent_node = aliased(Node)
+            child_node = aliased(NodeLink)
             descendant_node_cte = descendant_node_cte.union_all(
-                select(parent_node.node_id, parent_node.node_parent_id).where(
-                    parent_node.node_parent_id == descendant_node_cte.c.descendant_id
+                select(child_node.parent_id, child_node.child_id).where(
+                    child_node.parent_id == descendant_node_cte.c.child_id
                 )
             )
 
-            expr &= Node.node_id.in_(
+            # Join the CTE with the actual Node table to get the descendants
+            expr &= NodeLink.parent_id.in_(
                 select(descendant_node_cte.c.descendant_id).where(
                     descendant_node_cte.c.descendant_id.isnot(None)
                 )
             )
 
-        if ancestor_of is not None:
+        if descendant_id is not None:
             # Create a CTE to get the ancestors recursively
             ancestor_node_cte = (
-                select(Node.node_id.label("ancestor_id"), Node.node_parent_id)
-                .where(Node.node_id.in_(ancestor_of))
+                select(NodeLink.child_id.label("ancestor_id"), NodeLink.parent_id)
+                .where(NodeLink.child_id.in_(descendant_id))
                 .cte(name="ancestors", recursive=True)
             )
 
             # Recursive case: select the parents of the current nodes
-            parent_node = aliased(Node)
+            parent_node = aliased(NodeLink)
             ancestor_node_cte = ancestor_node_cte.union_all(
-                select(parent_node.node_id, parent_node.node_parent_id).where(
-                    parent_node.node_id == ancestor_node_cte.c.node_parent_id
+                select(parent_node.child_id, parent_node.parent_id).where(
+                    parent_node.child_id == ancestor_node_cte.c.parent_id
                 )
             )
 
             # Join the CTE with the actual Node table to get the ancestors
-            expr &= Node.node_id.in_(
+            expr &= NodeLink.child_id.in_(
                 select(ancestor_node_cte.c.ancestor_id).where(
                     ancestor_node_cte.c.ancestor_id.isnot(None)
                 )
@@ -357,6 +364,31 @@ def to_sequence_or_none(value: Sequence[T] | T | None) -> Sequence[T] | None:
     return value if isinstance(value, Sequence) else (None if value is None else (value,))
 
 
-def to_value_filter(value: T | ValueFilter[T]) -> ValueFilter[T]:
+def to_value_filter(value: T | Sequence[T] | ValueFilter[T] | None) -> ValueFilter[T] | None:
     """If not a `ValueFilter`, cast to one that checks for equivalence."""
-    return value if isinstance(value, ValueFilter) else ValueFilter(eq=value)
+    if value is None or isinstance(value, ValueFilter):
+        return value
+
+    if isinstance(value, str):
+        return ValueFilter(eq=value)
+
+    if isinstance(value, Sequence):
+        return ValueFilter(in_=value)
+
+    return ValueFilter(eq=value)
+
+
+def to_node_id_selector(
+    value: NodeFilter | Sequence[str] | str | None,
+) -> Select[str] | Sequence[str] | None:
+    """Convert a node filter to a node ID selector."""
+    if value is None:
+        return value
+
+    if isinstance(value, NodeFilter):
+        return select(Node.node_id).where(value.create())
+
+    if isinstance(value, str):
+        return [value]
+
+    return value

@@ -5,7 +5,12 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from artigraph.api.filter import ValueFilter
 from artigraph.api.func import Api
+from artigraph.api.node import Node
 from artigraph.orm.base import OrmBase, make_uuid
+
+
+def sorted_nodes(nodes: Sequence[Node]) -> Sequence[Node]:
+    return sorted(nodes, key=lambda node: node.node_id)
 
 
 class OrmFake(OrmBase):

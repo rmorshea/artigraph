@@ -37,10 +37,10 @@ class Api(Generic[O], Dataclass):
     orm: InitVar[O | None] = None
     """The object relational mapping."""
 
-    created_at: datetime = field(init=False, compare=False)
+    created_at: datetime = field(init=False, compare=False, repr=False)
     """The time at which the underlying record was created."""
 
-    updated_at: datetime = field(init=False, compare=False)
+    updated_at: datetime = field(init=False, compare=False, repr=False)
     """The time at which the underlying record was last updated."""
 
     def __post_init__(self, orm: O | None) -> None:

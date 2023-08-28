@@ -16,7 +16,7 @@ from artigraph.api.func import orm_read, read
 from artigraph.api.link import NodeLink
 from artigraph.db import new_session
 from artigraph.orm.artifact import OrmModelArtifact
-from artigraph.orm.base import OrmBase
+from artigraph.orm.base import OrmBase, make_uuid
 from artigraph.orm.link import OrmNodeLink
 from artigraph.orm.node import OrmNode
 from artigraph.serializer import Serializer
@@ -98,11 +98,15 @@ class ModelMetadata(TypedDict):
 class ModelArtifact(Artifact[OrmModelArtifact, M]):
     """An artifact storing metadata about a model."""
 
-    orm_type: ClassVar[OrmModelArtifact] = OrmModelArtifact
+    orm_type: ClassVar[type[OrmModelArtifact]] = OrmModelArtifact
 
     value: M
     serializer: None = field(init=False, default=None)
     storage: None = field(init=False, default=None)
+
+    @property
+    def version(self) -> int:
+        return self.value.model_version
 
     def filters(self) -> dict[type[OrmBase], Filter]:
         return {
@@ -120,12 +124,17 @@ class ModelArtifact(Artifact[OrmModelArtifact, M]):
         }
 
     async def to_orms(self) -> Sequence[OrmBase]:
+        root_art = _make_model_artifact(self.value, FieldConfig(), self.node_id)
+
         orms: TaskBatch[Sequence[OrmBase]] = TaskBatch()
-        orms.add(_make_model_artifact(self.value, FieldConfig()).to_orms)
-        for parent_id, artifacts in _get_artifacts_by_parent_id(self.value).items():
+        orms.add(root_art.to_orms)
+        for parent_id, artifacts in _get_model_artifacts_by_parent_id(root_art, self.value).items():
             for label, art in artifacts.items():
                 orms.add(art.to_orms)
-                orms.add(NodeLink(parent_id=parent_id, child_id=art.node_id, label=label).to_orms)
+                if label is not None:
+                    link = NodeLink(parent_id=parent_id, child_id=art.node_id, label=label)
+                    orms.add(link.to_orms)
+
         return [o for os in await orms.gather() for o in os]
 
     @classmethod
@@ -154,7 +163,7 @@ class ModelArtifact(Artifact[OrmModelArtifact, M]):
         return cls(
             value=value,
             node_id=root_art.node_id,
-            api_orm=root_orm,
+            orm=root_orm,
         )
 
 
@@ -189,21 +198,22 @@ class ModelMetadataArtifact(Artifact[OrmModelArtifact, ModelMetadata]):
         )
 
 
-def _get_artifacts_by_parent_id(
-    model: BaseModel, parent_id: str | None = None
-) -> dict[str | None, dict[str, Artifact[Any]]]:
+def _get_model_artifacts_by_parent_id(
+    model_artifact: ModelMetadataArtifact, model: BaseModel
+) -> dict[str | None, dict[str | None, Artifact[Any]]]:
     """Get labeled model artifacts grouped by their parent"""
     arts_by_parent_id: defaultdict[str | None, dict[str, Artifact[Any]]] = defaultdict(dict)
     for label, (value, config) in model.model_data().items():
         maybe_model = _try_convert_value_to_modeled_type(value)
         if isinstance(maybe_model, BaseModel):
-            art = arts_by_parent_id[parent_id][label] = _make_model_artifact(maybe_model, config)
-            for p_id, c_art in _get_artifacts_by_parent_id(
-                art.node_id, maybe_model.model_data()
+            child_model_art = _make_model_artifact(maybe_model, config, model_artifact.node_id)
+            arts_by_parent_id[model_artifact.node_id][label] = child_model_art
+            for p_id, c_art in _get_model_artifacts_by_parent_id(
+                child_model_art, model=maybe_model
             ).items():
                 arts_by_parent_id[p_id].update(c_art)
         else:
-            arts_by_parent_id[parent_id][label] = _make_artifact(maybe_model, config)
+            arts_by_parent_id[model_artifact.node_id][label] = _make_artifact(maybe_model, config)
     return arts_by_parent_id
 
 
@@ -217,7 +227,11 @@ def _make_artifact(value: Any, config: FieldConfig) -> Artifact[Any]:
     )
 
 
-def _make_model_artifact(value: BaseModel, config: FieldConfig) -> Artifact[Any]:
+def _make_model_artifact(
+    value: BaseModel,
+    config: FieldConfig,
+    node_id: str | None,
+) -> Artifact[Any]:
     """Make an artifact from a model and config."""
     if config:
         msg = f"Model artifacts cannot have a config. Got {config}"
@@ -226,6 +240,7 @@ def _make_model_artifact(value: BaseModel, config: FieldConfig) -> Artifact[Any]
         value=ModelMetadata(artigraph_version=artigraph.__version__),
         model_name=value.model_name,
         model_version=value.model_version,
+        node_id=node_id or make_uuid(),
     )
 
 

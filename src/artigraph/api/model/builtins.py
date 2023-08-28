@@ -4,7 +4,7 @@ from typing import Any, TypeVar
 
 from typing_extensions import Self
 
-from artigraph.model.base import MODELED_TYPES, BaseModel, FieldConfig, ModelData
+from artigraph.api.model.base import MODELED_TYPES, BaseModel, FieldConfig, ModelData
 
 T = TypeVar("T")
 

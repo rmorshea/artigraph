@@ -2,7 +2,7 @@ import pytest
 
 from artigraph.api.artifact import write_artifact
 from artigraph.api.filter import NodeLinkFilter, ValueFilter
-from artigraph.api.node import write_node
+from artigraph.api.node import write_one
 from artigraph.db import new_session
 from artigraph.model.base import (
     MODEL_TYPE_BY_NAME,
@@ -51,7 +51,7 @@ def test_try_convert_value_to_and_from_modeled_type(value):
 async def test_read_model_error_if_not_model_node():
     """Test that an error is raised if the node is not a model node."""
     async with new_session(expire_on_commit=False):
-        node = await write_node(new_node(node_parent_id=None))
+        node = await write_one(new_node(node_parent_id=None))
 
         with pytest.raises(ValueError):
             await read_model(ModelFilter(node_id=ValueFilter(eq=node.node_id)))
@@ -74,7 +74,7 @@ def test_cannot_define_model_with_same_name():
 
 
 async def test_filter_on_model_type():
-    root = await write_node(new_node())
+    root = await write_one(new_node())
     x_model = XModel(x=1)
     xy_model = XYModel(x=1, y=2)
     await write_models(parent_id=root.node_id, models={"x": x_model, "xy": xy_model})
@@ -88,7 +88,7 @@ async def test_filter_on_model_type():
 
 
 async def test_filter_on_model_type_with_subclasses():
-    root = await write_node(new_node())
+    root = await write_one(new_node())
     x_model = XModel(x=1)
     xy_model = XYModel(x=1, y=2)
     xyz_model = XYZModel(x=1, y=2, z=3)

@@ -12,15 +12,15 @@ from sqlalchemy.ext.asyncio import (
 )
 from typing_extensions import ParamSpec
 
-from artigraph.orm.base import Base
+from artigraph.orm.base import OrmBase
 
 E = TypeVar("E", bound=AsyncEngine)
 P = ParamSpec("P")
 R = TypeVar("R")
 
 _CREATE_TABLES: ContextVar[bool] = ContextVar("CREATE_TABLES", default=False)
-_CURRENT_ENGINE: ContextVar[AsyncEngine] = ContextVar("CURRENT_ASYNC_ENGINE")
-_CURRENT_SESSION: ContextVar[AsyncSession] = ContextVar("CURRENT_ASYNC_SESSION")
+_CURRENT_ENGINE: ContextVar[AsyncEngine] = ContextVar("CURRENT_ENGINE")
+_CURRENT_SESSION: ContextVar[AsyncSession | None] = ContextVar("CURRENT_SESSION", default=None)
 
 
 @contextmanager
@@ -53,11 +53,9 @@ async def new_session(**kwargs: Any) -> AsyncIterator[AsyncSession]:
 @asynccontextmanager
 async def current_session() -> AsyncIterator[AsyncSession]:
     """A context manager for an asynchronous database session."""
-    try:
-        session = get_session()
-    except LookupError:
-        pass
-    else:
+    session = get_session()
+
+    if session is not None:
         yield session
         return
 
@@ -67,6 +65,8 @@ async def current_session() -> AsyncIterator[AsyncSession]:
         except Exception:
             await session.rollback()
             raise
+        else:
+            await session.commit()
 
 
 def set_engine(engine: AsyncEngine | str, *, create_tables: bool = False) -> Callable[[], None]:
@@ -94,22 +94,18 @@ async def get_engine() -> AsyncEngine:
         raise LookupError(msg) from None
     if _CREATE_TABLES.get():
         async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+            await conn.run_sync(OrmBase.metadata.create_all)
         _CREATE_TABLES.set(False)  # no need to create next time
     return engine
 
 
-def set_session(session: AsyncSession) -> Callable[[], None]:
+def set_session(session: AsyncSession | None) -> Callable[[], None]:
     """Set the current session."""
     var = _CURRENT_SESSION
     token = var.set(session)
     return lambda: var.reset(token)
 
 
-def get_session() -> AsyncSession:
+def get_session() -> AsyncSession | None:
     """Get the current session."""
-    try:
-        return _CURRENT_SESSION.get()
-    except LookupError:  # nocov
-        msg = "No current asynchronous session"
-        raise LookupError(msg) from None
+    return _CURRENT_SESSION.get()

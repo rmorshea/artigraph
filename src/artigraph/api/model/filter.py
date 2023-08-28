@@ -13,22 +13,22 @@ from artigraph.api.filter import (
     to_sequence_or_none,
     to_value_filter,
 )
-from artigraph.orm.artifact import ModelArtifact
+from artigraph.orm.artifact import OrmModelArtifact
 from artigraph.utils import get_subclasses
 
 if TYPE_CHECKING:
-    from artigraph.model.base import BaseModel
+    from artigraph.api.model.base import BaseModel
 
 
 M = TypeVar("M", bound="BaseModel")
 
 
-class ModelFilter(ArtifactFilter[ModelArtifact], Generic[M]):
+class ModelFilter(ArtifactFilter[OrmModelArtifact], Generic[M]):
     """A filter for models."""
 
-    node_type: NodeTypeFilter[ModelArtifact] = field(
+    node_type: NodeTypeFilter[OrmModelArtifact] = field(
         # delay this in case tables are defined late
-        default_factory=lambda: NodeTypeFilter(type=[ModelArtifact])
+        default_factory=lambda: NodeTypeFilter(type=[OrmModelArtifact])
     )
     """Models must be one of these types."""
     model_type: Sequence[ModelTypeFilter[M]] | ModelTypeFilter[M] | type[M] | None = None
@@ -59,14 +59,18 @@ class ModelTypeFilter(Generic[M], Filter):
 
     def compose(self, expr: Expression) -> Expression:
         if self.subclasses:
-            expr &= ModelArtifact.model_artifact_type.in_(
+            expr &= OrmModelArtifact.model_artifact_name.in_(
                 [m.model_name for m in get_subclasses(self.type)]
             )
         else:
-            expr &= ModelArtifact.model_artifact_type == self.type.model_name
+            expr &= OrmModelArtifact.model_artifact_name == self.type.model_name
 
         if self.version is not None:
-            expr &= to_value_filter(self.version).use(ModelArtifact.model_artifact_version).create()
+            expr &= (
+                to_value_filter(self.version)
+                .against(OrmModelArtifact.model_artifact_version)
+                .create()
+            )
 
         return expr
 

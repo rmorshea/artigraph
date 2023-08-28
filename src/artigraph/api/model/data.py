@@ -6,7 +6,7 @@ from typing import Annotated, Any, get_args, get_origin, get_type_hints
 
 from typing_extensions import Self, dataclass_transform
 
-from artigraph.model.base import BaseModel, FieldConfig, ModelData
+from artigraph.api.model.base import BaseModel, FieldConfig, ModelData
 from artigraph.serializer.core import Serializer
 from artigraph.storage.core import Storage
 

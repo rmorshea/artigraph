@@ -1,13 +1,13 @@
 import pytest
 
-from artigraph.orm.node import Node
+from artigraph.orm.node import OrmNode
 
 
 def test_node_with_inconsistent_polymorphic_identity():
     """Test that a node with an inconsistent polymorphic identity raises an error."""
     with pytest.raises(ValueError):
 
-        class MyNode(Node):
+        class MyNode(OrmNode):
             """A node with an inconsistent polymorphic identity."""
 
             polymorphic_identity = "something"

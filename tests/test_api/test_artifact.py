@@ -1,5 +1,4 @@
 from artigraph.api.artifact import (
-    QualifiedArtifact,
     delete_artifacts,
     read_artifact,
     read_artifact_or_none,
@@ -9,35 +8,33 @@ from artigraph.api.artifact import (
 )
 from artigraph.api.filter import ArtifactFilter, NodeLinkFilter, ValueFilter
 from artigraph.api.node import (
-    read_nodes_exist,
-    write_node,
-    write_node_links,
+    exists,
+    write_links,
+    write_one,
 )
-from artigraph.orm.artifact import DatabaseArtifact, RemoteArtifact
-from artigraph.orm.node import Node
+from artigraph.orm.artifact import OrmDatabaseArtifact, OrmRemoteArtifact
+from artigraph.orm.node import OrmNode
 from artigraph.serializer.json import json_serializer
 from artigraph.storage.file import temp_file_storage
 
 
 async def test_create_read_delete_database_artifact():
     """Test creating an artifact."""
-    artifact = Node(
-        DatabaseArtifact,
-        node_parent_id=None,
+    artifact = OrmDatabaseArtifact(
         artifact_label="test-label",
         artifact_serializer=json_serializer.name,
-        database_artifact_value=None,
+        artifact_data=None,
     )
 
     qual = await write_artifact(QualifiedArtifact(artifact, {"some": "data"}))
     artifact_filter = ArtifactFilter(node_id=ValueFilter(eq=qual.artifact.node_id))
 
     qual_artifact = await read_artifact(artifact_filter)
-    assert isinstance(qual_artifact.artifact, DatabaseArtifact)
+    assert isinstance(qual_artifact.artifact, OrmDatabaseArtifact)
     assert qual_artifact.value == {"some": "data"}
 
     await delete_artifacts(artifact_filter)
-    assert not await read_nodes_exist(artifact_filter)
+    assert not await exists(artifact_filter)
 
 
 async def test_read_artifact_or_none():
@@ -45,12 +42,9 @@ async def test_read_artifact_or_none():
     artifact_filter = ArtifactFilter(node_id=ValueFilter(eq=123))
     assert await read_artifact_or_none(artifact_filter) is None
 
-    artifact = Node(
-        DatabaseArtifact,
-        node_parent_id=None,
-        artifact_label="test-label",
+    artifact = OrmDatabaseArtifact(
         artifact_serializer=json_serializer.name,
-        database_artifact_value=None,
+        artifact_data=None,
     )
     qual = await write_artifact(QualifiedArtifact(artifact, {"some": "data"}))
 
@@ -73,11 +67,11 @@ async def test_create_read_delete_remote_artifact():
     artifact_filter = ArtifactFilter(node_id=ValueFilter(eq=qual.artifact.node_id))
 
     db_qual_artifact = await read_artifact(artifact_filter)
-    assert isinstance(db_qual_artifact.artifact, RemoteArtifact)
+    assert isinstance(db_qual_artifact.artifact, OrmRemoteArtifact)
     assert db_qual_artifact.value == {"some": "data"}
 
     await delete_artifacts(artifact_filter)
-    assert not await read_nodes_exist(artifact_filter)
+    assert not await exists(artifact_filter)
     assert not await temp_file_storage.exists(db_qual_artifact.artifact.remote_artifact_location)
 
 
@@ -94,7 +88,7 @@ async def test_delete_many_artifacts():
     await write_artifacts(artifacts)
 
     # create parent-child relationships
-    await write_node_links(
+    await write_links(
         [
             (None, grandparent.artifact.node_id),
             (grandparent.artifact.node_id, parent.artifact.node_id),
@@ -111,13 +105,13 @@ async def test_delete_many_artifacts():
     )
 
     # check that the artifact exist
-    assert await read_nodes_exist(artifact_filter)
+    assert await exists(artifact_filter)
 
     # delete artifacts
     await delete_artifacts(artifact_filter)
 
     # check that the artifact and its descendants were deleted
-    assert not await read_nodes_exist(artifact_filter)
+    assert not await exists(artifact_filter)
 
     # check that remote artifacts were deleted
     storage_locations = [qual.artifact.remote_artifact_location for qual in remote_artifacts]
@@ -126,7 +120,7 @@ async def test_delete_many_artifacts():
 
 
 async def test_read_child_artifacts():
-    node = await write_node(Node(), refresh_attributes=["node_id"])
+    node = await write_one(OrmNode(), refresh_attributes=["node_id"])
     qual_artifacts = [
         new_artifact(str(i), i, json_serializer, parent_id=node.node_id) for i in range(10)
     ]

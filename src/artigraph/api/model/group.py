@@ -6,12 +6,12 @@ from typing import Any, Collection, Generic, Sequence, TypeVar
 from typing_extensions import Self
 
 from artigraph.api.filter import NodeLinkFilter, ValueFilter
-from artigraph.api.node import read_node_or_none, read_nodes_exist, write_node
-from artigraph.model.base import BaseModel, delete_models, read_models, write_models
-from artigraph.model.filter import ModelFilter
-from artigraph.orm.node import Node
+from artigraph.api.model.base import BaseModel, delete_models, read_models, write_models
+from artigraph.api.model.filter import ModelFilter
+from artigraph.api.node import exists, read_one_or_none, write_one
+from artigraph.orm.node import OrmNode
 
-N = TypeVar("N", bound=Node)
+N = TypeVar("N", bound=OrmNode)
 
 _CURRENT_MODEL_GROUP: ContextVar[ModelGroup[Any]] = ContextVar("CURRENT_MODEL_GROUP")
 
@@ -36,7 +36,7 @@ class ModelGroup(Generic[N]):
         node: The node that the models belong to
     """
 
-    _current_model_group_token: Token[ModelGroup[Node]]
+    _current_model_group_token: Token[ModelGroup[OrmNode]]
 
     def __init__(self, node: N | int) -> None:
         self._node_id = _LazyNodeId(node, current_model_group_or_none())
@@ -92,7 +92,7 @@ class ModelGroup(Generic[N]):
         """Check if this group has models with the given labels."""
         labels_to_refresh = self._labels_to_refresh(labels, fresh=fresh)
         if labels_to_refresh:
-            return await read_nodes_exist(
+            return await exists(
                 ModelFilter(
                     child=NodeLinkFilter(child_of=await self._node_id.get()),
                     artifact_label=labels_to_refresh,
@@ -118,10 +118,10 @@ class ModelGroup(Generic[N]):
             for label in labels:
                 self._models.pop(label, None)
 
-    async def get_parent_group(self) -> ModelGroup[Node] | None:
+    async def get_parent_group(self) -> ModelGroup[OrmNode] | None:
         """Get this groups' parent."""
         node_filter = NodeLinkFilter(parent_of=await self._node_id.get())
-        parent_node = await read_node_or_none(node_filter)
+        parent_node = await read_one_or_none(node_filter)
         return None if parent_node is None else ModelGroup(parent_node)
 
     async def save(self) -> None:
@@ -156,7 +156,7 @@ class ModelGroup(Generic[N]):
 class _LazyNodeId:
     _node_id: int
 
-    def __init__(self, node: Node | int, parent_group: ModelGroup | None) -> None:
+    def __init__(self, node: OrmNode | int, parent_group: ModelGroup | None) -> None:
         self._given = node
         self._parent_group = parent_group
 
@@ -170,6 +170,6 @@ class _LazyNodeId:
         if self._given.node_id is None:
             if self._parent_group is not None:
                 self._given.node_parent_id = await self._parent_group._node_id.get()
-            await write_node(self._given)
+            await write_one(self._given)
         self._node_id = self._given.node_id
         return self._node_id

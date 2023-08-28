@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import operator
-import sys
-from dataclasses import dataclass, field, fields, replace
+from dataclasses import field, fields, replace
 from datetime import datetime
 from typing import (
-    TYPE_CHECKING,
     Any,
     Callable,
     Collection,
@@ -28,41 +26,27 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import aliased
 from sqlalchemy.orm.attributes import InstrumentedAttribute
-from typing_extensions import ParamSpec, Self, dataclass_transform
+from typing_extensions import ParamSpec, Self
 
-from artigraph.orm import BaseArtifact, Node, get_polymorphic_identities
-from artigraph.orm.link import NodeLink
+from artigraph.orm import OrmArtifact, OrmNode, get_polymorphic_identities
+from artigraph.orm.link import OrmNodeLink
+from artigraph.utils import Dataclass
 
 P = ParamSpec("P")
 T = TypeVar("T")
-N = TypeVar("N", bound=Node)
-A = TypeVar("A", bound=BaseArtifact)
+N = TypeVar("N", bound=OrmNode)
+A = TypeVar("A", bound=OrmArtifact)
 Q = TypeVar("Q", bound="Select | Update | Delete | Exists")
 
 Expression = ColumnElement[bool]
 """An alias for a sqlalchemy `OperatorExpression`"""
 
 
-@dataclass_transform()
-class _FilterMeta(type):
-    def __new__(
-        cls,
-        name: str,
-        bases: tuple[type[Any, ...]],
-        namespace: dict[str, Any],
-        **kwargs: Any,
-    ):
-        self = super().__new__(cls, name, bases, namespace, **kwargs)
-        kwargs = kwargs if sys.version_info < (3, 10) else {"kw_only": True, **kwargs}
-        self = dataclass(**kwargs)(self)
-        return self
-
-
 # An empty filter that does nothing
 _NO_OP = BooleanClauseList.and_()
 
 
-class Filter(metaclass=_FilterMeta):
+class Filter(Dataclass):
     """Base class for where clauses."""
 
     def create(self) -> Expression:
@@ -121,30 +105,6 @@ class MultiFilter(Filter):
             return MultiFilter(op=new_op, filters=(self, other))
 
 
-class GenericFilter(Filter, Generic[T]):
-    """Base class for filters that apply generally to a given value."""
-
-    if TYPE_CHECKING:
-        # type checkers assume T.__get__ if T is a descriptor - force it to just be T
-
-        @property
-        def value(self) -> T:  # type: ignore
-            """The specific value to filter by."""
-
-        @value.setter
-        def value(self, new: T) -> None:  # type: ignore
-            """Set the value to filter by."""
-
-    else:
-        value: T = field(init=False, repr=False)
-
-    def use(self, value: T) -> Self:
-        """Return a new filter that uses the given value."""
-        new = replace(self)
-        new.value = value
-        return new
-
-
 class NodeFilter(Filter, Generic[N]):
     """Filter nodes that meet the given conditions"""
 
@@ -169,7 +129,7 @@ class NodeFilter(Filter, Generic[N]):
         node_id = to_value_filter(self.node_id)
 
         if node_id is not None:
-            expr &= node_id.use(Node.node_id).create()
+            expr &= node_id.against(OrmNode.node_id).create()
 
         if self.node_type is not None:
             expr &= (
@@ -179,21 +139,21 @@ class NodeFilter(Filter, Generic[N]):
             ).create()
 
         if self.created_at:
-            expr &= to_value_filter(self.created_at).use(Node.created_at).create()
+            expr &= to_value_filter(self.created_at).against(OrmNode.created_at).create()
 
         if self.updated_at:
-            expr &= to_value_filter(self.updated_at).use(Node.updated_at).create()
+            expr &= to_value_filter(self.updated_at).against(OrmNode.updated_at).create()
 
         if self.parent_of or self.ancestor_of:
-            expr &= Node.node_id.in_(
-                select(NodeLink.parent_id).where(
+            expr &= OrmNode.node_id.in_(
+                select(OrmNodeLink.parent_id).where(
                     NodeLinkFilter(child=self.parent_of, descendant=self.ancestor_of).create()
                 )
             )
 
         if self.child_of or self.descendant_of:
-            expr &= Node.node_id.in_(
-                select(NodeLink.child_id).where(
+            expr &= OrmNode.node_id.in_(
+                select(OrmNodeLink.child_id).where(
                     NodeLinkFilter(parent=self.child_of, ancestor=self.descendant_of).create()
                 )
             )
@@ -204,33 +164,38 @@ class NodeFilter(Filter, Generic[N]):
 class NodeLinkFilter(Filter):
     """Filter node links."""
 
+    link_id: ValueFilter[int] | int | None = None
     parent: NodeFilter | Sequence[str] | str | None = None
     child: NodeFilter | Sequence[str] | str | None = None
     descendant: NodeFilter | Sequence[str] | str | None = None
     ancestor: NodeFilter | Sequence[str] | str | None = None
 
     def compose(self, expr: Expression) -> Expression:
+        link_id = to_value_filter(self.link_id)
         parent_id = to_node_id_selector(self.parent)
         child_id = to_node_id_selector(self.child)
         descendant_id = to_node_id_selector(self.descendant)
         ancestor_id = to_node_id_selector(self.ancestor)
 
+        if link_id is not None:
+            expr &= link_id.against(OrmNodeLink.link_id).create()
+
         if parent_id is not None:
-            expr &= NodeLink.parent_id.in_(parent_id)
+            expr &= OrmNodeLink.parent_id.in_(parent_id)
 
         if child_id is not None:
-            expr &= NodeLink.child_id.in_(child_id)
+            expr &= OrmNodeLink.child_id.in_(child_id)
 
         if ancestor_id is not None:
             # Create a CTE to get the descendants recursively
             descendant_node_cte = (
-                select(NodeLink.parent_id.label("descendant_id"), NodeLink.child_id)
-                .where(NodeLink.parent_id.in_(ancestor_id))
+                select(OrmNodeLink.parent_id.label("descendant_id"), OrmNodeLink.child_id)
+                .where(OrmNodeLink.parent_id.in_(ancestor_id))
                 .cte(name="descendants", recursive=True)
             )
 
             # Recursive case: select the children of the current nodes
-            child_node = aliased(NodeLink)
+            child_node = aliased(OrmNodeLink)
             descendant_node_cte = descendant_node_cte.union_all(
                 select(child_node.parent_id, child_node.child_id).where(
                     child_node.parent_id == descendant_node_cte.c.child_id
@@ -238,7 +203,7 @@ class NodeLinkFilter(Filter):
             )
 
             # Join the CTE with the actual Node table to get the descendants
-            expr &= NodeLink.parent_id.in_(
+            expr &= OrmNodeLink.parent_id.in_(
                 select(descendant_node_cte.c.descendant_id).where(
                     descendant_node_cte.c.descendant_id.isnot(None)
                 )
@@ -247,13 +212,13 @@ class NodeLinkFilter(Filter):
         if descendant_id is not None:
             # Create a CTE to get the ancestors recursively
             ancestor_node_cte = (
-                select(NodeLink.child_id.label("ancestor_id"), NodeLink.parent_id)
-                .where(NodeLink.child_id.in_(descendant_id))
+                select(OrmNodeLink.child_id.label("ancestor_id"), OrmNodeLink.parent_id)
+                .where(OrmNodeLink.child_id.in_(descendant_id))
                 .cte(name="ancestors", recursive=True)
             )
 
             # Recursive case: select the parents of the current nodes
-            parent_node = aliased(NodeLink)
+            parent_node = aliased(OrmNodeLink)
             ancestor_node_cte = ancestor_node_cte.union_all(
                 select(parent_node.child_id, parent_node.parent_id).where(
                     parent_node.child_id == ancestor_node_cte.c.parent_id
@@ -261,7 +226,7 @@ class NodeLinkFilter(Filter):
             )
 
             # Join the CTE with the actual Node table to get the ancestors
-            expr &= NodeLink.child_id.in_(
+            expr &= OrmNodeLink.child_id.in_(
                 select(ancestor_node_cte.c.ancestor_id).where(
                     ancestor_node_cte.c.ancestor_id.isnot(None)
                 )
@@ -286,11 +251,11 @@ class NodeTypeFilter(Filter, Generic[N]):
 
         if type_in is not None:
             polys_in = get_polymorphic_identities(type_in, subclasses=self.subclasses)
-            expr &= Node.node_type.in_(polys_in)
+            expr &= OrmNode.node_type.in_(polys_in)
 
         if type_not_in is not None:
             polys_not_in = get_polymorphic_identities(type_not_in, subclasses=self.subclasses)
-            expr &= Node.node_type.notin_(polys_not_in)
+            expr &= OrmNode.node_type.notin_(polys_not_in)
 
         return expr
 
@@ -300,7 +265,7 @@ class ArtifactFilter(NodeFilter[A]):
 
     node_type: NodeTypeFilter[A] = field(
         # delay this in case tables are defined late
-        default_factory=lambda: NodeTypeFilter(type=[BaseArtifact])  # type: ignore
+        default_factory=lambda: NodeTypeFilter(type=[OrmArtifact])  # type: ignore
     )
     """Artifacts must be one of these types."""
     artifact_label: ValueFilter[str] | str | None = None
@@ -311,7 +276,9 @@ class ArtifactFilter(NodeFilter[A]):
 
         if self.artifact_label:
             expr = (
-                to_value_filter(self.artifact_label).use(BaseArtifact.artifact_label).compose(expr)
+                to_value_filter(self.artifact_label)
+                .against(OrmArtifact.artifact_label)
+                .compose(expr)
             )
 
         return expr
@@ -322,9 +289,11 @@ def column_op(*, op: Callable[[Any, Any], BinaryExpression], **kwargs: Any) -> A
     return field(metadata={"op": op}, **kwargs)
 
 
-@dataclass_transform()
-class ValueFilter(GenericFilter[InstrumentedAttribute[T]]):
+class ValueFilter(Filter, Generic[T]):
     """Filter a column by comparing it to a value."""
+
+    column: InstrumentedAttribute[T] = field(repr=False, default=None)
+    """The column to filter."""
 
     gt: T | None = column_op(default=None, op=operator.gt)
     """The column must be greater than this value."""
@@ -349,13 +318,17 @@ class ValueFilter(GenericFilter[InstrumentedAttribute[T]]):
     is_not: bool | None = column_op(default=None, op=Column.isnot)
     """The column must not be this value."""
 
+    def against(self, column: InstrumentedAttribute[T]) -> Self:
+        """Filter against the given column."""
+        return replace(self, column=column)
+
     def compose(self, expr: Expression) -> Expression:
         for f in fields(self):
             if "op" in f.metadata:
                 op_value = getattr(self, f.name, None)
                 if op_value is not None:
                     op: Callable[[InstrumentedAttribute[T], T], BinaryExpression] = f.metadata["op"]
-                    expr &= op(self.value, op_value)
+                    expr &= op(self.column, op_value)
         return expr
 
 
@@ -386,7 +359,7 @@ def to_node_id_selector(
         return value
 
     if isinstance(value, NodeFilter):
-        return select(Node.node_id).where(value.create())
+        return select(OrmNode.node_id).where(value.create())
 
     if isinstance(value, str):
         return [value]

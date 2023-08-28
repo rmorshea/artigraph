@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-from artigraph.api.node import write_node
+from artigraph.api.node import write_one
 from artigraph.model.data import DataModel
 from artigraph.model.group import ModelGroup, current_model_group
-from artigraph.orm.node import Node
+from artigraph.orm.node import OrmNode
 
 
 class SimpleModel(DataModel, version=1):
@@ -17,7 +17,7 @@ class SimpleModel(DataModel, version=1):
 
 async def test_model_simple_group():
     """Test that a model group can be created and saved."""
-    node = Node()
+    node = OrmNode()
     async with ModelGroup(node) as group:
         model = SimpleModel(x=1, y=2)
         group.add_model("test", model)
@@ -30,7 +30,7 @@ async def test_model_simple_group():
 
 async def test_get_current_model():
     """Test that the current model group can be retrieved."""
-    node = Node()
+    node = OrmNode()
 
     def add_simple_model():
         current_model_group().add_model("test", SimpleModel(x=1, y=2))
@@ -44,7 +44,7 @@ async def test_get_current_model():
 
 async def test_cannot_add_model_with_same_label():
     """Test that a model cannot be added with the same label as an existing model."""
-    node = Node()
+    node = OrmNode()
     async with ModelGroup(node) as group:
         group.add_model("test", SimpleModel(x=1, y=2))
         with pytest.raises(ValueError, match=r"Models with labels .* already exist in this group"):
@@ -53,7 +53,7 @@ async def test_cannot_add_model_with_same_label():
 
 async def test_get_many_models_from_group():
     """Test that many models can be retrieved from a group."""
-    node = Node()
+    node = OrmNode()
     async with ModelGroup(node) as group:
         group.add_model("test1", SimpleModel(x=1, y=2))
         group.add_model("test2", SimpleModel(x=3, y=4))
@@ -69,7 +69,7 @@ async def test_get_many_models_from_group():
 
 async def test_get_all_models_from_group():
     """Test that many models can be retrieved from a group."""
-    node = Node()
+    node = OrmNode()
     async with ModelGroup(node) as group:
         group.add_model("test1", SimpleModel(x=1, y=2))
         group.add_model("test2", SimpleModel(x=3, y=4))
@@ -84,7 +84,7 @@ async def test_get_all_models_from_group():
 
 
 async def test_get_models_no_refresh():
-    node = Node()
+    node = OrmNode()
 
     group = ModelGroup(node)
     model1 = SimpleModel(x=1, y=2)
@@ -110,7 +110,7 @@ async def test_get_models_no_refresh():
 
 
 async def test_remove_models():
-    node = Node()
+    node = OrmNode()
     async with ModelGroup(node) as group:
         group.add_model("test1", SimpleModel(x=1, y=2))
         group.add_model("test2", SimpleModel(x=3, y=4))
@@ -125,7 +125,7 @@ async def test_remove_models():
 
 
 async def test_remove_all_models():
-    node = Node()
+    node = OrmNode()
     async with ModelGroup(node) as group:
         group.add_model("test1", SimpleModel(x=1, y=2))
         group.add_model("test2", SimpleModel(x=3, y=4))
@@ -140,9 +140,9 @@ async def test_remove_all_models():
 
 
 async def test_get_parent_group():
-    async with ModelGroup(Node()) as outer:
+    async with ModelGroup(OrmNode()) as outer:
         outer.add_model("test_outer", SimpleModel(x=1, y=2))
-        async with ModelGroup(Node()) as inner:
+        async with ModelGroup(OrmNode()) as inner:
             inner.add_model("test_inner", SimpleModel(x=3, y=3))
 
     # sanity check
@@ -154,8 +154,8 @@ async def test_get_parent_group():
 
 
 async def test_group_from_existing_node_id():
-    node = Node()
-    await write_node(node)
+    node = OrmNode()
+    await write_one(node)
     node_id = node.node_id
 
     group = ModelGroup(node_id)
@@ -172,7 +172,7 @@ async def test_group_from_existing_node_id():
 
 
 async def test_get_models_all_cached():
-    node = Node()
+    node = OrmNode()
 
     model1 = SimpleModel(x=1, y=2)
     model2 = SimpleModel(x=3, y=4)

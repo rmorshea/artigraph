@@ -2,8 +2,21 @@ from __future__ import annotations
 
 import asyncio
 import re
+import sys
+from abc import ABCMeta
+from dataclasses import KW_ONLY, dataclass
 from functools import partial
-from typing import Any, Callable, Coroutine, Generic, Sequence, TypeVar, cast
+from typing import (
+    Any,
+    AsyncIterator,
+    Callable,
+    Coroutine,
+    Generic,
+    Sequence,
+    TypeVar,
+    cast,
+    dataclass_transform,
+)
 
 from anyio import to_thread
 from typing_extensions import ParamSpec, Self
@@ -48,7 +61,7 @@ class TaskBatch(Generic[R]):
         **kwargs: P.kwargs,
     ) -> Self:
         """Add a new task to the batch"""
-        self._funcs.append(self._wrap_func(lambda: func(*args, **kwargs)))
+        self._funcs.append(lambda: func(*args, **kwargs))
         return self
 
     def map(  # noqa: A003
@@ -61,15 +74,36 @@ class TaskBatch(Generic[R]):
             self.add(func, *args)
         return self
 
-    def _wrap_func(
-        self,
-        func: Callable[[], Coroutine[None, None, R]],
-    ) -> Callable[[], Coroutine[None, None, R]]:
-        return func
-
     async def gather(self) -> Sequence[R]:
+        """Execute all tasks in the batch and return the results"""
         return await asyncio.gather(*[t() for t in self._funcs])
+
+    async def as_completed(self) -> AsyncIterator[R]:
+        """Execute all tasks in the batch and return the results as they complete"""
+        for t in asyncio.as_completed([t() for t in self._funcs]):
+            yield await t
 
 
 def get_subclasses(cls: type[R]) -> list[type[R]]:
     return [cls, *(s for c in cls.__subclasses__() for s in get_subclasses(c))]
+
+
+@dataclass_transform()
+class _DataclassMeta(ABCMeta):
+    def __new__(
+        cls,
+        name: str,
+        bases: tuple[type[Any, ...]],
+        namespace: dict[str, Any],
+        **kwargs: Any,
+    ):
+        self = super().__new__(cls, name, bases, namespace, **kwargs)
+        kwargs = kwargs if sys.version_info < (3, 10) else {"kw_only": True, **kwargs}
+        self = dataclass(**kwargs)(self)
+        return self
+
+
+class Dataclass(metaclass=_DataclassMeta):
+    """All subclasses are treated as keyword only dataclasses"""
+
+    _: KW_ONLY

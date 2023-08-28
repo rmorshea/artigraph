@@ -1,13 +1,18 @@
-from artigraph.orm.artifact import BaseArtifact, DatabaseArtifact, ModelArtifact, RemoteArtifact
-from artigraph.orm.base import Base
-from artigraph.orm.node import Node, get_polymorphic_identities
+from artigraph.orm.artifact import (
+    OrmArtifact,
+    OrmDatabaseArtifact,
+    OrmModelArtifact,
+    OrmRemoteArtifact,
+)
+from artigraph.orm.base import OrmBase
+from artigraph.orm.node import OrmNode, get_polymorphic_identities
 
 __all__ = [
-    "Base",
-    "BaseArtifact",
-    "DatabaseArtifact",
+    "OrmBase",
+    "OrmArtifact",
+    "OrmDatabaseArtifact",
     "get_polymorphic_identities",
-    "ModelArtifact",
-    "Node",
-    "RemoteArtifact",
+    "OrmModelArtifact",
+    "OrmNode",
+    "OrmRemoteArtifact",
 ]

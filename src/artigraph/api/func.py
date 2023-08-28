@@ -185,7 +185,7 @@ def load_orms_from_rows(orm_type: type[O], rows: Sequence[Row]) -> Sequence[O]:
     """Load the appropriate ORM instances given a sequence of SQLAlchemy rows."""
     poly_on = None
     for cls in orm_type.mro():
-        if (poly_on := cls.__mapper_args__.get("polymorphic_on")) is not None:
+        if (poly_on := cls.__dict__.get("__mapper_args__", {}).get("polymorphic_on")) is not None:
             break
 
     if not poly_on:

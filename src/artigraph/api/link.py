@@ -50,5 +50,5 @@ class NodeLink(Api[L]):
             child_id=orm.child_id,
             parent_id=orm.parent_id,
             label=orm.label,
-            api_orm=orm,
+            orm=orm,
         )

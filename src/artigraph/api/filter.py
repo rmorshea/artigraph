@@ -15,7 +15,6 @@ from typing import (
 
 from sqlalchemy import (
     BinaryExpression,
-    BooleanClauseList,
     Column,
     ColumnElement,
     Delete,
@@ -26,6 +25,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import aliased
 from sqlalchemy.orm.attributes import InstrumentedAttribute
+from sqlalchemy.sql.elements import ExpressionClauseList
 from typing_extensions import ParamSpec, Self
 
 from artigraph.orm import OrmArtifact, OrmNode, get_polymorphic_identities
@@ -43,7 +43,7 @@ Expression = ColumnElement[bool]
 
 
 # An empty filter that does nothing
-_NO_OP = BooleanClauseList.and_()
+_NO_OP = ExpressionClauseList(operator.and_)
 
 
 class Filter(Dataclass):
@@ -165,10 +165,15 @@ class NodeLinkFilter(Filter):
     """Filter node links."""
 
     link_id: ValueFilter[int] | int | None = None
+    """Filter links by their ID."""
     parent: NodeFilter | Sequence[str] | str | None = None
+    """Filter links by their parent."""
     child: NodeFilter | Sequence[str] | str | None = None
+    """Filter links by their child."""
     descendant: NodeFilter | Sequence[str] | str | None = None
+    """Filter links by whether their child is a descendant of the given nodes."""
     ancestor: NodeFilter | Sequence[str] | str | None = None
+    """Filter links by whether their parent is an ancestor of the given nodes."""
 
     def compose(self, expr: Expression) -> Expression:
         link_id = to_value_filter(self.link_id)
@@ -186,50 +191,48 @@ class NodeLinkFilter(Filter):
         if child_id is not None:
             expr &= OrmNodeLink.child_id.in_(child_id)
 
-        if ancestor_id is not None:
-            # Create a CTE to get the descendants recursively
-            descendant_node_cte = (
-                select(OrmNodeLink.parent_id.label("descendant_id"), OrmNodeLink.child_id)
-                .where(OrmNodeLink.parent_id.in_(ancestor_id))
-                .cte(name="descendants", recursive=True)
-            )
-
-            # Recursive case: select the children of the current nodes
-            child_node = aliased(OrmNodeLink)
-            descendant_node_cte = descendant_node_cte.union_all(
-                select(child_node.parent_id, child_node.child_id).where(
-                    child_node.parent_id == descendant_node_cte.c.child_id
-                )
-            )
-
-            # Join the CTE with the actual Node table to get the descendants
-            expr &= OrmNodeLink.parent_id.in_(
-                select(descendant_node_cte.c.descendant_id).where(
-                    descendant_node_cte.c.descendant_id.isnot(None)
-                )
-            )
-
         if descendant_id is not None:
-            # Create a CTE to get the ancestors recursively
-            ancestor_node_cte = (
-                select(OrmNodeLink.child_id.label("ancestor_id"), OrmNodeLink.parent_id)
+            descendant_cte = (
+                select(
+                    OrmNodeLink.parent_id.label("ancestor_id"),
+                    OrmNodeLink.child_id.label("descendant_id"),
+                )
                 .where(OrmNodeLink.child_id.in_(descendant_id))
-                .cte(name="ancestors", recursive=True)
+                .cte(name="descendant_nodes", recursive=True)
             )
 
-            # Recursive case: select the parents of the current nodes
+            child_node = aliased(OrmNodeLink)
+            descendant_cte = descendant_cte.union_all(
+                select(child_node.parent_id, child_node.child_id).where(
+                    child_node.child_id == descendant_cte.c.ancestor_id
+                )
+            )
+
+            expr &= OrmNodeLink.parent_id.in_(
+                select(descendant_cte.c.descendant_id).where(
+                    descendant_cte.c.descendant_id.isnot(None)
+                )
+            )
+
+        if ancestor_id is not None:
+            ancestor_cte = (
+                select(
+                    OrmNodeLink.child_id.label("descendant_id"),
+                    OrmNodeLink.parent_id.label("ancestor_id"),
+                )
+                .where(OrmNodeLink.parent_id.in_(ancestor_id))
+                .cte(name="ancestor_nodes", recursive=True)
+            )
+
             parent_node = aliased(OrmNodeLink)
-            ancestor_node_cte = ancestor_node_cte.union_all(
+            ancestor_cte = ancestor_cte.union_all(
                 select(parent_node.child_id, parent_node.parent_id).where(
-                    parent_node.child_id == ancestor_node_cte.c.parent_id
+                    parent_node.parent_id == ancestor_cte.c.descendant_id
                 )
             )
 
-            # Join the CTE with the actual Node table to get the ancestors
             expr &= OrmNodeLink.child_id.in_(
-                select(ancestor_node_cte.c.ancestor_id).where(
-                    ancestor_node_cte.c.ancestor_id.isnot(None)
-                )
+                select(ancestor_cte.c.ancestor_id).where(ancestor_cte.c.ancestor_id.isnot(None))
             )
 
         return expr

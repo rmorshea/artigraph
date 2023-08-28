@@ -120,18 +120,17 @@ class ModelArtifact(Artifact[OrmModelArtifact, M]):
         }
 
     async def to_orms(self) -> Sequence[OrmBase]:
-        links: list[OrmNodeLink] = []
         orms: TaskBatch[Sequence[OrmBase]] = TaskBatch()
-        orms.add(_make_model_artifact(self.value, FieldConfig()).db_objs)
+        orms.add(_make_model_artifact(self.value, FieldConfig()).to_orms)
         for parent_id, artifacts in _get_artifacts_by_parent_id(self.value).items():
             for label, art in artifacts.items():
-                orms.add(art.db_objs)
-                links.append(OrmNodeLink(parent_id=parent_id, child_id=art.node_id, label=label))
-        return list(await orms.gather()) + links
+                orms.add(art.to_orms)
+                orms.add(NodeLink(parent_id=parent_id, child_id=art.node_id, label=label).to_orms)
+        return [o for os in await orms.gather() for o in os]
 
     @classmethod
     async def from_orm(cls, root_orm: OrmModelArtifact) -> Self:
-        root_art = await Artifact.from_orm(root_orm)
+        root_art = await ModelMetadataArtifact.from_orm(root_orm)
 
         async with new_session():
             node_links = await read(NodeLink, NodeLinkFilter(ancestor=root_orm.node_id))
@@ -168,7 +167,7 @@ class ModelMetadataArtifact(Artifact[OrmModelArtifact, ModelMetadata]):
     serializer: JsonSerializer = field(init=False, default=json_sorted_serializer)
     storage: None = field(init=False, default=None)
 
-    async def db_objs(self) -> Sequence[OrmBase]:
+    async def to_orms(self) -> Sequence[OrmBase]:
         return [
             OrmModelArtifact(
                 node_id=self.node_id,
@@ -180,10 +179,13 @@ class ModelMetadataArtifact(Artifact[OrmModelArtifact, ModelMetadata]):
         ]
 
     @classmethod
-    async def from_db(cls, obj: OrmModelArtifact) -> Self:
+    async def from_orm(cls, orm: OrmModelArtifact) -> Self:
         return cls(
-            value=ModelMetadata(artigraph_version=obj.model_artifact_name),
-            node_id=obj.node_id,
+            value=ModelMetadata(artigraph_version=orm.model_artifact_name),
+            node_id=orm.node_id,
+            model_name=orm.model_artifact_name,
+            model_version=orm.model_artifact_version,
+            orm=orm,
         )
 
 
@@ -209,7 +211,7 @@ def _make_artifact(value: Any, config: FieldConfig) -> Artifact[Any]:
     """Make an artifact from a value and config."""
     config = FieldConfig() if config is None else config
     return Artifact(
-        value,
+        value=value,
         serializer=config.get("serializer", json_serializer),
         storage=config.get("storage"),
     )
@@ -241,7 +243,7 @@ def _model_from_artifacts_by_parent_id(
             value = child.value
         kwargs[label] = value
 
-    cls = MODELED_TYPES[model_metadata_artifact.model_name]
+    cls = MODEL_TYPE_BY_NAME[model_metadata_artifact.model_name]
     return cls.model_init(model_metadata_artifact.model_version, kwargs)
 
 

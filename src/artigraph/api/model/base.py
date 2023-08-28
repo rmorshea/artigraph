@@ -191,15 +191,18 @@ def _get_artifacts_by_parent_id(
     model: BaseModel, parent_id: str | None = None
 ) -> dict[str | None, dict[str, Artifact[Any]]]:
     """Get labeled model artifacts grouped by their parent"""
-    artifacts_by_parent_id: defaultdict[str | None, dict[str, Artifact[Any]]] = defaultdict(dict)
+    arts_by_parent_id: defaultdict[str | None, dict[str, Artifact[Any]]] = defaultdict(dict)
     for label, (value, config) in model.model_data().items():
-        if isinstance(value, BaseModel):
-            art = artifacts_by_parent_id[parent_id][label] = _make_model_artifact(value, config)
-            for p_id, c_art in _get_artifacts_by_parent_id(art.node_id, value.model_data()).items():
-                artifacts_by_parent_id[p_id].update(c_art)
+        maybe_model = _try_convert_value_to_modeled_type(value)
+        if isinstance(maybe_model, BaseModel):
+            art = arts_by_parent_id[parent_id][label] = _make_model_artifact(maybe_model, config)
+            for p_id, c_art in _get_artifacts_by_parent_id(
+                art.node_id, maybe_model.model_data()
+            ).items():
+                arts_by_parent_id[p_id].update(c_art)
         else:
-            artifacts_by_parent_id[parent_id][label] = _make_artifact(value, config)
-    return artifacts_by_parent_id
+            arts_by_parent_id[parent_id][label] = _make_artifact(maybe_model, config)
+    return arts_by_parent_id
 
 
 def _make_artifact(value: Any, config: FieldConfig) -> Artifact[Any]:
@@ -240,3 +243,11 @@ def _model_from_artifacts_by_parent_id(
 
     cls = MODELED_TYPES[model_metadata_artifact.model_name]
     return cls.model_init(model_metadata_artifact.model_version, kwargs)
+
+
+def _try_convert_value_to_modeled_type(value: Any) -> BaseModel | Any:
+    """Try to convert a value to a modeled type."""
+    modeled_type = MODELED_TYPES.get(type(value))
+    if modeled_type is not None:
+        return modeled_type(value)  # type: ignore
+    return value

@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from artigraph.api.node import write_one
-from artigraph.model.data import DataModel
-from artigraph.model.group import ModelGroup, current_model_group
+from artigraph.api.model.data import DataModel
+from artigraph.api.model.group import ModelGroup, current_model_group
 from artigraph.orm.node import OrmNode
 
 

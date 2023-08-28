@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import field
 from typing import ClassVar, Sequence, TypeVar
 
 from typing_extensions import Self
@@ -13,7 +13,6 @@ from artigraph.orm.link import OrmNodeLink
 L = TypeVar("L", bound=OrmNodeLink)
 
 
-@dataclass
 class NodeLink(Api[L]):
     """A wrapper around an ORM node link record."""
 

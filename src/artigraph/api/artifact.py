@@ -39,7 +39,7 @@ class Artifact(Node[O], Generic[O, T]):
             artifact = OrmRemoteArtifact(
                 node_id=self.node_id,
                 artifact_serializer=self.serializer.name,
-                remote_artifact_storage=self.storage,
+                remote_artifact_storage=self.storage.name,
                 remote_artifact_location=location,
             )
         else:
@@ -70,5 +70,5 @@ class Artifact(Node[O], Generic[O, T]):
             serializer=serializer,
             storage=storage,
             node_id=orm.node_id,
-            api_orm=orm,
+            orm=orm,
         )

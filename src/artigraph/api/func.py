@@ -34,17 +34,14 @@ class Api(Generic[O], Dataclass):
     orm_type: ClassVar[type[O]] = OrmBase
     """The ORM type for this API object."""
 
-    created_at: datetime = field(init=False)
-    """The time at which the underlying record was created."""
-
-    updated_at: datetime = field(init=False)
-    """The time at which the underlying record was last updated."""
-
     orm: InitVar[O | None] = None
     """The object relational mapping."""
 
-    # Make dataclasses immutable after __post_init__ is called.
-    _frozen: bool = field(init=False, default=False)
+    created_at: datetime = field(init=False, compare=False)
+    """The time at which the underlying record was created."""
+
+    updated_at: datetime = field(init=False, compare=False)
+    """The time at which the underlying record was last updated."""
 
     def __post_init__(self, orm: O | None) -> None:
         if orm is not None:
@@ -70,6 +67,10 @@ class Api(Generic[O], Dataclass):
             msg = f"Cannot set {name!r} - {self.__class__.__name__} is immutable"
             raise TypeError(msg)
         super().__setattr__(name, value)
+
+
+# Don't want this to show up as a field in the dataclass
+Api._frozen = False
 
 
 async def exists(api_type: type[Api], api_filter: Filter) -> bool:
@@ -182,7 +183,11 @@ def load_orm_from_row(orm_type: type[O], row: Row) -> O:
 
 def load_orms_from_rows(orm_type: type[O], rows: Sequence[Row]) -> Sequence[O]:
     """Load the appropriate ORM instances given a sequence of SQLAlchemy rows."""
-    poly_on = orm_type.__mapper_args__.get("polymorphic_on")
+    poly_on = None
+    for cls in orm_type.mro():
+        if (poly_on := cls.__mapper_args__.get("polymorphic_on")) is not None:
+            break
+
     if not poly_on:
         init_field_names = {f.name for f in fields(orm_type) if f.init}
         return [_make_non_poly_obj(orm_type, init_field_names, row._mapping) for row in rows]
@@ -190,16 +195,6 @@ def load_orms_from_rows(orm_type: type[O], rows: Sequence[Row]) -> Sequence[O]:
         table = orm_type.__tablename__
         keys_by_orm_type: dict[type[OrmBase], set[str]] = {}
         return [_make_poly_obj(table, poly_on, keys_by_orm_type, row._mapping) for row in rows]
-
-
-def _make_non_poly_obj(
-    orm_type: type[O],
-    keys: set[str],
-    row_mapping: dict[str, Any],
-) -> O:
-    """Create an ORM object from a SQLAlchemy row."""
-    kwargs = {k: row_mapping[k] for k in keys}
-    return orm_type(**kwargs)
 
 
 def _make_poly_obj(
@@ -220,3 +215,13 @@ def _make_poly_obj(
 def _get_init_field_names(orm_type: type[O]) -> set[str]:
     """Get the names of the fields that should be initialized."""
     return {f.name for f in fields(orm_type) if f.init}
+
+
+def _make_non_poly_obj(
+    orm_type: type[O],
+    keys: set[str],
+    row_mapping: dict[str, Any],
+) -> O:
+    """Create an ORM object from a SQLAlchemy row."""
+    kwargs = {k: row_mapping[k] for k in keys}
+    return orm_type(**kwargs)

@@ -22,7 +22,7 @@ class Node(Api[N]):
 
     orm_type: ClassVar[type[N]] = OrmNode
 
-    node_id: str = field(init=False, default_factory=make_uuid)
+    node_id: str = field(default_factory=make_uuid)
     """The unique ID of this node"""
 
     def __post_init__(self, api_orm: N | None) -> None:
@@ -35,7 +35,7 @@ class Node(Api[N]):
             # select this node
             OrmNode: NodeFilter(node_id=self.node_id),
             # select all links to/from this node
-            OrmNodeLink: NodeLinkFilter(parent=self.node_id, child=self.node_id),
+            OrmNodeLink: NodeLinkFilter(parent=self.node_id) | NodeLinkFilter(child=self.node_id),
         }
 
     async def to_orms(self) -> Sequence[OrmNode]:
@@ -43,4 +43,4 @@ class Node(Api[N]):
 
     @classmethod
     async def from_orm(cls, orm: N, /) -> Node:
-        return cls(node_id=orm.node_id, api_orm=orm)
+        return cls(node_id=orm.node_id, orm=orm)

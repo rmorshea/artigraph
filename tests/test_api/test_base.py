@@ -1,5 +1,5 @@
 from artigraph.api.filter import ValueFilter
-from artigraph.api.func import delete, delete_one, exists, read, read_one, write, write_one
+from artigraph.api.funcs import delete, delete_one, exists, read, read_one, write, write_one
 from tests.common import Fake, FakePoly, OrmFake, OrmFakePoly
 
 

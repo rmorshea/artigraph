@@ -1,7 +1,7 @@
 import pytest
 
 from artigraph.api.filter import ValueFilter
-from artigraph.api.func import orm_read_one, read, read_one, write, write_one
+from artigraph.api.funcs import orm_read_one, read, read_one, write, write_one
 from artigraph.api.model.base import (
     MODEL_TYPE_BY_NAME,
     MODELED_TYPES,

@@ -1,13 +1,9 @@
 __version__ = "0.0.8"
 
-from artigraph.api.func import (
+from artigraph.api.funcs import (
     delete,
+    delete_many,
     delete_one,
-    orm_delete,
-    orm_exists,
-    orm_read,
-    orm_read_one,
-    orm_read_one_or_none,
     read,
     read_one,
     read_one_or_none,
@@ -21,6 +17,7 @@ __all__ = [
     "Serializer",
     "Storage",
     "delete",
+    "delete_many",
     "delete_one",
     "read",
     "read_one",

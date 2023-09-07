@@ -1,6 +1,6 @@
 from artigraph.api.artifact import Artifact
 from artigraph.api.filter import ArtifactFilter
-from artigraph.api.func import delete_one, exists, read_one, write_one
+from artigraph.api.funcs import delete_one, exists, read_one, write_one
 from artigraph.serializer.json import json_serializer
 from artigraph.storage.file import temp_file_storage
 

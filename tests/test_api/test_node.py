@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from artigraph.api.filter import NodeFilter, NodeLinkFilter
-from artigraph.api.func import delete_one, exists, read_one, write
+from artigraph.api.funcs import delete_one, exists, read_one, write
 from artigraph.api.link import NodeLink
 from artigraph.api.node import Node
 

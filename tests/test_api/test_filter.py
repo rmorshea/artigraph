@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from artigraph.api.filter import MultiFilter, NodeFilter, ValueFilter
-from artigraph.api.func import orm_read_one, orm_write
+from artigraph.api.funcs import orm_read_one, orm_write
 from artigraph.orm.node import OrmNode
 
 

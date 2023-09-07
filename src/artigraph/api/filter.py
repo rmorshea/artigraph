@@ -30,7 +30,7 @@ from typing_extensions import ParamSpec, Self
 
 from artigraph.orm import OrmArtifact, OrmNode, get_polymorphic_identities
 from artigraph.orm.link import OrmNodeLink
-from artigraph.utils import Dataclass
+from artigraph.utils.misc import Dataclass
 
 P = ParamSpec("P")
 T = TypeVar("T")
@@ -55,7 +55,7 @@ class Filter(Dataclass):
 
     def compose(self, expr: Expression, /) -> Expression:
         """Apply the where clause to the given query."""
-        raise NotImplementedError()
+        return expr
 
     def __and__(self, other: Filter) -> MultiFilter:
         """Combine this filter with another."""

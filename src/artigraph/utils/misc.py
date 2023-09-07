@@ -4,11 +4,11 @@ import asyncio
 import re
 import sys
 from abc import ABCMeta
-from dataclasses import KW_ONLY, dataclass
+from dataclasses import KW_ONLY, dataclass, field
 from functools import partial
+from traceback import format_exception
 from typing import (
     Any,
-    AsyncIterator,
     Callable,
     Coroutine,
     Generic,
@@ -27,6 +27,26 @@ R = TypeVar("R")
 
 SLUG_REPLACE_PATTERN = re.compile(r"[^a-z0-9]+")
 """A pattern for replacing non-alphanumeric characters in slugs"""
+
+if sys.version_info < (3, 11):
+
+    class ExceptionGroup(Exception):  # noqa: N818, A001
+        """An exception that contains multiple exceptions
+
+        A best effort attempt to replicate the `ExceptionGroup` from Python 3.11
+        """
+
+        def __init__(self, message: str, exceptions: Sequence[Exception], /) -> None:
+            super().__init__(message)
+            self.exceptions = exceptions
+
+        def __str__(self) -> str:
+            nl = "\n"  # can't include backslash in f-string
+            tracebacks = nl.join(
+                f"{index + 1} - {nl.join(format_exception(exc))}"
+                for index, exc in enumerate(self.exceptions)
+            )
+            return f"{super().__str__()}\n\n{tracebacks}"
 
 
 def create_sentinel(name: str) -> Any:
@@ -76,19 +96,25 @@ class TaskBatch(Generic[R]):
 
     async def gather(self) -> Sequence[R]:
         """Execute all tasks in the batch and return the results"""
-        return await asyncio.gather(*[t() for t in self._funcs])
-
-    async def as_completed(self) -> AsyncIterator[R]:
-        """Execute all tasks in the batch and return the results as they complete"""
-        for t in asyncio.as_completed([t() for t in self._funcs]):
-            yield await t
+        done, pending = await asyncio.wait(
+            [asyncio.create_task(t()) for t in self._funcs],
+            return_when=asyncio.FIRST_EXCEPTION,
+        )
+        errors = list(filter(None, [t.exception() for t in done]))
+        if errors:
+            for t in pending:
+                t.cancel()
+            await asyncio.wait(pending)
+            msg = "One or more tasks failed"
+            raise ExceptionGroup(msg, errors)
+        return [t.result() for t in done]
 
 
 def get_subclasses(cls: type[R]) -> list[type[R]]:
     return [cls, *(s for c in cls.__subclasses__() for s in get_subclasses(c))]
 
 
-@dataclass_transform()
+@dataclass_transform(field_specifiers=(field,))
 class _DataclassMeta(ABCMeta):
     def __new__(
         cls,
@@ -98,7 +124,6 @@ class _DataclassMeta(ABCMeta):
         **kwargs: Any,
     ):
         self = super().__new__(cls, name, bases, namespace, **kwargs)
-        kwargs = kwargs if sys.version_info < (3, 10) else {"kw_only": True, **kwargs}
         self = dataclass(**kwargs)(self)
         return self
 

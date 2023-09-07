@@ -6,7 +6,7 @@ from typing import Any, ClassVar, Sequence, TypeVar
 from sqlalchemy.orm import Mapped, mapped_column
 
 from artigraph.orm.base import OrmBase
-from artigraph.utils import get_subclasses
+from artigraph.utils.misc import get_subclasses
 
 T = TypeVar("T")
 

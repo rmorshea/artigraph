@@ -9,7 +9,6 @@ from typing import (
 )
 
 from artigraph.api.filter import NodeFilter, NodeLinkFilter
-from artigraph.api.func import Api
 from artigraph.orm.base import OrmBase, make_uuid
 from artigraph.orm.link import OrmNodeLink
 from artigraph.orm.node import OrmNode
@@ -17,7 +16,7 @@ from artigraph.orm.node import OrmNode
 N = TypeVar("N", bound=OrmNode)
 
 
-class Node(Api[N]):
+class Node:
     """A wrapper around an ORM node record."""
 
     orm_type: ClassVar[type[N]] = OrmNode

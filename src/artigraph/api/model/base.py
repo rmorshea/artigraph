@@ -12,7 +12,7 @@ from typing_extensions import Self, TypeAlias
 import artigraph
 from artigraph.api.artifact import Artifact
 from artigraph.api.filter import NodeFilter, NodeLinkFilter
-from artigraph.api.func import orm_read, read
+from artigraph.api.funcs import orm_read, read
 from artigraph.api.link import NodeLink
 from artigraph.db import new_session
 from artigraph.orm.artifact import OrmModelArtifact

@@ -6,7 +6,7 @@ from typing import ClassVar, Sequence, TypeVar
 from typing_extensions import Self
 
 from artigraph.api.filter import NodeLinkFilter
-from artigraph.api.func import Api
+from artigraph.api.funcs import Api
 from artigraph.orm.base import make_uuid
 from artigraph.orm.link import OrmNodeLink
 

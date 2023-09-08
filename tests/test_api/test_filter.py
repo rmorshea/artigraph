@@ -1,19 +1,24 @@
 from datetime import datetime, timezone
+from uuid import uuid4
 
 from artigraph.api.filter import MultiFilter, NodeFilter, ValueFilter
-from artigraph.api.funcs import orm_read_one, orm_write
+from artigraph.api.funcs import orm_read_one_or_none, orm_write
 from artigraph.orm.node import OrmNode
 
 
 async def test_filter_by_node_created_and_update_at():
-    node = OrmNode(node_id="test")
+    node = OrmNode(node_id=uuid4())
     created_at = node.created_at = datetime(1993, 2, 6, tzinfo=timezone.utc)
     updated_at = node.updated_at = datetime(1995, 7, 25, tzinfo=timezone.utc)
 
     await orm_write([node])
 
-    assert (await orm_read_one(OrmNode, NodeFilter(created_at=created_at))).node_id == node.node_id
-    assert (await orm_read_one(OrmNode, NodeFilter(updated_at=updated_at))).node_id == node.node_id
+    assert (
+        await orm_read_one_or_none(OrmNode, NodeFilter(created_at=created_at))
+    ).node_id == node.node_id
+    assert (
+        await orm_read_one_or_none(OrmNode, NodeFilter(updated_at=updated_at))
+    ).node_id == node.node_id
 
 
 def test_multi_and_filter():

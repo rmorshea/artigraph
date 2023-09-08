@@ -2,7 +2,8 @@ import pytest
 
 from artigraph.api.filter import ValueFilter
 from artigraph.api.funcs import orm_read_one, read, read_one, write, write_one
-from artigraph.api.model.base import (
+from artigraph.api.node import Node
+from artigraph.model.base import (
     MODEL_TYPE_BY_NAME,
     MODELED_TYPES,
     BaseModel,
@@ -10,9 +11,8 @@ from artigraph.api.model.base import (
     _try_convert_value_to_modeled_type,
     allow_model_type_overwrites,
 )
-from artigraph.api.model.data import DataModel
-from artigraph.api.model.filter import ModelFilter, ModelTypeFilter
-from artigraph.api.node import Node
+from artigraph.model.data import DataModel
+from artigraph.model.filter import ModelFilter, ModelTypeFilter
 from tests.common import sorted_nodes
 
 
@@ -49,7 +49,7 @@ async def test_read_model_error_if_not_model_node():
     node = Node()
     await write_one(node)
     with pytest.raises(ValueError):
-        await read_one(ModelArtifact, ModelFilter(node_id=ValueFilter(eq=node.node_id)))
+        await read_one(ModelArtifact, ModelFilter(node_id=ValueFilter(eq=node.id)))
 
 
 def test_cannot_define_model_with_same_name():
@@ -105,7 +105,7 @@ async def test_model_migration():
                 kwargs["new_field_name"] = kwargs.pop("old_field_name")
             return super().model_init(2, kwargs)
 
-    new_model = await read_one(ModelArtifact, ModelFilter(node_id=old_model.node_id))
+    new_model = await read_one(ModelArtifact, ModelFilter(node_id=old_model.id))
     assert not hasattr(new_model.value, "old_field_name")
     assert new_model.value.new_field_name == 1  # type: ignore
 

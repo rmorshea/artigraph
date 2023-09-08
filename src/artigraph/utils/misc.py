@@ -102,9 +102,10 @@ class TaskBatch(Generic[R]):
         )
         errors = list(filter(None, [t.exception() for t in done]))
         if errors:
-            for t in pending:
-                t.cancel()
-            await asyncio.wait(pending)
+            if pending:
+                for t in pending:
+                    t.cancel()
+                await asyncio.wait(pending)
             msg = "One or more tasks failed"
             raise ExceptionGroup(msg, errors)
         return [t.result() for t in done]
@@ -121,10 +122,12 @@ class _DataclassMeta(ABCMeta):
         name: str,
         bases: tuple[type[Any, ...]],
         namespace: dict[str, Any],
+        *,
+        kw_only: bool = True,
         **kwargs: Any,
     ):
         self = super().__new__(cls, name, bases, namespace, **kwargs)
-        self = dataclass(**kwargs)(self)
+        self = dataclass(kw_only=kw_only, **kwargs)(self)
         return self
 
 

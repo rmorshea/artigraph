@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -16,13 +18,13 @@ class OrmNodeLink(OrmBase):
         UniqueConstraint("parent_id", "label"),
     )
 
-    link_id: Mapped[str] = mapped_column(primary_key=True)
+    link_id: Mapped[UUID] = mapped_column(primary_key=True)
     """The ID of the link."""
 
-    child_id: Mapped[int] = mapped_column(ForeignKey(OrmNode.node_id), nullable=False)
+    child_id: Mapped[UUID] = mapped_column(ForeignKey(OrmNode.node_id), nullable=False)
     """The ID of the child node."""
 
-    parent_id: Mapped[int | None] = mapped_column(ForeignKey(OrmNode.node_id), default=None)
+    parent_id: Mapped[UUID | None] = mapped_column(ForeignKey(OrmNode.node_id), default=None)
     """The ID of the parent node."""
 
     label: Mapped[str | None] = mapped_column(nullable=True, default=None)

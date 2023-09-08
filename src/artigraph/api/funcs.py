@@ -3,25 +3,25 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Collection
 from dataclasses import fields
-from typing import Any, ClassVar, Sequence, TypeVar, runtime_checkable
+from typing import Any, ClassVar, Mapping, Sequence, TypeVar, runtime_checkable
 
 from sqlalchemy import Row, select
 from sqlalchemy import delete as sql_delete
 from typing_extensions import Protocol, Self
 
-from artigraph.api.filter import Filter
+from artigraph.api.filter import Filter, MultiFilter
 from artigraph.db import current_session
 from artigraph.orm.base import OrmBase, get_poly_orm_type
 from artigraph.utils.misc import TaskBatch
 
 O = TypeVar("O", bound=OrmBase)  # noqa: E741
-B = TypeVar("B", bound=OrmBase)
+R = TypeVar("R", bound=OrmBase)
 L = TypeVar("L", bound="OrmLike")
 F = TypeVar("F", bound=Filter)
 
 
 @runtime_checkable
-class OrmLike(Protocol[O]):
+class OrmLike(Protocol[O, F, R]):
     """Protocol for objects that can be converted to and from ORM records."""
 
     orm_type: ClassVar[type[O]]
@@ -31,7 +31,7 @@ class OrmLike(Protocol[O]):
         """Get the filter for records of the ORM type that represent the object."""
 
     @classmethod
-    def orm_filter_related(cls, where: F, /) -> dict[type[OrmBase], Filter]:
+    def orm_filter_related(cls, where: F, /) -> Mapping[type[R], Filter]:
         """Get the filters for records of related ORM records required to construct this object."""
 
     async def orm_dump(self) -> Sequence[OrmBase]:
@@ -41,7 +41,7 @@ class OrmLike(Protocol[O]):
     async def orm_load(
         cls,
         records: Sequence[O],
-        related_records: dict[type[B], Sequence[B]],
+        related_records: dict[type[R], Sequence[R]],
         /,
     ) -> Sequence[Self]:
         """Load ORM records into objects."""
@@ -93,22 +93,25 @@ async def delete_many(objs: Sequence[OrmLike]) -> None:
     if not objs:
         return
 
-    filters_by_type: defaultdict[type[OrmLike], Filter] = defaultdict(Filter)
+    filters_by_type: defaultdict[type[OrmLike], list[Filter]] = defaultdict(list)
     for o in objs:
-        filters_by_type[type(o)] |= o.orm_filter_self()
+        filters_by_type[type(o)].append(o.orm_filter_self())
 
-    async with current_session():
-        for o_type, o_where in filters_by_type.items():
-            await delete(o_type, o_where)
+    async with current_session() as session:
+        for o_type, o_filters in filters_by_type.items():
+            where = o_filters[0] if len(o_filters) == 1 else MultiFilter(op="or", filters=o_filters)
+            await delete(o_type, where)
+        session.commit()
 
 
 async def delete(cls: type[OrmLike], where: Filter) -> None:
     """Delete records matching the given filter."""
     related_filters = cls.orm_filter_related(where)
     async with current_session():
-        await orm_delete(cls.orm_type, where)
         for o_type, o_where in related_filters.items():
             await orm_delete(o_type, o_where)
+        # must delete this last since the related deletion queries may depend on it
+        await orm_delete(cls.orm_type, where)
 
 
 async def write_one(obj: OrmLike) -> None:

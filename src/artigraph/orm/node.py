@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 from typing import Any, ClassVar, Sequence, TypeVar
+from uuid import UUID
 
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -46,7 +47,7 @@ class OrmNode(OrmBase, **_node_dataclass_kwargs):
         "polymorphic_on": "node_type",
     }
 
-    node_id: Mapped[str] = mapped_column(primary_key=True)
+    node_id: Mapped[UUID] = mapped_column(primary_key=True)
     """The unique ID of this node"""
 
     node_type: Mapped[str] = mapped_column(nullable=False, init=False)

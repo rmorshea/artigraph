@@ -6,7 +6,7 @@ from tempfile import TemporaryDirectory
 from uuid import uuid4
 
 from artigraph.storage import Storage
-from artigraph.utils import slugify
+from artigraph.utils.misc import slugify
 
 
 class FileSystemStorage(Storage):

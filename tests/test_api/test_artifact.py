@@ -7,7 +7,7 @@ from artigraph.storage.file import temp_file_storage
 
 async def test_write_read_delete_database_artifact():
     artifact = Artifact(value={"test": "data"}, serializer=json_serializer)
-    artifact_filter = ArtifactFilter(node_id=artifact.node_id)
+    artifact_filter = ArtifactFilter(node_id=artifact.id)
 
     await write_one(artifact)
 
@@ -24,7 +24,7 @@ async def test_write_read_delete_remote_artifact():
         serializer=json_serializer,
         storage=temp_file_storage,
     )
-    artifact_filter = ArtifactFilter(node_id=artifact.node_id)
+    artifact_filter = ArtifactFilter(node_id=artifact.id)
 
     await write_one(artifact)
 

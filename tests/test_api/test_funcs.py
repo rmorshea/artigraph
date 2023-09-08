@@ -1,5 +1,13 @@
 from artigraph.api.filter import ValueFilter
-from artigraph.api.funcs import delete, delete_one, exists, read, read_one, write, write_one
+from artigraph.api.funcs import (
+    delete_many,
+    delete_one,
+    exists,
+    read,
+    read_one,
+    write,
+    write_one,
+)
 from tests.common import Fake, FakePoly, OrmFake, OrmFakePoly
 
 
@@ -32,7 +40,7 @@ async def test_write_read_delete_many():
     assert len(fakes) == 3
     assert {f.fake_data for f in fakes} == {"test1", "test2", "test3"}
 
-    await delete([fake1, fake2, fake3])
+    await delete_many([fake1, fake2, fake3])
     assert not await exists(Fake, filter_by_fake_ids)
 
 
@@ -51,5 +59,5 @@ async def test_write_read_delete_polymorphic():
     assert len(fakes) == 3
     assert {f.fake_data for f in fakes} == {"test1", "test2", "test3"}
 
-    await delete([fake1, fake2, fake3])
+    await delete_many([fake1, fake2, fake3])
     assert not await exists(FakePoly, filter_by_fake_ids)

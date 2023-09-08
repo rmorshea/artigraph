@@ -12,6 +12,7 @@ from typing import (
     Sequence,
     TypeVar,
 )
+from uuid import UUID
 
 from sqlalchemy import (
     BinaryExpression,
@@ -358,15 +359,15 @@ def to_value_filter(value: T | Sequence[T] | ValueFilter[T] | None) -> ValueFilt
 
 def to_node_id_selector(
     value: NodeFilter | Sequence[str] | str | None,
-) -> Select[str] | Sequence[str] | None:
+) -> Select[UUID] | Sequence[UUID] | None:
     """Convert a node filter to a node ID selector."""
     if value is None:
         return value
 
-    if isinstance(value, NodeFilter):
+    if isinstance(value, Filter):
         return select(OrmNode.node_id).where(value.create())
 
-    if isinstance(value, str):
+    if isinstance(value, UUID):
         return [value]
 
     return value

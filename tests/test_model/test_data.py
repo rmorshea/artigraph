@@ -5,8 +5,8 @@ from typing import Annotated, Any, Optional
 
 import pandas as pd
 
-from artigraph.api.model.data import DataModel
-from artigraph.api.model.filter import ModelFilter
+from artigraph.model.data import DataModel
+from artigraph.model.filter import ModelFilter
 from artigraph.serializer.pandas import dataframe_serializer
 from artigraph.storage.file import temp_file_storage
 

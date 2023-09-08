@@ -111,20 +111,20 @@ class ModelArtifact(Artifact[OrmModelArtifact, M]):
     def filters(self) -> dict[type[OrmBase], Filter]:
         return {
             OrmNode: (
-                NodeFilter(node_id=self.node_id)
+                NodeFilter(node_id=self.id)
                 # select all descendants of this node
-                | NodeFilter(descendant_of=self.node_id)
+                | NodeFilter(descendant_of=self.id)
             ),
             OrmNodeLink: (
                 # select direct links to/from this node
-                NodeLinkFilter(parent=self.node_id, child=self.node_id),
+                NodeLinkFilter(parent=self.id, child=self.id),
                 # select all ancestors of this node
-                NodeLinkFilter(ancestor=self.node_id),
+                NodeLinkFilter(ancestor=self.id),
             ),
         }
 
     async def to_orms(self) -> Sequence[OrmBase]:
-        root_art = _make_model_artifact(self.value, FieldConfig(), self.node_id)
+        root_art = _make_model_artifact(self.value, FieldConfig(), self.id)
 
         orms: TaskBatch[Sequence[OrmBase]] = TaskBatch()
         orms.add(root_art.to_orms)
@@ -132,7 +132,7 @@ class ModelArtifact(Artifact[OrmModelArtifact, M]):
             for label, art in artifacts.items():
                 orms.add(art.to_orms)
                 if label is not None:
-                    link = NodeLink(parent_id=parent_id, child_id=art.node_id, label=label)
+                    link = NodeLink(parent_id=parent_id, child_id=art.id, label=label)
                     orms.add(link.to_orms)
 
         return [o for os in await orms.gather() for o in os]
@@ -162,7 +162,7 @@ class ModelArtifact(Artifact[OrmModelArtifact, M]):
 
         return cls(
             value=value,
-            node_id=root_art.node_id,
+            node_id=root_art.id,
             orm=root_orm,
         )
 
@@ -179,7 +179,7 @@ class ModelMetadataArtifact(Artifact[OrmModelArtifact, ModelMetadata]):
     async def to_orms(self) -> Sequence[OrmBase]:
         return [
             OrmModelArtifact(
-                node_id=self.node_id,
+                node_id=self.id,
                 artifact_serializer=self.serializer.name,
                 database_artifact_data=self.serializer.serialize(self.value),
                 model_artifact_name=self.model_name,
@@ -206,14 +206,14 @@ def _get_model_artifacts_by_parent_id(
     for label, (value, config) in model.model_data().items():
         maybe_model = _try_convert_value_to_modeled_type(value)
         if isinstance(maybe_model, BaseModel):
-            child_model_art = _make_model_artifact(maybe_model, config, model_artifact.node_id)
-            arts_by_parent_id[model_artifact.node_id][label] = child_model_art
+            child_model_art = _make_model_artifact(maybe_model, config, model_artifact.id)
+            arts_by_parent_id[model_artifact.id][label] = child_model_art
             for p_id, c_art in _get_model_artifacts_by_parent_id(
                 child_model_art, model=maybe_model
             ).items():
                 arts_by_parent_id[p_id].update(c_art)
         else:
-            arts_by_parent_id[model_artifact.node_id][label] = _make_artifact(maybe_model, config)
+            arts_by_parent_id[model_artifact.id][label] = _make_artifact(maybe_model, config)
     return arts_by_parent_id
 
 
@@ -240,7 +240,7 @@ def _make_model_artifact(
         value=ModelMetadata(artigraph_version=artigraph.__version__),
         model_name=value.model_name,
         model_version=value.model_version,
-        node_id=node_id or make_uuid(),
+        id=node_id or make_uuid(),
     )
 
 
@@ -248,7 +248,7 @@ def _model_from_artifacts_by_parent_id(
     model_metadata_artifact: ModelMetadataArtifact,
     artifacts_by_parent_id: dict[str, dict[str, Artifact]],
 ) -> BaseModel:
-    children = artifacts_by_parent_id[model_metadata_artifact.node_id]
+    children = artifacts_by_parent_id[model_metadata_artifact.id]
 
     kwargs: dict[str, Any] = {}
     for label, child in children.items():

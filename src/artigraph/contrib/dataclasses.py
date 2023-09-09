@@ -1,33 +1,18 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, fields
+from dataclasses import fields
 from functools import lru_cache
 from typing import Annotated, Any, get_args, get_origin, get_type_hints
 
-from typing_extensions import Self, dataclass_transform
+from typing_extensions import Self
 
-from artigraph.api.model.base import BaseModel, FieldConfig, ModelData
+from artigraph.api.model import FieldConfig, GraphModel, ModelData
 from artigraph.serializer.core import Serializer
 from artigraph.storage.core import Storage
+from artigraph.utils.misc import Dataclass
 
 
-@dataclass_transform()
-class _DataModelMeta(type):
-    def __new__(
-        cls,
-        name: str,
-        bases: tuple[type[Any, ...]],
-        namespace: dict[str, Any],
-        *,
-        version: int,
-        **kwargs: Any,
-    ):
-        self = super().__new__(cls, name, bases, namespace, version=version, **kwargs)
-        self = dataclass(frozen=True, **kwargs)(self)
-        return self
-
-
-class DataModel(BaseModel, metaclass=_DataModelMeta, version=1):
+class DataModel(GraphModel, Dataclass, version=1, frozen=True):
     """Describes a structure of data that can be saved as artifacts."""
 
     @classmethod

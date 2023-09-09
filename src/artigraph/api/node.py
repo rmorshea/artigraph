@@ -28,7 +28,7 @@ class Node(Dataclass, Generic[N]):
     orm_type: ClassVar[type[N]] = OrmNode
     """The ORM type for this node."""
 
-    id: UUID = field(default_factory=uuid1)  # noqa: A003
+    node_id: UUID = field(default_factory=uuid1)
     """The unique ID of this node"""
 
     parent_links: Sequence[NodeLink] = ()
@@ -38,7 +38,7 @@ class Node(Dataclass, Generic[N]):
     """The links from this node to its children"""
 
     def orm_filter_self(self) -> NodeFilter[Any]:
-        return NodeFilter(node_id=self.id)
+        return NodeFilter(node_id=self.node_id)
 
     @classmethod
     def orm_filter_related(cls, where: NodeFilter[Any]) -> dict[type[OrmNodeLink], NodeLinkFilter]:
@@ -46,7 +46,7 @@ class Node(Dataclass, Generic[N]):
 
     async def orm_dump(self) -> Sequence[OrmNode]:
         return [
-            OrmNode(node_id=self.id),
+            OrmNode(node_id=self.node_id),
             *[o for link in self.parent_links for o in await link.orm_dump()],
             *[o for link in self.child_links for o in await link.orm_dump()],
         ]
@@ -60,7 +60,7 @@ class Node(Dataclass, Generic[N]):
         parent_links, child_links = await cls.orm_load_parent_and_child_links(related_records)
         return [
             cls(
-                id=r.node_id,
+                node_id=r.node_id,
                 parent_links=parent_links.get(r.node_id, ()),
                 child_links=child_links.get(r.node_id, ()),
             )

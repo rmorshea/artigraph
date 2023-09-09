@@ -11,11 +11,11 @@ async def test_write_read_delete_node():
     info = await create_graph()
     parent1 = info["parent1"]
 
-    node_filter = NodeFilter(node_id=parent1.id)
-    node_link_filter = NodeLinkFilter(parent=parent1.id)
+    node_filter = NodeFilter(node_id=parent1.node_id)
+    node_link_filter = NodeLinkFilter(parent=parent1.node_id)
 
     parent = await read_one(Node, node_filter)
-    assert parent.id == parent1.id
+    assert parent.node_id == parent1.node_id
     assert await exists(NodeLink, node_link_filter)
 
     await delete_one(parent)
@@ -62,43 +62,43 @@ async def create_graph() -> dict[str, Node]:
     node_info["parent3"] = parent3
 
     grandparent_to_parent = NodeLink(
-        parent_id=grandparent.id,
-        child_id=parent1.id,
+        parent_id=grandparent.node_id,
+        child_id=parent1.node_id,
         label="grandparent_to_1parent",
     )
     parent_to_child1 = NodeLink(
-        parent_id=parent1.id,
-        child_id=child1.id,
+        parent_id=parent1.node_id,
+        child_id=child1.node_id,
         label="parent1_to_child1",
     )
     child1_to_grandchild1 = NodeLink(
-        parent_id=child1.id,
-        child_id=grandchild1.id,
+        parent_id=child1.node_id,
+        child_id=grandchild1.node_id,
         label="child1_to_grandchild1",
     )
     parent_to_child2 = NodeLink(
-        parent_id=parent1.id,
-        child_id=child2.id,
+        parent_id=parent1.node_id,
+        child_id=child2.node_id,
         label="parent1_to_child2",
     )
     grandparent_to_parent2 = NodeLink(
-        parent_id=grandparent.id,
-        child_id=parent2.id,
+        parent_id=grandparent.node_id,
+        child_id=parent2.node_id,
         label="grandparent_to_parent2",
     )
     parent2_to_child3 = NodeLink(
-        parent_id=parent2.id,
-        child_id=child3.id,
+        parent_id=parent2.node_id,
+        child_id=child3.node_id,
         label="parent2_to_child3",
     )
     parent2_to_child4 = NodeLink(
-        parent_id=parent2.id,
-        child_id=child4.id,
+        parent_id=parent2.node_id,
+        child_id=child4.node_id,
         label="parent2_to_child4",
     )
     grandparent_to_parent3 = NodeLink(
-        parent_id=grandparent.id,
-        child_id=parent3.id,
+        parent_id=grandparent.node_id,
+        child_id=parent3.node_id,
         label="grandparent_to_parent3",
     )
 

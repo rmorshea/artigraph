@@ -38,14 +38,14 @@ class Artifact(Node[OrmArtifact], Generic[T]):
         if self.storage is not None:
             location = await self.storage.create(data)
             artifact = OrmRemoteArtifact(
-                node_id=self.id,
+                node_id=self.node_id,
                 artifact_serializer=self.serializer.name,
                 remote_artifact_storage=self.storage.name,
                 remote_artifact_location=location,
             )
         else:
             artifact = OrmDatabaseArtifact(
-                node_id=self.id,
+                node_id=self.node_id,
                 artifact_serializer=self.serializer.name,
                 database_artifact_data=data,
             )
@@ -77,7 +77,7 @@ class Artifact(Node[OrmArtifact], Generic[T]):
 
             link_objs.append(
                 cls(
-                    id=r.node_id,
+                    node_id=r.node_id,
                     parent_links=parent_links.get(r.node_id, ()),
                     child_links=child_links.get(r.node_id, ()),
                     value=serializer.deserialize(data),

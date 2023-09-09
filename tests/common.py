@@ -11,7 +11,7 @@ from artigraph.utils.misc import Dataclass
 
 
 def sorted_nodes(nodes: Sequence[Node]) -> Sequence[Node]:
-    return sorted(nodes, key=lambda node: node.id)
+    return sorted(nodes, key=lambda node: node.node_id)
 
 
 class OrmFake(OrmBase):

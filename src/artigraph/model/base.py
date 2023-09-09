@@ -1,22 +1,24 @@
 from __future__ import annotations
 
+from abc import ABC
 from collections import defaultdict
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import field
 from logging import Filter
 from typing import Any, ClassVar, Iterator, Sequence, TypedDict, TypeVar
+from uuid import UUID
 
 from typing_extensions import Self, TypeAlias
 
-import artigraph
+from artigraph import __version__ as artigraph_version
 from artigraph.api.artifact import Artifact
 from artigraph.api.filter import NodeFilter, NodeLinkFilter
 from artigraph.api.funcs import orm_read, read
 from artigraph.api.link import NodeLink
 from artigraph.db import new_session
 from artigraph.orm.artifact import OrmModelArtifact
-from artigraph.orm.base import OrmBase, make_uuid
+from artigraph.orm.base import OrmBase
 from artigraph.orm.link import OrmNodeLink
 from artigraph.orm.node import OrmNode
 from artigraph.serializer import Serializer
@@ -58,23 +60,17 @@ class FieldConfig(TypedDict, total=False):
     """The type annotation for the artifact model field."""
 
 
-class BaseModel:
+class BaseModel(ABC):
     """An interface for all modeled artifacts."""
+
+    orm_type: ClassVar[type[OrmModelArtifact]] = OrmModelArtifact
+    """The ORM type for this model."""
 
     model_name: ClassVar[str]
     """The name of the artifact model."""
 
     model_version: ClassVar[int] = 1
     """The version of the artifact model."""
-
-    @classmethod
-    def model_init(cls, version: int, data: dict[str, Any], /) -> Self:
-        """Initialize the artifact model, migrating it if necessary."""
-        raise NotImplementedError()  # nocov
-
-    def model_data(self) -> dict[str, tuple[Any, FieldConfig]]:
-        """The data for the artifact model."""
-        raise NotImplementedError()
 
     def __init_subclass__(cls, version: int):
         cls.model_version = version
@@ -86,6 +82,85 @@ class BaseModel:
             raise RuntimeError(msg)
 
         MODEL_TYPE_BY_NAME[cls.model_name] = cls
+
+    node_id: UUID
+    """The unique ID of this model."""
+
+    @classmethod
+    def model_init(cls, version: int, data: dict[str, Any], /) -> Self:
+        """Initialize the artifact model, migrating it if necessary."""
+        raise NotImplementedError()  # nocov
+
+    def model_data(self) -> dict[str, tuple[Any, FieldConfig]]:
+        """The data for the artifact model."""
+        raise NotImplementedError()
+
+    def orm_filter_self(self) -> NodeFilter[Any]:
+        return NodeFilter(node_id=self.node_id)
+
+    @classmethod
+    def orm_filter_related(
+        cls, where: NodeFilter[Any]
+    ) -> dict[type[OrmNodeLink] | type[OrmNode], NodeLinkFilter]:
+        return {
+            OrmNode: NodeFilter(descendant_of=where),
+            OrmNodeLink: NodeLinkFilter(ancestor=where),
+        }
+
+    async def orm_dump(self) -> Sequence[OrmBase]:
+        metadata_dict = ModelMetadata(artigraph_version=artigraph_version)
+
+        orm_objects: list[OrmBase] = [self._make_own_metadata_artifact(metadata_dict)]
+
+        for label, (value, config) in self.model_data().items():
+            maybe_model = _try_convert_value_to_modeled_type(value)
+            if isinstance(maybe_model, BaseModel):
+                if config:
+                    msg = f"Model artifacts cannot have a config. Got {config}"
+                    raise ValueError(msg)
+                inner_metadata, *inner_orm_object = await maybe_model.orm_dump()
+                if not isinstance(inner_metadata, OrmModelArtifact):
+                    msg = f"Expected model artifact, got {inner_metadata}"
+                    raise ValueError(msg)
+                orm_objects.append(
+                    OrmNodeLink(
+                        parent_id=self.node_id,
+                        child_id=inner_metadata.node_id,
+                        label=label,
+                    )
+                )
+                orm_objects.append(inner_metadata)
+                orm_objects.extend(inner_orm_object)
+            else:
+                inner_artifact = _make_artifact(value, config)
+                orm_objects.append(
+                    OrmNodeLink(
+                        parent_id=self.node_id,
+                        child_id=inner_artifact.node_id,
+                        label=label,
+                    )
+                )
+                orm_objects.append(inner_artifact)
+
+    @classmethod
+    async def orm_load(
+        cls,
+        records: Sequence[OrmModelArtifact],
+        related_records: dict[
+            type[OrmNodeLink] | type[OrmNode],
+            Sequence[OrmNodeLink] | Sequence[OrmNode],
+        ],
+    ) -> Sequence[Self]:
+        ...
+
+    def _make_own_metadata_artifact(self, metadata: ModelMetadata) -> OrmModelArtifact:
+        return OrmModelArtifact(
+            node_id=self.node_id,
+            artifact_serializer=json_sorted_serializer.name,
+            database_artifact_data=json_sorted_serializer.serialize(metadata),
+            model_artifact_name=self.model_name,
+            model_artifact_version=self.model_version,
+        )
 
 
 class ModelMetadata(TypedDict):

@@ -2,15 +2,15 @@ import pytest
 
 from artigraph.api.filter import ValueFilter
 from artigraph.api.funcs import orm_read_one, read, read_one, write, write_one
-from artigraph.api.node import Node
-from artigraph.model.base import (
+from artigraph.api.model import (
     MODEL_TYPE_BY_NAME,
     MODELED_TYPES,
-    BaseModel,
+    GraphModel,
     ModelArtifact,
     _try_convert_value_to_modeled_type,
     allow_model_type_overwrites,
 )
+from artigraph.api.node import Node
 from artigraph.model.data import DataModel
 from artigraph.model.filter import ModelFilter, ModelTypeFilter
 from tests.common import sorted_nodes
@@ -39,9 +39,11 @@ class XYZModel(XYModel, version=1):
     ],
 )
 def test_try_convert_value_to_and_from_modeled_type(value):
-    kwargs = {k: v for k, (v, _) in _try_convert_value_to_modeled_type(value).model_data().items()}
+    kwargs = {
+        k: v for k, (v, _) in _try_convert_value_to_modeled_type(value).graph_model_data().items()
+    }
     model_type = MODELED_TYPES[type(value)]
-    assert value == model_type.model_init(model_type.model_version, kwargs)
+    assert value == model_type.graph_model_init(model_type.graph_model_version, kwargs)
 
 
 async def test_read_model_error_if_not_model_node():
@@ -53,13 +55,13 @@ async def test_read_model_error_if_not_model_node():
 
 
 def test_cannot_define_model_with_same_name():
-    class SomeRandomTestModel(BaseModel, version=1):
+    class SomeRandomTestModel(GraphModel, version=1):
         pass
 
     with pytest.raises(RuntimeError):
 
-        class AnotherClass(BaseModel, version=1):
-            model_name = SomeRandomTestModel.model_name
+        class AnotherClass(GraphModel, version=1):
+            model_name = SomeRandomTestModel.graph_model_name
             pass
 
 

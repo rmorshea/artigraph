@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import ClassVar, Generic, Sequence, TypeVar
+from typing import Any, ClassVar, Generic, Sequence, TypeVar
 
 from typing_extensions import Self
 
@@ -15,6 +15,23 @@ from artigraph.storage.core import Storage, get_storage_by_name
 
 T = TypeVar("T")
 O = TypeVar("O", bound="OrmArtifact")  # noqa: E741
+
+
+async def load_deserialized_artifact_value(obj: OrmArtifact) -> Any:
+    """Load the value of an artifact from its ORM record."""
+    serializer = get_serializer_by_name(obj.artifact_serializer)
+
+    if isinstance(obj, OrmRemoteArtifact):
+        storage = get_storage_by_name(obj.remote_artifact_storage)
+        data = await storage.read(obj.remote_artifact_location)
+    elif isinstance(obj, OrmDatabaseArtifact):
+        data = obj.database_artifact_data
+        storage = None
+    else:
+        msg = f"Unknown artifact type: {obj}"
+        raise RuntimeError(msg)
+
+    return serializer.deserialize(data)
 
 
 class Artifact(Node[OrmArtifact], Generic[T]):
@@ -55,35 +72,22 @@ class Artifact(Node[OrmArtifact], Generic[T]):
     @classmethod
     async def graph_load(
         cls,
-        records: Sequence[OrmArtifact],
+        records: Sequence[OrmDatabaseArtifact | OrmRemoteArtifact],
         related_records: dict[type[OrmNodeLink], Sequence[OrmNodeLink]],
     ) -> Sequence[Self]:
         parent_links, child_links = await cls.graph_load_parent_and_child_links(related_records)
-
-        link_objs: list[Self] = []
-
-        for r in records:
-            serializer = get_serializer_by_name(r.artifact_serializer)
-
-            if isinstance(r, OrmRemoteArtifact):
-                storage = get_storage_by_name(r.remote_artifact_storage)
-                data = await storage.read(r.remote_artifact_location)
-            elif isinstance(r, OrmDatabaseArtifact):
-                data = r.database_artifact_data
-                storage = None
-            else:
-                msg = f"Unknown artifact type: {r}"
-                raise RuntimeError(msg)
-
-            link_objs.append(
-                cls(
-                    node_id=r.node_id,
-                    parent_links=parent_links.get(r.node_id, ()),
-                    child_links=child_links.get(r.node_id, ()),
-                    value=serializer.deserialize(data),
-                    serializer=serializer,
-                    storage=storage,
-                )
+        return [
+            cls(
+                node_id=r.node_id,
+                parent_links=parent_links.get(r.node_id, ()),
+                child_links=child_links.get(r.node_id, ()),
+                value=await load_deserialized_artifact_value(r),
+                serializer=get_serializer_by_name(r.artifact_serializer),
+                storage=(
+                    get_storage_by_name(r.remote_artifact_storage)
+                    if isinstance(r, OrmRemoteArtifact)
+                    else None
+                ),
             )
-
-        return link_objs
+            for r in records
+        ]

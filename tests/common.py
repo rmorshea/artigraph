@@ -43,41 +43,41 @@ class OrmFakePolyBeta(OrmFakePoly):
 
 
 class Fake(Dataclass):
-    orm_type: ClassVar[OrmFake] = OrmFake
+    graph_orm_type: ClassVar[OrmFake] = OrmFake
 
     fake_data: str = ""
     fake_id: str = field(default_factory=make_uuid)
 
-    def orm_filter_self(self) -> ValueFilter:
+    def graph_filter_self(self) -> ValueFilter:
         return ValueFilter(eq=self.fake_id).against(OrmFake.fake_id)
 
     @classmethod
-    def orm_filter_related(cls, _: ValueFilter) -> dict:
+    def graph_filter_related(cls, _: ValueFilter) -> dict:
         return {}
 
-    async def orm_dump(self) -> Sequence[OrmFake]:
+    async def graph_dump(self) -> Sequence[OrmFake]:
         return [OrmFake(fake_id=self.fake_id, fake_data=self.fake_data)]
 
     @classmethod
-    async def orm_load(cls, records: Sequence[OrmFake], _: dict) -> Sequence[Self]:
+    async def graph_load(cls, records: Sequence[OrmFake], _: dict) -> Sequence[Self]:
         return [cls(fake_id=r.fake_id, fake_data=r.fake_data) for r in records]
 
 
 class FakePoly(Dataclass):
-    orm_type: ClassVar[OrmFakePoly] = OrmFakePoly
+    graph_orm_type: ClassVar[OrmFakePoly] = OrmFakePoly
 
     fake_data: str
     fake_id: str = field(default_factory=make_uuid)
     fake_poly_id: str = "poly"
 
-    def orm_filter_self(self) -> ValueFilter:
+    def graph_filter_self(self) -> ValueFilter:
         return ValueFilter(eq=self.fake_id).against(OrmFakePoly.fake_id)
 
     @classmethod
-    def orm_filter_related(cls, _: ValueFilter) -> dict:
+    def graph_filter_related(cls, _: ValueFilter) -> dict:
         return {}
 
-    async def orm_dump(self) -> Sequence[OrmFakePoly]:
+    async def graph_dump(self) -> Sequence[OrmFakePoly]:
         if self.fake_poly_id == "alpha":
             return [
                 OrmFakePolyAlpha(
@@ -99,7 +99,7 @@ class FakePoly(Dataclass):
             raise ValueError(msg)
 
     @classmethod
-    async def orm_load(cls, records: Sequence[OrmFakePoly], _: dict) -> Iterator[Self]:
+    async def graph_load(cls, records: Sequence[OrmFakePoly], _: dict) -> Iterator[Self]:
         objs: list[Self] = []
         for record in records:
             if isinstance(record, OrmFakePolyAlpha):

@@ -20,13 +20,13 @@ O = TypeVar("O", bound="OrmArtifact")  # noqa: E741
 class Artifact(Node[OrmArtifact], Generic[T]):
     """A wrapper around an ORM artifact record."""
 
-    orm_type: ClassVar[type[OrmArtifact]] = OrmArtifact
+    graph_orm_type: ClassVar[type[OrmArtifact]] = OrmArtifact
 
     value: T
     serializer: Serializer | None = None
     storage: Storage | None = None
 
-    async def orm_dump(self) -> Sequence[OrmArtifact]:
+    async def graph_dump(self) -> Sequence[OrmArtifact]:
         if self.serializer is not None:
             data = self.serializer.serialize(self.value)
         elif isinstance(self.value, bytes):
@@ -53,12 +53,12 @@ class Artifact(Node[OrmArtifact], Generic[T]):
         return [artifact]
 
     @classmethod
-    async def orm_load(
+    async def graph_load(
         cls,
         records: Sequence[OrmArtifact],
         related_records: dict[type[OrmNodeLink], Sequence[OrmNodeLink]],
     ) -> Sequence[Self]:
-        parent_links, child_links = await cls.orm_load_parent_and_child_links(related_records)
+        parent_links, child_links = await cls.graph_load_parent_and_child_links(related_records)
 
         link_objs: list[Self] = []
 

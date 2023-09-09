@@ -14,7 +14,7 @@ def make_uuid() -> str:
     return uuid1().hex
 
 
-def get_poly_orm_type(table: str, poly_id: str) -> type[OrmBase]:
+def get_poly_graph_orm_type(table: str, poly_id: str) -> type[OrmBase]:
     """Get the ORM type for the given table and polymorphic identity."""
     return _ORM_TYPE_BY_TABLE_AND_POLY_ID[(table, poly_id)]
 

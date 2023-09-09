@@ -63,7 +63,7 @@ class FieldConfig(TypedDict, total=False):
 class BaseModel(ABC):
     """An interface for all modeled artifacts."""
 
-    orm_type: ClassVar[type[OrmModelArtifact]] = OrmModelArtifact
+    graph_orm_type: ClassVar[type[OrmModelArtifact]] = OrmModelArtifact
     """The ORM type for this model."""
 
     model_name: ClassVar[str]
@@ -95,11 +95,11 @@ class BaseModel(ABC):
         """The data for the artifact model."""
         raise NotImplementedError()
 
-    def orm_filter_self(self) -> NodeFilter[Any]:
+    def graph_filter_self(self) -> NodeFilter[Any]:
         return NodeFilter(node_id=self.node_id)
 
     @classmethod
-    def orm_filter_related(
+    def graph_filter_related(
         cls, where: NodeFilter[Any]
     ) -> dict[type[OrmNodeLink] | type[OrmNode], NodeLinkFilter]:
         return {
@@ -107,7 +107,7 @@ class BaseModel(ABC):
             OrmNodeLink: NodeLinkFilter(ancestor=where),
         }
 
-    async def orm_dump(self) -> Sequence[OrmBase]:
+    async def graph_dump(self) -> Sequence[OrmBase]:
         metadata_dict = ModelMetadata(artigraph_version=artigraph_version)
 
         orm_objects: list[OrmBase] = [self._make_own_metadata_artifact(metadata_dict)]
@@ -118,7 +118,7 @@ class BaseModel(ABC):
                 if config:
                     msg = f"Model artifacts cannot have a config. Got {config}"
                     raise ValueError(msg)
-                inner_metadata, *inner_orm_object = await maybe_model.orm_dump()
+                inner_metadata, *inner_orm_object = await maybe_model.graph_dump()
                 if not isinstance(inner_metadata, OrmModelArtifact):
                     msg = f"Expected model artifact, got {inner_metadata}"
                     raise ValueError(msg)
@@ -143,7 +143,7 @@ class BaseModel(ABC):
                 orm_objects.append(inner_artifact)
 
     @classmethod
-    async def orm_load(
+    async def graph_load(
         cls,
         records: Sequence[OrmModelArtifact],
         related_records: dict[
@@ -173,7 +173,7 @@ class ModelMetadata(TypedDict):
 class ModelArtifact(Artifact[OrmModelArtifact, M]):
     """An artifact storing metadata about a model."""
 
-    orm_type: ClassVar[type[OrmModelArtifact]] = OrmModelArtifact
+    graph_orm_type: ClassVar[type[OrmModelArtifact]] = OrmModelArtifact
 
     value: M
     serializer: None = field(init=False, default=None)

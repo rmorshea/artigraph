@@ -14,7 +14,7 @@ L = TypeVar("L", bound=OrmNodeLink)
 class NodeLink(Dataclass):
     """A wrapper around an ORM node link record."""
 
-    orm_type: ClassVar[type[L]] = OrmNodeLink
+    graph_orm_type: ClassVar[type[L]] = OrmNodeLink
     """The ORM type for this node."""
 
     child_id: UUID | None = None
@@ -29,14 +29,14 @@ class NodeLink(Dataclass):
     link_id: UUID = field(default_factory=uuid1)
     """The unique ID of this link"""
 
-    def orm_filter_self(self) -> NodeLinkFilter:
+    def graph_filter_self(self) -> NodeLinkFilter:
         return NodeLinkFilter(link_id=self.link_id)
 
     @classmethod
-    def orm_filter_related(cls, _: NodeLinkFilter) -> dict:
+    def graph_filter_related(cls, _: NodeLinkFilter) -> dict:
         return {}
 
-    async def orm_dump(self) -> Sequence[OrmNodeLink]:
+    async def graph_dump(self) -> Sequence[OrmNodeLink]:
         return [
             OrmNodeLink(
                 link_id=self.link_id,
@@ -47,7 +47,7 @@ class NodeLink(Dataclass):
         ]
 
     @classmethod
-    async def orm_load(cls, records: Sequence[OrmNodeLink], _: dict) -> NodeLink:
+    async def graph_load(cls, records: Sequence[OrmNodeLink], _: dict) -> NodeLink:
         return [
             cls(
                 link_id=r.link_id,

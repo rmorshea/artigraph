@@ -126,13 +126,13 @@ async def test_filter_by_model_version():
         await write([old_model, new_model])
 
         db_old_model = await orm_read_one(
-            ModelArtifact.orm_type,
+            ModelArtifact.graph_orm_type,
             ModelFilter(model_type=ModelTypeFilter(type=SomeModel, version=1)),
         )
         assert db_old_model.model_artifact_version == 1
 
         db_new_model = await orm_read_one(
-            ModelArtifact.orm_type,
+            ModelArtifact.graph_orm_type,
             ModelFilter(model_type=ModelTypeFilter(type=SomeModel, version=2)),
         )
         assert db_new_model.model_artifact_version == 2

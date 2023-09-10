@@ -98,11 +98,9 @@ class TaskBatch(Generic[R]):
 
     async def gather(self) -> Sequence[R]:
         """Execute all tasks in the batch and return the results"""
-        done, pending = await asyncio.wait(
-            [asyncio.create_task(t()) for t in self._funcs],
-            return_when=asyncio.FIRST_EXCEPTION,
-        )
-        errors = list(filter(None, [t.exception() for t in done]))
+        tasks = [asyncio.create_task(t()) for t in self._funcs]
+        _, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
+        errors = list(filter(None, [t.exception() for t in tasks]))
         if errors:
             if pending:
                 for t in pending:
@@ -110,7 +108,7 @@ class TaskBatch(Generic[R]):
                 await asyncio.wait(pending)
             msg = "One or more tasks failed"
             raise ExceptionGroup(msg, errors)
-        return [t.result() for t in done]
+        return [t.result() for t in tasks]
 
 
 def get_subclasses(cls: type[R]) -> list[type[R]]:

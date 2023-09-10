@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from artigraph.serializer.datetime import datetime_serializer, timedelta_serializer
+from artigraph.core.serializer.datetime import datetime_serializer, timedelta_serializer
 
 
 def test_datetime_serializer():

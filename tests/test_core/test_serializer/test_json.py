@@ -1,4 +1,4 @@
-from artigraph.serializer.json import json_serializer
+from artigraph.core.serializer.json import json_serializer
 
 
 def test_json_serializer():

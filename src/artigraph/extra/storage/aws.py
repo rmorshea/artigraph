@@ -8,7 +8,7 @@ from botocore.client import BaseClient
 from botocore.exceptions import ClientError
 
 from artigraph.core.storage.base import Storage
-from artigraph.core.utils import run_in_thread, slugify
+from artigraph.core.utils.misc import run_in_thread, slugify
 
 
 class S3Storage(Storage):

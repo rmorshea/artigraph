@@ -5,9 +5,9 @@ from typing import Callable
 import pytest
 from boto3 import client
 
-from artigraph.storage import Storage
-from artigraph.storage.aws import S3Storage
-from artigraph.storage.file import FileSystemStorage, temp_file_storage
+from artigraph.core.storage import Storage
+from artigraph.core.storage.file import FileSystemStorage, temp_file_storage
+from artigraph.extra.storage.aws import S3Storage
 
 
 def _make_s3_storage():

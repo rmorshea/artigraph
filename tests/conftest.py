@@ -1,7 +1,7 @@
 import moto
 import pytest
 
-from artigraph.db import engine_context
+from artigraph.core.db import engine_context
 
 
 @pytest.fixture(autouse=True)

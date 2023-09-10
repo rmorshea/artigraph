@@ -4,10 +4,10 @@ from typing import Any, ClassVar, Iterator, Sequence
 from sqlalchemy.orm import Mapped, mapped_column
 from typing_extensions import Self
 
-from artigraph.api.filter import ValueFilter
-from artigraph.api.node import Node
-from artigraph.orm.base import OrmBase, make_uuid
-from artigraph.utils.misc import Dataclass
+from artigraph.core.api.filter import ValueFilter
+from artigraph.core.api.node import Node
+from artigraph.core.orm.base import OrmBase, make_uuid
+from artigraph.core.utils.misc import Dataclass
 
 
 def sorted_nodes(nodes: Sequence[Node]) -> Sequence[Node]:

@@ -47,7 +47,7 @@ class OrmModelArtifact(OrmDatabaseArtifact):
     polymorphic_identity = "model_artifact"
     __mapper_args__: ClassVar[dict[str, Any]] = {"polymorphic_identity": polymorphic_identity}
 
-    model_artifact_name: Mapped[str] = mapped_column(nullable=True)
+    model_artifact_type_name: Mapped[str] = mapped_column(nullable=True)
     """The type of the model."""
 
     model_artifact_version: Mapped[int] = mapped_column(nullable=True)

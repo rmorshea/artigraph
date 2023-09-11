@@ -7,6 +7,7 @@ from contextvars import ContextVar
 from typing import Any, ClassVar, Iterator, Mapping, Sequence, TypedDict, TypeVar, cast
 from uuid import UUID
 
+from attr import dataclass
 from typing_extensions import Self, TypeAlias
 
 from artigraph import __version__ as artigraph_version
@@ -92,9 +93,9 @@ class GraphModel(ABC):
         raise NotImplementedError()
 
     @abstractclassmethod
-    def graph_model_init(cls, version: int, data: dict[str, Any], /) -> Self:
+    def graph_model_init(cls, info: ModelInfo, kwargs: dict[str, Any], /) -> Self:
         """Initialize the artifact model, migrating it if necessary."""
-        raise NotImplementedError()  # nocov
+        return cls(**kwargs)
 
     def __init_subclass__(cls, version: int, **kwargs: Any):
         cls.graph_model_version = version
@@ -162,7 +163,11 @@ class GraphModel(ABC):
         labeled_artifacts_by_parent_id: LabeledArtifactsByParentId,
     ) -> Self:
         return cls.graph_model_init(
-            model_metadata_artifact.model_artifact_version,
+            ModelInfo(
+                node_id=model_metadata_artifact.node_id,
+                version=model_metadata_artifact.model_artifact_version,
+                metadata=load_deserialized_artifact_value(model_metadata_artifact),
+            ),
             await cls._graph_load_kwargs_from_labeled_artifacts_by_parent_id(
                 model_metadata_artifact,
                 labeled_artifacts_by_parent_id,
@@ -202,6 +207,18 @@ class GraphModel(ABC):
             model_artifact_type_name=self.graph_model_name,
             model_artifact_version=self.graph_model_version,
         )
+
+
+@dataclass(frozen=True)
+class ModelInfo:
+    """The info for an artifact model."""
+
+    node_id: UUID
+    """The unique ID of the artifact model."""
+    version: int
+    """The version of the artifact model."""
+    metadata: ModelMetadata
+    """The metadata for the artifact model"""
 
 
 class ModelMetadata(TypedDict):

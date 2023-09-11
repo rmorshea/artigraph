@@ -9,21 +9,24 @@ from sqlalchemy import Row, select
 from sqlalchemy import delete as sql_delete
 
 from artigraph.core.api.filter import Filter, MultiFilter
-from artigraph.core.api.proto import GraphType
+from artigraph.core.api.proto import GraphLike
 from artigraph.core.db import current_session
 from artigraph.core.orm.base import OrmBase, get_poly_graph_orm_type
+from artigraph.core.utils.anysync import anysync
 from artigraph.core.utils.misc import TaskBatch
 
 S = TypeVar("S", bound=OrmBase)
 R = TypeVar("R", bound=OrmBase)
-G = TypeVar("G", bound="GraphType")
+G = TypeVar("G", bound=GraphLike)
 
 
-async def exists(cls: type[GraphType], where: Filter) -> bool:
+@anysync
+async def exists(cls: type[GraphLike], where: Filter) -> bool:
     """Check if records exist."""
     return await orm_exists(cls.graph_orm_type, where)
 
 
+@anysync
 async def read_one(cls: type[G], where: Filter) -> G:
     """Read a record that matches the given filter."""
     one = await read_one_or_none(cls, where)
@@ -33,6 +36,7 @@ async def read_one(cls: type[G], where: Filter) -> G:
     return one
 
 
+@anysync
 async def read_one_or_none(cls: type[G], where: Filter) -> G | None:
     """Read a record that matches the given filter or None if no record is found."""
     record = await orm_read_one_or_none(cls.graph_orm_type, where)
@@ -45,6 +49,7 @@ async def read_one_or_none(cls: type[G], where: Filter) -> G | None:
     return (await cls.graph_load([record], related_records))[0]
 
 
+@anysync
 async def read(cls: type[G], where: Filter) -> Sequence[G]:
     """Read records that match the given filter."""
     records = await orm_read(cls.graph_orm_type, where)
@@ -55,17 +60,19 @@ async def read(cls: type[G], where: Filter) -> Sequence[G]:
     return await cls.graph_load(records, related_records)
 
 
-async def delete_one(obj: GraphType) -> None:
+@anysync
+async def delete_one(obj: GraphLike) -> None:
     """Delete a record."""
     return await delete_many([obj])
 
 
-async def delete_many(objs: Sequence[GraphType]) -> None:
+@anysync
+async def delete_many(objs: Sequence[GraphLike]) -> None:
     """Delete records."""
     if not objs:
         return
 
-    filters_by_type: defaultdict[type[GraphType], list[Filter]] = defaultdict(list)
+    filters_by_type: defaultdict[type[GraphLike], list[Filter]] = defaultdict(list)
     for o in objs:
         filters_by_type[type(o)].append(o.graph_filter_self())
 
@@ -76,7 +83,8 @@ async def delete_many(objs: Sequence[GraphType]) -> None:
         session.commit()
 
 
-async def delete(cls: type[GraphType], where: Filter) -> None:
+@anysync
+async def delete(cls: type[GraphLike], where: Filter) -> None:
     """Delete records matching the given filter."""
     related_filters = cls.graph_filter_related(where)
     async with current_session():
@@ -86,26 +94,28 @@ async def delete(cls: type[GraphType], where: Filter) -> None:
         await orm_delete(cls.graph_orm_type, where)
 
 
-async def write_one(obj: GraphType) -> None:
+@anysync
+async def write_one(obj: GraphLike) -> None:
     """Create a record."""
     return await write([obj])
 
 
-async def write(objs: Collection[GraphType]) -> None:
+@anysync
+async def write(objs: Collection[GraphLike]) -> None:
     """Create records and, if given, refresh their attributes."""
     await orm_write(await dump(objs))
 
 
-async def dump_one(obj: GraphType[S, R, Filter]) -> tuple[S, Sequence[R]]:
+async def dump_one(obj: GraphLike[S, R, Filter]) -> tuple[S, Sequence[R]]:
     first, *rest = await dump_one_flat(obj)
     return first, rest  # type: ignore
 
 
-async def dump_one_flat(obj: GraphType[S, R, Filter]) -> Sequence[S | R]:
+async def dump_one_flat(obj: GraphLike[S, R, Filter]) -> Sequence[S | R]:
     return await dump([obj])
 
 
-async def dump(objs: Sequence[GraphType[S, R, Filter]]) -> Sequence[S | R]:
+async def dump(objs: Sequence[GraphLike[S, R, Filter]]) -> Sequence[S | R]:
     """Dump objects into ORM records."""
     dump_self_records: TaskBatch[OrmBase] = TaskBatch()
     for o in objs:

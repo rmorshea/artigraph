@@ -1,14 +1,9 @@
 from __future__ import annotations
 
-from typing import Any, ClassVar, Generic, Sequence, TypeVar
+from typing import Any, ClassVar, Generic, TypeVar
 
-from typing_extensions import Self
-
-from artigraph.core.api.node import (
-    Node,
-)
+from artigraph.core.api.node import Node
 from artigraph.core.orm.artifact import OrmArtifact, OrmDatabaseArtifact, OrmRemoteArtifact
-from artigraph.core.orm.link import OrmNodeLink
 from artigraph.core.serializer import get_serializer_by_name
 from artigraph.core.serializer.base import Serializer
 from artigraph.core.storage.base import Storage, get_storage_by_name
@@ -70,24 +65,14 @@ class Artifact(Node[OrmArtifact], Generic[T]):
         return artifact
 
     @classmethod
-    async def graph_load(
-        cls,
-        self_records: Sequence[OrmDatabaseArtifact | OrmRemoteArtifact],
-        related_records: dict[type[OrmNodeLink], Sequence[OrmNodeLink]],
-    ) -> Sequence[Self]:
-        parent_links, child_links = await cls.graph_load_parent_and_child_links(related_records)
-        return [
-            cls(
-                node_id=r.node_id,
-                parent_links=parent_links.get(r.node_id, ()),
-                child_links=child_links.get(r.node_id, ()),
-                value=await load_deserialized_artifact_value(r),
-                serializer=get_serializer_by_name(r.artifact_serializer),
-                storage=(
-                    get_storage_by_name(r.remote_artifact_storage)
-                    if isinstance(r, OrmRemoteArtifact)
-                    else None
-                ),
-            )
-            for r in self_records
-        ]
+    async def _graph_load_extra_kwargs(cls, self_record: OrmArtifact) -> dict[str, Any]:
+        return {
+            **await super()._graph_load_extra_kwargs(self_record),
+            "value": await load_deserialized_artifact_value(self_record),
+            "serializer": get_serializer_by_name(self_record.artifact_serializer),
+            "storage": (
+                get_storage_by_name(self_record.remote_artifact_storage)
+                if isinstance(self_record, OrmRemoteArtifact)
+                else None
+            ),
+        }

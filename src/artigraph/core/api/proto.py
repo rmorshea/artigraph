@@ -9,12 +9,12 @@ from artigraph.core.orm.base import OrmBase
 
 S = TypeVar("S", bound=OrmBase)
 R = TypeVar("R", bound=OrmBase)
-G = TypeVar("G", bound="GraphType")
+G = TypeVar("G", bound="GraphLike")
 F = TypeVar("F", bound=Filter)
 
 
 @runtime_checkable
-class GraphType(Protocol[S, R, F]):
+class GraphLike(Protocol[S, R, F]):
     """Protocol for objects that can be converted to and from Artigraph ORM records."""
 
     graph_orm_type: ClassVar[type[S]]

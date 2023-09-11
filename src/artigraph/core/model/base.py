@@ -13,7 +13,7 @@ from typing_extensions import Self, TypeAlias
 from artigraph import __version__ as artigraph_version
 from artigraph.core.api.artifact import Artifact, load_deserialized_artifact_value
 from artigraph.core.api.filter import NodeFilter, NodeLinkFilter
-from artigraph.core.api.funcs import GraphType, dump_one, dump_one_flat
+from artigraph.core.api.funcs import GraphLike, dump_one, dump_one_flat
 from artigraph.core.api.link import NodeLink
 from artigraph.core.orm.artifact import (
     OrmArtifact,
@@ -131,7 +131,7 @@ class GraphModel(ABC):
         dump_related: TaskBatch[Sequence[OrmBase]] = TaskBatch()
         for label, (value, config) in self.graph_model_data().items():
             maybe_model = _try_convert_value_to_modeled_type(value)
-            if isinstance(maybe_model, GraphType):
+            if isinstance(maybe_model, GraphLike):
                 if config:
                     msg = f"Model artifacts cannot have a config. Got {config}"
                     raise ValueError(msg)
@@ -264,7 +264,7 @@ def _try_convert_value_to_modeled_type(value: Any) -> GraphModel | Any:
     return value
 
 
-async def _dump_and_link(graph_obj: GraphType, parent_id: UUID, label: str) -> Sequence[OrmBase]:
+async def _dump_and_link(graph_obj: GraphLike, parent_id: UUID, label: str) -> Sequence[OrmBase]:
     node, related = await dump_one(graph_obj)
     if not isinstance(node, OrmNode):
         msg = f"Expected {graph_obj} to dump an OrmNode, got {node}"

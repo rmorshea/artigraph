@@ -3,48 +3,19 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Collection
 from dataclasses import fields
-from typing import Any, ClassVar, Mapping, Sequence, TypeVar, runtime_checkable
+from typing import Any, Sequence, TypeVar
 
 from sqlalchemy import Row, select
 from sqlalchemy import delete as sql_delete
-from typing_extensions import Protocol, Self
 
 from artigraph.core.api.filter import Filter, MultiFilter
+from artigraph.core.api.proto import GraphType
 from artigraph.core.db import current_session
 from artigraph.core.orm.base import OrmBase, get_poly_graph_orm_type
 from artigraph.core.utils.misc import TaskBatch
 
-O = TypeVar("O", bound=OrmBase)  # noqa: E741
-R = TypeVar("R", bound=OrmBase)
+S = TypeVar("S", bound=OrmBase)
 G = TypeVar("G", bound="GraphType")
-F = TypeVar("F", bound=Filter)
-
-
-@runtime_checkable
-class GraphType(Protocol[O, F, R]):
-    """Protocol for objects that can be converted to and from Artigraph ORM records."""
-
-    graph_orm_type: ClassVar[type[O]]
-    """The ORM type that represents this object."""
-
-    def graph_filter_self(self) -> F:
-        """Get the filter for records of the ORM type that represent the object."""
-
-    @classmethod
-    def graph_filter_related(cls, where: F, /) -> Mapping[type[R], Filter]:
-        """Get the filters for records of related ORM records required to construct this object."""
-
-    async def graph_dump(self) -> Sequence[OrmBase]:
-        """Dump the object to ORM records."""
-
-    @classmethod
-    async def graph_load(
-        cls,
-        records: Sequence[O],
-        related_records: dict[type[R], Sequence[R]],
-        /,
-    ) -> Sequence[Self]:
-        """Load ORM records into objects."""
 
 
 async def exists(cls: type[GraphType], where: Filter) -> bool:
@@ -121,19 +92,33 @@ async def write_one(obj: GraphType) -> None:
 
 async def write(objs: Collection[GraphType]) -> None:
     """Create records and, if given, refresh their attributes."""
-    records: TaskBatch[O] = TaskBatch()
+    await orm_write(await dump(objs))
+
+
+async def dump(objs: Sequence[GraphType]) -> Sequence[OrmBase]:
+    """Dump objects into ORM records."""
+    dump_self_records: TaskBatch[OrmBase] = TaskBatch()
     for o in objs:
-        records.add(o.graph_dump)
-    await orm_write([r for rs in await records.gather() for r in rs])
+        dump_self_records.add(o.graph_dump_self)
+
+    dump_all_records: TaskBatch[Sequence[OrmBase]] = TaskBatch()
+
+    # add self records first so that related records can depend on them if needed
+    dump_all_records.add(dump_self_records.gather)
+
+    for o in objs:
+        dump_all_records.add(o.graph_dump_related)
+
+    return [r for rs in await dump_all_records.gather() for r in rs]
 
 
-async def orm_exists(graph_orm_type: type[O], where: Filter) -> bool:
+async def orm_exists(graph_orm_type: type[S], where: Filter) -> bool:
     """Check if ORM records exist."""
     async with current_session() as session:
         return bool((await session.execute(select(graph_orm_type).where(where.create()))).first())
 
 
-async def orm_read_one_or_none(graph_orm_type: type[O], where: Filter) -> O | None:
+async def orm_read_one_or_none(graph_orm_type: type[S], where: Filter) -> S | None:
     """Read an ORM record that matches the given filter or None if no record is found."""
     cmd = select(graph_orm_type.__table__).where(where.create())
     async with current_session() as session:
@@ -143,7 +128,7 @@ async def orm_read_one_or_none(graph_orm_type: type[O], where: Filter) -> O | No
     return load_orm_from_row(graph_orm_type, orm)
 
 
-async def orm_read(graph_orm_type: type[O], where: Filter) -> Sequence[O]:
+async def orm_read(graph_orm_type: type[S], where: Filter) -> Sequence[S]:
     """Read ORM records that match the given filter."""
     cmd = select(graph_orm_type.__table__).where(where.create())
     async with current_session() as session:
@@ -151,26 +136,26 @@ async def orm_read(graph_orm_type: type[O], where: Filter) -> Sequence[O]:
     return load_orms_from_rows(graph_orm_type, rows)
 
 
-async def orm_delete(graph_orm_type: type[O], where: Filter) -> None:
+async def orm_delete(graph_orm_type: type[S], where: Filter) -> None:
     """Delete ORM records that match the given filter."""
     cmd = sql_delete(graph_orm_type).where(where.create())
     async with current_session() as session:
         await session.execute(cmd)
 
 
-async def orm_write(orm_objs: Collection[O]) -> None:
+async def orm_write(orm_objs: Collection[S]) -> None:
     """Create ORM records and, if given, refresh their attributes."""
     async with current_session() as session:
         session.add_all(orm_objs)
         await session.flush()
 
 
-def load_orm_from_row(graph_orm_type: type[O], row: Row) -> O:
+def load_orm_from_row(graph_orm_type: type[S], row: Row) -> S:
     """Load the appropriate ORM instance given a SQLAlchemy row."""
     return load_orms_from_rows(graph_orm_type, [row])[0]
 
 
-def load_orms_from_rows(graph_orm_type: type[O], rows: Sequence[Row]) -> Sequence[O]:
+def load_orms_from_rows(graph_orm_type: type[S], rows: Sequence[Row]) -> Sequence[S]:
     """Load the appropriate ORM instances given a sequence of SQLAlchemy rows."""
     poly_on = None
     for cls in graph_orm_type.mro():
@@ -193,7 +178,7 @@ def _make_poly_obj(
     poly_on: str,
     keys_by_graph_orm_type: dict[str, set[str]],
     row_mapping: dict[str, Any],
-) -> O:
+) -> S:
     poly_id = row_mapping[poly_on]
     graph_orm_type = get_poly_graph_orm_type(table, poly_id)
     if graph_orm_type not in keys_by_graph_orm_type:
@@ -203,16 +188,16 @@ def _make_poly_obj(
     return _make_non_poly_obj(graph_orm_type, keys, row_mapping)
 
 
-def _get_init_field_names(graph_orm_type: type[O]) -> set[str]:
+def _get_init_field_names(graph_orm_type: type[S]) -> set[str]:
     """Get the names of the fields that should be initialized."""
     return {f.name for f in fields(graph_orm_type) if f.init}
 
 
 def _make_non_poly_obj(
-    graph_orm_type: type[O],
+    graph_orm_type: type[S],
     keys: set[str],
     row_mapping: dict[str, Any],
-) -> O:
+) -> S:
     """Create an ORM object from a SQLAlchemy row."""
     kwargs = {k: row_mapping[k] for k in keys}
     return graph_orm_type(**kwargs)

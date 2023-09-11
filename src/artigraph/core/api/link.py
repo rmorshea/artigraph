@@ -36,18 +36,19 @@ class NodeLink(Dataclass):
     def graph_filter_related(cls, _: NodeLinkFilter) -> dict:
         return {}
 
-    async def graph_dump(self) -> Sequence[OrmNodeLink]:
-        return [
-            OrmNodeLink(
-                link_id=self.link_id,
-                child_id=self.child_id,
-                parent_id=self.parent_id,
-                label=self.label,
-            )
-        ]
+    async def graph_dump_self(self) -> OrmNodeLink:
+        return OrmNodeLink(
+            link_id=self.link_id,
+            child_id=self.child_id,
+            parent_id=self.parent_id,
+            label=self.label,
+        )
+
+    async def graph_dump_related(self) -> Sequence[OrmNodeLink]:
+        return []
 
     @classmethod
-    async def graph_load(cls, records: Sequence[OrmNodeLink], _: dict) -> NodeLink:
+    async def graph_load(cls, self_records: Sequence[OrmNodeLink], _: dict) -> NodeLink:
         return [
             cls(
                 link_id=r.link_id,
@@ -55,5 +56,5 @@ class NodeLink(Dataclass):
                 parent_id=r.parent_id,
                 label=r.label,
             )
-            for r in records
+            for r in self_records
         ]

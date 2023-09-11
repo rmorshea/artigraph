@@ -55,8 +55,11 @@ class Fake(Dataclass):
     def graph_filter_related(cls, _: ValueFilter) -> dict:
         return {}
 
-    async def graph_dump(self) -> Sequence[OrmFake]:
-        return [OrmFake(fake_id=self.fake_id, fake_data=self.fake_data)]
+    async def graph_dump_self(self) -> OrmFake:
+        return OrmFake(fake_id=self.fake_id, fake_data=self.fake_data)
+
+    async def graph_dump_related(self) -> Sequence[Any]:
+        return []
 
     @classmethod
     async def graph_load(cls, records: Sequence[OrmFake], _: dict) -> Sequence[Self]:
@@ -77,26 +80,27 @@ class FakePoly(Dataclass):
     def graph_filter_related(cls, _: ValueFilter) -> dict:
         return {}
 
-    async def graph_dump(self) -> Sequence[OrmFakePoly]:
+    async def graph_dump_self(self) -> OrmFakePoly:
         if self.fake_poly_id == "alpha":
-            return [
-                OrmFakePolyAlpha(
-                    fake_id=self.fake_id,
-                    fake_alpha=self.fake_data,
-                    fake_poly_id=self.fake_poly_id,
-                )
-            ]
+            return OrmFakePolyAlpha(
+                fake_id=self.fake_id,
+                fake_alpha=self.fake_data,
+                fake_poly_id=self.fake_poly_id,
+            )
+
         elif self.fake_poly_id == "beta":
-            return [
-                OrmFakePolyBeta(
-                    fake_id=self.fake_id,
-                    fake_beta=self.fake_data,
-                    fake_poly_id=self.fake_poly_id,
-                )
-            ]
+            return OrmFakePolyBeta(
+                fake_id=self.fake_id,
+                fake_beta=self.fake_data,
+                fake_poly_id=self.fake_poly_id,
+            )
+
         else:
             msg = f"Unknown polymorphic identity {self.fake_poly_id}"
             raise ValueError(msg)
+
+    async def graph_dump_related(self) -> Sequence[Any]:
+        return []
 
     @classmethod
     async def graph_load(cls, records: Sequence[OrmFakePoly], _: dict) -> Iterator[Self]:

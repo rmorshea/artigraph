@@ -12,6 +12,7 @@ from typing_extensions import Self, TypeAlias
 from artigraph import __version__ as artigraph_version
 from artigraph.core.api.artifact import Artifact, load_deserialized_artifact_value
 from artigraph.core.api.filter import NodeFilter, NodeLinkFilter
+from artigraph.core.api.funcs import GraphType
 from artigraph.core.orm.artifact import (
     OrmArtifact,
     OrmDatabaseArtifact,
@@ -110,11 +111,12 @@ class GraphModel(ABC):
             OrmNodeLink: NodeLinkFilter(ancestor=where),
         }
 
-    async def graph_dump(self) -> Sequence[OrmNodeLink | OrmArtifact]:
+    async def graph_dump_self(self) -> OrmModelArtifact:
         metadata_dict = ModelMetadata(artigraph_version=artigraph_version)
+        return self._make_own_metadata_artifact(metadata_dict)
 
-        orm_objects: list[OrmBase] = [self._make_own_metadata_artifact(metadata_dict)]
-
+    async def graph_dump_related(self) -> Sequence[OrmBase]:
+        orm_objects: list[OrmBase] = []
         for label, (value, config) in self.graph_model_data().items():
             maybe_model = _try_convert_value_to_modeled_type(value)
             if isinstance(maybe_model, GraphModel):
@@ -134,6 +136,8 @@ class GraphModel(ABC):
                 )
                 orm_objects.append(inner_metadata)
                 orm_objects.extend(inner_orm_object)
+            elif isinstance(value, GraphType):
+                ...
             else:
                 inner_artifact = _make_artifact(value, config)
                 orm_objects.append(
@@ -144,6 +148,7 @@ class GraphModel(ABC):
                     )
                 )
                 orm_objects.append(inner_artifact)
+        return orm_objects
 
     @classmethod
     async def graph_load(

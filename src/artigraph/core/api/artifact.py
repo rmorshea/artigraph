@@ -43,7 +43,7 @@ class Artifact(Node[OrmArtifact], Generic[T]):
     serializer: Serializer | None = None
     storage: Storage | None = None
 
-    async def graph_dump(self) -> Sequence[OrmArtifact]:
+    async def graph_dump_self(self) -> OrmArtifact:
         if self.serializer is not None:
             data = self.serializer.serialize(self.value)
         elif isinstance(self.value, bytes):
@@ -67,12 +67,12 @@ class Artifact(Node[OrmArtifact], Generic[T]):
                 database_artifact_data=data,
             )
 
-        return [artifact]
+        return artifact
 
     @classmethod
     async def graph_load(
         cls,
-        records: Sequence[OrmDatabaseArtifact | OrmRemoteArtifact],
+        self_records: Sequence[OrmDatabaseArtifact | OrmRemoteArtifact],
         related_records: dict[type[OrmNodeLink], Sequence[OrmNodeLink]],
     ) -> Sequence[Self]:
         parent_links, child_links = await cls.graph_load_parent_and_child_links(related_records)
@@ -89,5 +89,5 @@ class Artifact(Node[OrmArtifact], Generic[T]):
                     else None
                 ),
             )
-            for r in records
+            for r in self_records
         ]

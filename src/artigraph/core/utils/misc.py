@@ -102,8 +102,8 @@ class TaskBatch(Generic[R]):
             return []
 
         tasks = [asyncio.create_task(t()) for t in self._funcs]
-        _, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
-        errors = list(filter(None, [t.exception() for t in tasks]))
+        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
+        errors = list(filter(None, [d.exception() for d in done]))
         if errors:
             if pending:
                 for t in pending:

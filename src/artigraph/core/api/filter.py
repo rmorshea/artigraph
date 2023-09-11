@@ -333,10 +333,10 @@ class ModelTypeFilter(Generic[M], Filter):
     def compose(self, expr: Expression) -> Expression:
         if self.subclasses:
             expr &= OrmModelArtifact.model_artifact_name.in_(
-                [m.model_name for m in get_subclasses(self.type)]
+                [m.graph_model_name for m in get_subclasses(self.type)]
             )
         else:
-            expr &= OrmModelArtifact.model_artifact_name == self.type.model_name
+            expr &= OrmModelArtifact.model_artifact_name == self.type.graph_model_name
 
         if self.version is not None:
             expr &= (
@@ -435,5 +435,5 @@ def _to_model_type_filter(model_type: type[GraphModel] | ModelTypeFilter) -> Mod
     return (
         model_type
         if isinstance(model_type, ModelTypeFilter)
-        else ModelTypeFilter(type=model_type, version=model_type.model_version)
+        else ModelTypeFilter(type=model_type, version=model_type.graph_model_version)
     )

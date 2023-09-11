@@ -4,7 +4,7 @@ from abc import ABC, abstractclassmethod, abstractmethod
 from collections import defaultdict
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Any, ClassVar, Iterator, Sequence, TypedDict, TypeVar, cast
+from typing import Any, ClassVar, Iterator, Mapping, Sequence, TypedDict, TypeVar, cast
 from uuid import UUID
 
 from typing_extensions import Self, TypeAlias
@@ -12,7 +12,8 @@ from typing_extensions import Self, TypeAlias
 from artigraph import __version__ as artigraph_version
 from artigraph.core.api.artifact import Artifact, load_deserialized_artifact_value
 from artigraph.core.api.filter import NodeFilter, NodeLinkFilter
-from artigraph.core.api.funcs import GraphType
+from artigraph.core.api.funcs import GraphType, dump_one, dump_one_flat
+from artigraph.core.api.link import NodeLink
 from artigraph.core.orm.artifact import (
     OrmArtifact,
     OrmDatabaseArtifact,
@@ -25,16 +26,29 @@ from artigraph.core.orm.node import OrmNode
 from artigraph.core.serializer.base import Serializer
 from artigraph.core.serializer.json import json_serializer, json_sorted_serializer
 from artigraph.core.storage.base import Storage
+from artigraph.core.utils.misc import TaskBatch
 
 M = TypeVar("M", bound="GraphModel")
 
 ModelData: TypeAlias = "dict[str, tuple[Any, FieldConfig]]"
+LabeledArtifactsByParentId: TypeAlias = (
+    "Mapping[UUID, dict[str, OrmDatabaseArtifact | OrmRemoteArtifact]]"
+)
 
 MODEL_TYPE_BY_NAME: dict[str, type[GraphModel]] = {}
 MODELED_TYPES: dict[type[Any], type[GraphModel]] = {}
 
 # useful in an interactive context (e.g. IPython/Jupyter)
 ALLOW_MODEL_TYPE_OVERWRITES = ContextVar("ALLOW_MODEL_TYPE_OVERWRITES", default=False)
+
+
+def get_model_type_by_name(name: str) -> type[GraphModel]:
+    """Get a model type by name."""
+    try:
+        return MODEL_TYPE_BY_NAME[name]
+    except KeyError:
+        msg = f"Model type {name!r} does not exist"
+        raise ValueError(msg) from None
 
 
 @contextmanager
@@ -56,9 +70,6 @@ class FieldConfig(TypedDict, total=False):
     storage: Storage
     """The storage for the artifact model field."""
 
-    annotation: Any
-    """The type annotation for the artifact model field."""
-
 
 class GraphModel(ABC):
     """A base for all modeled artifacts."""
@@ -72,7 +83,7 @@ class GraphModel(ABC):
     graph_model_version: ClassVar[int] = 1
     """The version of the artifact model."""
 
-    graph_model_id: UUID
+    graph_node_id: UUID
     """The unique ID of this model."""
 
     @abstractmethod
@@ -107,65 +118,83 @@ class GraphModel(ABC):
         cls, where: NodeFilter[Any]
     ) -> dict[type[OrmNodeLink] | type[OrmNode], NodeLinkFilter]:
         return {
-            OrmNode: NodeFilter(descendant_of=where),
+            OrmArtifact: NodeFilter(descendant_of=where),
             OrmNodeLink: NodeLinkFilter(ancestor=where),
         }
 
     async def graph_dump_self(self) -> OrmModelArtifact:
         metadata_dict = ModelMetadata(artigraph_version=artigraph_version)
-        return self._make_own_metadata_artifact(metadata_dict)
+        return self._graph_make_own_metadata_artifact(metadata_dict)
 
     async def graph_dump_related(self) -> Sequence[OrmBase]:
-        orm_objects: list[OrmBase] = []
+        dump_related: TaskBatch[Sequence[OrmBase]] = TaskBatch()
         for label, (value, config) in self.graph_model_data().items():
             maybe_model = _try_convert_value_to_modeled_type(value)
-            if isinstance(maybe_model, GraphModel):
+            if isinstance(maybe_model, GraphType):
                 if config:
                     msg = f"Model artifacts cannot have a config. Got {config}"
                     raise ValueError(msg)
-                inner_metadata, *inner_orm_object = await maybe_model.graph_dump()
-                if not isinstance(inner_metadata, OrmModelArtifact):
-                    msg = f"Expected model artifact, got {inner_metadata}"
-                    raise ValueError(msg)
-                orm_objects.append(
-                    OrmNodeLink(
-                        parent_id=self.graph_node_id,
-                        child_id=inner_metadata.node_id,
-                        label=label,
-                    )
-                )
-                orm_objects.append(inner_metadata)
-                orm_objects.extend(inner_orm_object)
-            elif isinstance(value, GraphType):
-                ...
+                dump_related.add(_dump_and_link, maybe_model, self.graph_node_id, label)
             else:
-                inner_artifact = _make_artifact(value, config)
-                orm_objects.append(
-                    OrmNodeLink(
-                        parent_id=self.graph_node_id,
-                        child_id=inner_artifact.node_id,
-                        label=label,
-                    )
-                )
-                orm_objects.append(inner_artifact)
-        return orm_objects
+                art = _make_artifact(value, config)
+                dump_related.add(_dump_and_link, art, self.graph_node_id, label)
+        return [r for rs in await dump_related.gather() for r in rs]
 
     @classmethod
     async def graph_load(
         cls,
-        records: Sequence[OrmModelArtifact],
+        self_records: Sequence[OrmModelArtifact],
         related_records: dict[
             type[OrmNodeLink] | type[OrmNode],
             Sequence[OrmNodeLink] | Sequence[OrmNode],
         ],
     ) -> Sequence[Self]:
-        arts_dict_by_p_id = _get_labeled_artifacts_by_parent_id(records, related_records)
+        arts_dict_by_p_id = _get_labeled_artifacts_by_parent_id(self_records, related_records)
         return [
-            await _get_model_from_labeled_artifacts_by_parent_id(art, arts_dict_by_p_id)
-            for art in records
+            await cls._graph_load_from_labeled_artifacts_by_parent_id(art, arts_dict_by_p_id)
+            for art in self_records
         ]
 
-    def _make_own_metadata_artifact(self, metadata: ModelMetadata) -> OrmModelArtifact:
+    @classmethod
+    async def _graph_load_from_labeled_artifacts_by_parent_id(
+        cls,
+        model_metadata_artifact: OrmModelArtifact,
+        labeled_artifacts_by_parent_id: LabeledArtifactsByParentId,
+    ) -> Self:
+        return cls.graph_model_init(
+            model_metadata_artifact.model_artifact_version,
+            await cls._graph_load_kwargs_from_labeled_artifacts_by_parent_id(
+                model_metadata_artifact,
+                labeled_artifacts_by_parent_id,
+            ),
+        )
+
+    @classmethod
+    async def _graph_load_kwargs_from_labeled_artifacts_by_parent_id(
+        cls,
+        model_metadata_artifact: OrmModelArtifact,
+        labeled_artifacts_by_parent_id: LabeledArtifactsByParentId,
+    ) -> dict[str, Any]:
+        labeled_children = labeled_artifacts_by_parent_id[model_metadata_artifact.node_id]
+
+        load_field_values: TaskBatch[Any] = TaskBatch()
+        for child in labeled_children.values():
+            if isinstance(child, OrmModelArtifact):
+                child_cls = get_model_type_by_name(child.model_artifact_name)
+                load_field_values.add(
+                    child_cls._graph_load_from_labeled_artifacts_by_parent_id,
+                    child,
+                    labeled_artifacts_by_parent_id,
+                )
+            else:
+                load_field_values.add(
+                    load_deserialized_artifact_value,
+                    child,
+                )
+
+        return dict(zip(labeled_children.keys(), await load_field_values.gather()))
+
+    def _graph_make_own_metadata_artifact(self, metadata: ModelMetadata) -> OrmModelArtifact:
         return OrmModelArtifact(
             node_id=self.graph_node_id,
             artifact_serializer=json_sorted_serializer.name,
@@ -210,30 +239,18 @@ def _get_labeled_artifacts_by_parent_id(
     return artifacts_by_parent_id
 
 
-def _get_model_from_labeled_artifacts_by_parent_id(
-    model_metadata_artifact: OrmModelArtifact,
-    labeled_artifacts_by_parent_id: dict[UUID, dict[str, OrmDatabaseArtifact | OrmRemoteArtifact]],
-) -> GraphModel:
-    labeled_children = labeled_artifacts_by_parent_id[model_metadata_artifact.node_id]
-
-    kwargs: dict[str, Any] = {}
-    for label, child in labeled_children.items():
-        if isinstance(child, OrmModelArtifact):
-            value = _get_model_from_labeled_artifacts_by_parent_id(
-                child,
-                labeled_artifacts_by_parent_id,
-            )
-        else:
-            value = load_deserialized_artifact_value(child)
-        kwargs[label] = value
-
-    cls = MODEL_TYPE_BY_NAME[model_metadata_artifact.model_artifact_name]
-    return cls.graph_model_init(model_metadata_artifact.model_artifact_version, kwargs)
-
-
 def _try_convert_value_to_modeled_type(value: Any) -> GraphModel | Any:
     """Try to convert a value to a modeled type."""
     modeled_type = MODELED_TYPES.get(type(value))
     if modeled_type is not None:
         return modeled_type(value)  # type: ignore
     return value
+
+
+async def _dump_and_link(graph_obj: GraphType, parent_id: UUID, label: str) -> Sequence[OrmBase]:
+    node, related = await dump_one(graph_obj)
+    if not isinstance(node, OrmNode):
+        msg = f"Expected {graph_obj} to dump an OrmNode, got {node}"
+        raise ValueError(msg)
+    link = NodeLink(parent_id=parent_id, child_id=node.node_id, label=label)
+    return [node, *related, *(await dump_one_flat(link))]

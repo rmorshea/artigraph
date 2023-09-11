@@ -14,7 +14,7 @@ F = TypeVar("F", bound=Filter)
 
 
 @runtime_checkable
-class GraphType(Protocol[S, F, R]):
+class GraphType(Protocol[S, R, F]):
     """Protocol for objects that can be converted to and from Artigraph ORM records."""
 
     graph_orm_type: ClassVar[type[S]]

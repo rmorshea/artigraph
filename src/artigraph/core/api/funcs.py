@@ -15,6 +15,7 @@ from artigraph.core.orm.base import OrmBase, get_poly_graph_orm_type
 from artigraph.core.utils.misc import TaskBatch
 
 S = TypeVar("S", bound=OrmBase)
+R = TypeVar("R", bound=OrmBase)
 G = TypeVar("G", bound="GraphType")
 
 
@@ -95,7 +96,16 @@ async def write(objs: Collection[GraphType]) -> None:
     await orm_write(await dump(objs))
 
 
-async def dump(objs: Sequence[GraphType]) -> Sequence[OrmBase]:
+async def dump_one(obj: GraphType[S, R, Filter]) -> tuple[S, Sequence[R]]:
+    first, *rest = await dump_one_flat(obj)
+    return first, rest  # type: ignore
+
+
+async def dump_one_flat(obj: GraphType[S, R, Filter]) -> Sequence[S | R]:
+    return await dump([obj])
+
+
+async def dump(objs: Sequence[GraphType[S, R, Filter]]) -> Sequence[S | R]:
     """Dump objects into ORM records."""
     dump_self_records: TaskBatch[OrmBase] = TaskBatch()
     for o in objs:
@@ -109,7 +119,8 @@ async def dump(objs: Sequence[GraphType]) -> Sequence[OrmBase]:
     for o in objs:
         dump_all_records.add(o.graph_dump_related)
 
-    return [r for rs in await dump_all_records.gather() for r in rs]
+    records_seqs = await dump_all_records.gather()
+    return [r for rs in records_seqs for r in rs]
 
 
 async def orm_exists(graph_orm_type: type[S], where: Filter) -> bool:

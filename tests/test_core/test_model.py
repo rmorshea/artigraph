@@ -6,12 +6,12 @@ from artigraph.core.api.filter import ModelFilter, NodeFilter, NodeLinkFilter
 from artigraph.core.api.funcs import delete_one, exists, read_one, write_one
 from artigraph.core.api.link import NodeLink
 from artigraph.core.api.node import Node
-from artigraph.core.model.base import MODELED_TYPES, _try_convert_value_to_modeled_type
+from artigraph.core.model.base import MODELED_TYPES, GraphModel, _try_convert_value_to_modeled_type
 from artigraph.core.model.dataclasses import dataclass
 
 
-@dataclass(version=1)
-class SimpleModel:
+@dataclass
+class SimpleModel(GraphModel, version=1):
     x: int
     y: str
     z: SimpleModel | None = None

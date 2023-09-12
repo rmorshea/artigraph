@@ -3,24 +3,23 @@
 Artigraph defines a graph database within [SQLAlchemy](https://www.sqlalchemy.org/)
 using the [`Node`](#node) base class.
 
+## Node Link
+
+TODO
+
 ## Node
 
-All data in Artigraph is stored in a single `artigraph_node` table whose base set of
-columns are describe by the `Node` class. Subclasses of `Node` utilize
+All node data in Artigraph is stored in a single `artigraph_node` table whose base set
+of columns are describe by the `Node` class. Subclasses of `Node` utilize
 [single table inheritance](#single-table-inheritance) to extend the table. The columns
 defined by the base `Node` class are:
 
 | Column            | Type       | Description                                                  |
 | ----------------- | ---------- | ------------------------------------------------------------ |
 | `node_id`         | `Integer`  | The primary key of the node.                                 |
-| `node_parent_id`  | `Integer`  | The primary key of the node's parent.                        |
 | `node_type`       | `String`   | The type of the node (comes from its `polymorphic_identity`) |
 | `node_created_at` | `DateTime` | The time the node was created.                               |
 | `node_updated_at` | `DateTime` | The time the node was last updated.                          |
-
-The `node_parent_id` column is a foreign key to the `artigraph_node.node_id` column of.
-This allows for a tree structure to be built up. The `node_type` column is used to
-determine which subclass of `Node` to use when loading a node from the database.
 
 To avoid name collisions, all columns defined by subclasses of `Node` are prefixed with
 `node_`. Subclasses of `Node` ought to do the same. For example, the
@@ -78,10 +77,6 @@ wide variety of use cases. In general, if you find yourself needing to add a new
     sparse. For example, in PostgreSQL a null bitmap is used to mark which columns
     are null for any row with at least one null value. As such, the size of a sparse
     row is identical to one that is well (but not completely) populated.
-
-## Node Link
-
-TODO
 
 ## Base Artifact
 

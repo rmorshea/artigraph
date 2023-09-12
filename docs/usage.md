@@ -138,9 +138,10 @@ large_artifact = ag.Artifact(
 
 A [GraphModel][artigraph.GraphModel] gives structure to the data in your artifacts. The
 easiest way to create one is using the built-in [@dataclass][artigraph.dataclass]
-decorator. The only difference between this decorator and the standard library version
-is that it must be used on a subclass of `GraphModel` which requires a version (which
-will be discussed later). With that in mind, you can define a model like so:
+decorator, though [other implementations](./models.md#built-in-models) exist. The only
+difference between this decorator and the standard library version is that it must be
+used on a subclass of `GraphModel` which requires a version (which will be discussed
+later). With that in mind, you can define a model like so:
 
 ```python
 import artigraph as ag

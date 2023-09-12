@@ -7,8 +7,6 @@ serializer explicitly.
 
 ## Built-in Serializers
 
-All built-in serializers can be found under `artigraph.serializer`:
-
 | Serializer                                                                                                 | Description                                                              |
 | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | [core.serializer.datetime.datetime_serializer][artigraph.datetime_serializer]                              | Date Times                                                               |

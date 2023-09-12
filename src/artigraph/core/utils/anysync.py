@@ -64,10 +64,7 @@ class AnySyncFunc(Protocol[P, R]):
     """A function that can be called synchronously or asynchronously."""
 
     s: Callable[P, R]
-    """Call the function synchronously."""
     a: Callable[P, Coroutine[None, None, R]]
-    """Call the function asynchronously."""
-
     __call__: Callable[P, Coroutine[None, None, R] | R]
     __get__: Callable[..., Any]
 

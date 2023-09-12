@@ -61,13 +61,20 @@ def anysynccontextmanager(
 
 
 class AnySyncFunc(Protocol[P, R]):
-    __call__: Callable[P, Coroutine[None, None, R] | R]
+    """A function that can be called synchronously or asynchronously."""
+
     s: Callable[P, R]
+    """Call the function synchronously."""
     a: Callable[P, Coroutine[None, None, R]]
+    """Call the function asynchronously."""
+
+    __call__: Callable[P, Coroutine[None, None, R] | R]
     __get__: Callable[..., Any]
 
 
 class AnySyncMethod(Generic[P, R]):
+    """A method that can be called synchronously or asynchronously."""
+
     def __init__(self, func: Callable[P, Coroutine[None, None, R]]):
         self._func = func
 

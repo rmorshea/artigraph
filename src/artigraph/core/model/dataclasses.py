@@ -1,8 +1,21 @@
 from __future__ import annotations
 
+from dataclasses import dataclass as _dataclass
 from dataclasses import field, fields
 from functools import lru_cache
-from typing import Annotated, Any, Sequence, TypedDict, get_args, get_origin, get_type_hints
+from typing import (
+    Annotated,
+    Any,
+    Callable,
+    Literal,
+    Sequence,
+    TypeVar,
+    dataclass_transform,
+    get_args,
+    get_origin,
+    get_type_hints,
+    overload,
+)
 from uuid import UUID, uuid1
 
 from typing_extensions import Self
@@ -15,39 +28,105 @@ from artigraph.core.model.base import (
 )
 from artigraph.core.serializer.base import Serializer
 from artigraph.core.storage.base import Storage
-from artigraph.core.utils.misc import Dataclass
+
+T = TypeVar("T", bound=type[GraphModel])
 
 
-class DataclassModelFieldMetadata(TypedDict, total=False):
-    graph_is_not_model_field: bool
+@overload
+@dataclass_transform(field_specifiers=(field,))
+def dataclass(
+    *,
+    init: Literal[False] = False,
+    repr: bool = True,  # noqa: A002
+    eq: bool = True,
+    order: bool = False,
+    unsafe_hash: bool = False,
+    frozen: bool = False,
+    kw_only: bool = False,
+    slots: bool = False,
+) -> Callable[[T], T]:
+    ...
 
 
-class DataclassModel(
-    GraphModel,
-    Dataclass,
-    version=1,
-    frozen=True,
-):
-    """Describes a structure of data that can be saved as artifacts."""
+@overload
+@dataclass_transform(field_specifiers=(field,))
+def dataclass(
+    cls: T,
+    /,
+    *,
+    init: Literal[False] = False,
+    repr: bool = True,  # noqa: A002
+    eq: bool = True,
+    order: bool = False,
+    unsafe_hash: bool = False,
+    frozen: bool = False,
+    kw_only: bool = False,
+    slots: bool = False,
+) -> type[T]:
+    ...
 
-    graph_node_id: UUID = field(default_factory=uuid1)
-    """The unique ID of this model."""
 
-    @classmethod
-    def graph_model_init(cls, info: ModelInfo, data: dict[str, Any]) -> Self:
-        return cls(graph_node_id=info.node_id, **data)
+@dataclass_transform(field_specifiers=(field,))
+def dataclass(
+    cls: type[Any] | None = None,
+    /,
+    *,
+    init: Literal[False] = False,
+    repr: bool = True,  # noqa: A002
+    eq: bool = True,
+    order: bool = False,
+    unsafe_hash: bool = False,
+    frozen: bool = False,
+    kw_only: bool = False,
+    slots: bool = False,
+) -> type[GraphModel]:
+    """A decorator that makes a class into a dataclass GraphModel.
 
-    def graph_model_data(self) -> ModelData:
-        return get_annotated_model_data(
-            self,
-            [
-                f.name
-                for f in fields(self)
-                if f.init
-                # exclude this since it's on the DB record anyway
-                and f.name != "graph_node_id"
-            ],
+    See: [dataclass](https://docs.python.org/3/library/dataclasses.html#dataclasses.dataclass)
+    """
+
+    def decorator(cls: type[T]) -> type[GraphModel]:
+        if not issubclass(cls, GraphModel):
+            msg = f"{cls} does not inherit from GraphModel"
+            raise TypeError(msg)
+
+        cls = _dataclass(
+            cls,
+            init=init,
+            repr=repr,
+            eq=eq,
+            order=order,
+            unsafe_hash=unsafe_hash,
+            frozen=frozen,
+            kw_only=kw_only,
+            slots=slots,
         )
+
+        @_dataclass(frozen=frozen)
+        class _DataclassModel(cls, version=cls.graph_model_version):
+            graph_node_id: UUID = field(default_factory=uuid1, kw_only=True)
+
+            @classmethod
+            def graph_model_init(cls, info: ModelInfo, data: dict[str, Any]) -> Self:
+                return cls(graph_node_id=info.node_id, **data)
+
+            def graph_model_data(self) -> ModelData:
+                return get_annotated_model_data(
+                    self,
+                    [
+                        f.name
+                        for f in fields(self)
+                        if f.init
+                        # exclude this since it's on the DB record anyway
+                        and f.name != "graph_node_id"
+                    ],
+                )
+
+        _DataclassModel.__name__ = cls.__name__
+
+        return _DataclassModel
+
+    return decorator if cls is None else decorator(cls)
 
 
 def get_annotated_model_data(obj: Any, field_names: Sequence[str]) -> ModelData:
@@ -68,6 +147,6 @@ def get_annotated_model_data(obj: Any, field_names: Sequence[str]) -> ModelData:
 
 
 @lru_cache(maxsize=None)
-def _get_type_hints(cls: type[DataclassModel]) -> dict[str, Any]:
+def _get_type_hints(cls: type[Any]) -> dict[str, Any]:
     # This can be pretty slow and there should be a finite number of classes so we cache it.
     return get_type_hints(cls, include_extras=True)

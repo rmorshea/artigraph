@@ -4,8 +4,7 @@ from typing import Any, ClassVar, Generic, TypeVar
 
 from artigraph.core.api.node import Node
 from artigraph.core.orm.artifact import OrmArtifact, OrmDatabaseArtifact, OrmRemoteArtifact
-from artigraph.core.serializer import get_serializer_by_name
-from artigraph.core.serializer.base import Serializer
+from artigraph.core.serializer.base import Serializer, get_serializer_by_name
 from artigraph.core.storage.base import Storage, get_storage_by_name
 
 T = TypeVar("T")
@@ -40,8 +39,10 @@ class Artifact(Node[OrmArtifact], Generic[T]):
 
     async def graph_dump_self(self) -> OrmArtifact:
         if self.serializer is not None:
+            serializer_name = self.serializer.name
             data = self.serializer.serialize(self.value)
         elif isinstance(self.value, bytes):
+            serializer_name = None
             data = self.value
         else:
             msg = f"Must specify a serializer for non-bytes artifact: {self.value}"
@@ -58,7 +59,7 @@ class Artifact(Node[OrmArtifact], Generic[T]):
         else:
             artifact = OrmDatabaseArtifact(
                 node_id=self.node_id,
-                artifact_serializer=self.serializer.name,
+                artifact_serializer=serializer_name,
                 database_artifact_data=data,
             )
 

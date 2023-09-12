@@ -2,6 +2,11 @@
     --md-mermaid-font-family: Roboto Mono;
 }
 
+.autorefs {
+  font-family: var(--md-code-font-family);
+  font-size: 0.85em;
+}
+
 .md-grid {
     max-width: 83%;
 }

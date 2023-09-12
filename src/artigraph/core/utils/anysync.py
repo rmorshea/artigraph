@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import asynccontextmanager
 from functools import wraps
 from typing import (
     Any,
+    AsyncContextManager,
     Callable,
     Concatenate,
     Coroutine,
@@ -46,6 +48,18 @@ def anysyncmethod(
     return AnySyncMethod(method)
 
 
+def anysynccontextmanager(
+    func: Callable[P, Coroutine[None, None, R]]
+) -> Callable[P, _AnySyncGeneratorContextManager[R]]:
+    make_ctx = asynccontextmanager(func)
+
+    @wraps(make_ctx)
+    def wrapper(*args: Any, **kwargs: Any) -> _AnySyncGeneratorContextManager[R]:
+        return _AnySyncGeneratorContextManager(make_ctx(*args, **kwargs))
+
+    return wrapper
+
+
 class AnySyncFunc(Protocol[P, R]):
     __call__: Callable[P, Coroutine[None, None, R] | R]
     s: Callable[P, R]
@@ -60,6 +74,31 @@ class AnySyncMethod(Generic[P, R]):
     def __get__(self, obj: Any, objtype: Any = None) -> AnySyncFunc[P, R]:
         bound_func = self._func.__get__(obj, objtype)
         return anysync(bound_func)
+
+
+class _AnySyncGeneratorContextManager(Generic[R]):
+    def __init__(self, ctx: AsyncContextManager) -> None:
+        self._ctx = ctx
+
+    def __enter__(self) -> R:
+        return self._enter.s()
+
+    def __exit__(self, *args: Any) -> None:
+        self._exit.s(*args)
+
+    async def __aenter__(self) -> R:
+        return await self._enter.a()
+
+    async def __aexit__(self, *args: Any) -> None:
+        return await self._exit.a(*args)
+
+    @anysyncmethod
+    async def _enter(self) -> R:
+        return await self._ctx.__aenter__()
+
+    @anysyncmethod
+    async def _exit(self, *args) -> None:
+        return await self._ctx.__aexit__(*args)
 
 
 def _create_anysync_function(func: Callable[..., Any]) -> Callable[..., Any]:

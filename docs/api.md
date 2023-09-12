@@ -2,24 +2,16 @@
 
 ::: artigraph
 
-::: artigraph.serializer
+::: artigraph.extra.model.pydantic
 
-::: artigraph.serializer.datetime
+::: artigraph.extra.serializer.numpy
 
-::: artigraph.serializer.json
+::: artigraph.extra.serializer.pandas
 
-::: artigraph.serializer.numpy
+::: artigraph.extra.serializer.plotly
 
-::: artigraph.serializer.pandas
+::: artigraph.extra.serializer.polars
 
-::: artigraph.serializer.plotly
+::: artigraph.extra.serializer.pyarrow
 
-::: artigraph.serializer.polars
-
-::: artigraph.serializer.pyarrow
-
-::: artigraph.storage
-
-::: artigraph.storage.aws
-
-::: artigraph.storage.file
+::: artigraph.extra.storage.aws

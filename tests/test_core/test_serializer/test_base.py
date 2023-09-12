@@ -1,6 +1,6 @@
 import pytest
 
-from artigraph.core.serializer import Serializer
+from artigraph.core.serializer.base import Serializer
 
 
 class IntSerializer(Serializer[int]):

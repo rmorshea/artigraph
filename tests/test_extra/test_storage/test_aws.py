@@ -5,7 +5,7 @@ from typing import Callable
 import pytest
 from boto3 import client
 
-from artigraph.core.storage import Storage
+from artigraph.core.storage.base import Storage
 from artigraph.core.storage.file import FileSystemStorage, temp_file_storage
 from artigraph.extra.storage.aws import S3Storage
 

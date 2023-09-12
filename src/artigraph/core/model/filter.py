@@ -26,8 +26,8 @@ from artigraph.core.api.filter import (
     to_sequence_or_none,
     to_value_filter,
 )
-from artigraph.core.orm import OrmArtifact, OrmNode
-from artigraph.core.orm.artifact import OrmModelArtifact
+from artigraph.core.orm.artifact import OrmArtifact, OrmModelArtifact
+from artigraph.core.orm.node import OrmNode
 from artigraph.core.utils.misc import get_subclasses
 
 if TYPE_CHECKING:

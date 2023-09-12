@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from abc import ABC, abstractclassmethod, abstractmethod
+from abc import ABC
 from collections import defaultdict
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -87,12 +87,11 @@ class GraphModel(ABC):
     graph_node_id: UUID
     """The unique ID of this model."""
 
-    @abstractmethod
     def graph_model_data(self) -> dict[str, tuple[Any, FieldConfig]]:
         """The data for the artifact model."""
         raise NotImplementedError()
 
-    @abstractclassmethod
+    @classmethod
     def graph_model_init(cls, info: ModelInfo, kwargs: dict[str, Any], /) -> Self:
         """Initialize the artifact model, migrating it if necessary."""
         return cls(**kwargs)
@@ -145,10 +144,7 @@ class GraphModel(ABC):
     async def graph_load(
         cls,
         self_records: Sequence[OrmModelArtifact],
-        related_records: dict[
-            type[OrmNodeLink] | type[OrmNode],
-            Sequence[OrmNodeLink] | Sequence[OrmNode],
-        ],
+        related_records: dict[type[OrmBase], Sequence[OrmBase]],
     ) -> Sequence[Self]:
         arts_dict_by_p_id = _get_labeled_artifacts_by_parent_id(self_records, related_records)
         return [

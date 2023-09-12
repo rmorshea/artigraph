@@ -7,10 +7,11 @@ from artigraph.core.api.funcs import delete_one, exists, read_one, write_one
 from artigraph.core.api.link import NodeLink
 from artigraph.core.api.node import Node
 from artigraph.core.model.base import MODELED_TYPES, _try_convert_value_to_modeled_type
-from artigraph.core.model.dataclasses import DataclassModel
+from artigraph.core.model.dataclasses import dataclass
 
 
-class SimpleModel(DataclassModel, version=1):
+@dataclass(version=1)
+class SimpleModel:
     x: int
     y: str
     z: SimpleModel | None = None

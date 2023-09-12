@@ -15,12 +15,12 @@ from typing_extensions import Self
 from artigraph.core.api.filter import NodeFilter, NodeLinkFilter
 from artigraph.core.orm.link import OrmNodeLink
 from artigraph.core.orm.node import OrmNode
-from artigraph.core.utils.misc import Dataclass
+from artigraph.core.utils.misc import FrozenDataclass
 
 N = TypeVar("N", bound=OrmNode)
 
 
-class Node(Dataclass, Generic[N]):
+class Node(FrozenDataclass, Generic[N]):
     """A wrapper around an ORM node record."""
 
     graph_orm_type: ClassVar[type[N]] = OrmNode

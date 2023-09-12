@@ -30,10 +30,10 @@ from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.sql.elements import ExpressionClauseList
 from typing_extensions import ParamSpec, Self
 
-from artigraph.core.orm import OrmArtifact, OrmNode, get_polymorphic_identities
-from artigraph.core.orm.artifact import OrmModelArtifact
+from artigraph.core.orm.artifact import OrmArtifact, OrmModelArtifact
 from artigraph.core.orm.link import OrmNodeLink
-from artigraph.core.utils.misc import Dataclass, get_subclasses
+from artigraph.core.orm.node import OrmNode, get_polymorphic_identities
+from artigraph.core.utils.misc import FrozenDataclass, get_subclasses
 
 if TYPE_CHECKING:
     from artigraph.core.model import GraphModel
@@ -53,7 +53,7 @@ Expression = ColumnElement[bool]
 _NO_OP = ExpressionClauseList(operator.and_)
 
 
-class Filter(Dataclass):
+class Filter(FrozenDataclass):
     """Base class for where clauses."""
 
     def create(self) -> Expression:

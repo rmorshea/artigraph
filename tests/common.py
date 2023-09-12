@@ -7,7 +7,7 @@ from typing_extensions import Self
 from artigraph.core.api.filter import ValueFilter
 from artigraph.core.api.node import Node
 from artigraph.core.orm.base import OrmBase, make_uuid
-from artigraph.core.utils.misc import Dataclass
+from artigraph.core.utils.misc import FrozenDataclass
 
 
 def sorted_nodes(nodes: Sequence[Node]) -> Sequence[Node]:
@@ -42,7 +42,7 @@ class OrmFakePolyBeta(OrmFakePoly):
     fake_beta: Mapped[str] = mapped_column(nullable=True)
 
 
-class Fake(Dataclass):
+class Fake(FrozenDataclass):
     graph_orm_type: ClassVar[OrmFake] = OrmFake
 
     fake_data: str = ""
@@ -66,7 +66,7 @@ class Fake(Dataclass):
         return [cls(fake_id=r.fake_id, fake_data=r.fake_data) for r in records]
 
 
-class FakePoly(Dataclass):
+class FakePoly(FrozenDataclass):
     graph_orm_type: ClassVar[OrmFakePoly] = OrmFakePoly
 
     fake_data: str

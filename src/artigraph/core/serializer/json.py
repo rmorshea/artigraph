@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from artigraph.core.serializer import Serializer
+from artigraph.core.serializer.base import Serializer
 
 
 class JsonSerializer(Serializer[Any]):

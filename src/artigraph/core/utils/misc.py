@@ -127,7 +127,9 @@ _DATACLASS_KWONLY_PARAMS = {
 
 
 @dataclass_transform(field_specifiers=(field,))
-class _DataclassMeta(ABCMeta):
+class _FrozenDataclassMeta(ABCMeta):
+    """A metaclass that makes all subclasses dataclasses"""
+
     def __new__(
         cls,
         name: str,
@@ -144,7 +146,7 @@ class _DataclassMeta(ABCMeta):
         return self
 
 
-class Dataclass(metaclass=_DataclassMeta):
+class FrozenDataclass(metaclass=_FrozenDataclassMeta):
     """All subclasses are treated as keyword only dataclasses"""
 
     _: KW_ONLY

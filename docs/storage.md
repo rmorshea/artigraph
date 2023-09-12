@@ -8,10 +8,10 @@ AWS S3.
 
 All built-in serializers can be found under `artigraph.storage`:
 
-| Storage                                                            | Description                          |
-| ------------------------------------------------------------------ | ------------------------------------ |
-| [file.FileSystemStorage][artigraph.storage.file.FileSystemStorage] | Local filesystem                     |
-| [aws.S3Storage](#s3-storage)                                       | AWS [S3](https://aws.amazon.com/s3/) |
+| Storage                                                                              | Description                          |
+| ------------------------------------------------------------------------------------ | ------------------------------------ |
+| [core.storage.file.FileSystemStorage][artigraph.core.storage.file.FileSystemStorage] | Local filesystem                     |
+| [extra.storage.aws.S3Storage][artigraph.extra.storage.aws.S3Storage]                 | AWS [S3](https://aws.amazon.com/s3/) |
 
 ## Custom Storage Backends
 

@@ -1,393 +1,264 @@
 # Usage
 
-There are two main concepts in Artigraph:
-
--   **Models**: Structured data.
--   **Nodes**: Things models can be attached to.
+This section will go over basic Artigraph usage patterns.
 
 ## Setup
 
-First, you need to set up a SQLAlchemy engine and create the Artigraph tables. The
-quickest way to do this is to use the [set_engine][artigraph.db.set_engine] function,
-pass it a conntection string, and set `create_tables=True`. You won't need
-`create_tables=True` if you're using a database that already has the tables created.
+First, you need to set up an
+[async SQLAlchemy engine](https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html#sqlalchemy.ext.asyncio.create_async_engine)
+and create the Artigraph tables. The quickest way to do this is to use the
+[set_engine()][artigraph.set_engine] function, pass it a conntection string or any
+engine object, and set `create_tables=True`. You won't need `create_tables=True` if
+you're using a database that already has the tables created.
 
 ```python
-from artigraph import set_engine
+import artigraph as ag
 
-set_engine("sqlite+aiosqlite:///example.db", create_tables=True)
+ag.set_engine("sqlite+aiosqlite:///example.db", create_tables=True)
+```
+
+You can also use [engine_context()][artigraph.engine_context] to establish an engine for
+use within a particular block of code:
+
+```python
+with ag.engine_context("sqlite+aiosqlite:///example.db", create_tables=True):
+    # Do stuff with Artigraph
 ```
 
 !!! note
 
     You'll need to install `aiosqlite` for the above code to work.
 
-Then, you'll need to start up an async event loop. If you're using Jupyter, then you
-should already have one running. Otherwise, you can start one like this:
-
-```python
-import asyncio
-from artigraph import set_engine
-
-set_engine("sqlite+aiosqlite:///example.db", create_tables=True)
-
-async def main():
-    # your code here
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-All the examples below assume this setup has already been performed.
-
-## Data Models
-
-A [DataModel][artigraph.DataModel] is a frozen dataclass that describes the structure of
-data you want to save. Instead of using the `@dataclass` decorator, you subclass
-[DataModel][artigraph.DataModel] and declare the version of your model.
-
-```python
-from dataclasses import field
-from artigraph import DataModel, create_model
-
-
-class MyDataModel(DataModel, version=1):
-    some_value: int
-    another_value: dict[str, str] = field(default_factory=dict)
-```
-
-You can then create an instance of the model and save it to the database:
-
-```python
-# construct an artifact
-model = MyDataModel(some_value=42, another_value={"foo": "bar"})
-# save it to the database
-await write_model(label="my-data", model=model)
-```
-
-Instead of using the `@dataclass` decorator to declare dataclass behavior, pass kwargs
-in the class declartion:
-
-```python
-class MyDataModel(DataModel, version=1, repr=False, kw_only=True):
-    ...
-```
-
-### Model Fields
-
-By default the fields of a [DataModel][artigraph.DataModel] must be JSON serializable.
-However, you can annotated fields in order to indicate other methods for
-[serializing](serializers.md) or [storing](storage.md) them. As an example, you can
-declare a `pandas.DataFrame`` field that should be stored in S3:
-
-```python
-from typing import Annotated
-from artigraph import DataModel, model_field
-from artigraph.storage.aws import S3Storage
-from artigraph.serializer.pandas import dataframe_serializer
-
-s3_storage = S3Storage("my-bucket")
-
-
-class MyDataModel(DataModel, version=1):
-    frame: Annotated[pd.DataFrame, dataframe_serializer, s3_storage]
-```
-
-You can use this to declare reusable `typing.Annotated` types that can be composed
-together:
-
-```python
-from typing import Annotated, TypeVar
-
-from boto3 import client
-import pandas as pd
-
-from artigraph.storage.aws import S3Storage
-from artigraph.serializer.pandas import dataframe_serializer
-from artigraph.serializer.numpy import numpy_serializer
-
-s3_bucket = S3Storage("my-bucket", s3_client=client("s3"))
-
-T = TypeVar("T")
-S3 = Annotated[T, s3_bucket]
-PandasDataframe = Annotated[pd.DataFrame, dataframe_serializer]
-
-
-class MyDataModel(DataModel, version=1):
-    db_frame: PandasDataframe
-    s3_frame: S3[PandasDataframe]
-```
-
-In the above example, the `db_frame` field will be serialized and stored in the database
-as normal. The `s3_frame` field will instead be serialized and stored in S3.
-
-For more info on serializers and storage backends see:
-
--   [Serializers](serializers.md)
--   [Storage](storage.md)
-
-### Model Migrations
-
-Models are versioned and can be migrated from one version to another. This is useful
-when the structure of you model changes. For example, if you have a model like this:
-
-```python
-@dataclass
-class MyDataModel(DataModel, version=1):
-    some_value: int
-```
-
-And you want to change it to this:
-
-```python
-@dataclass
-class MyDataModel(DataModel, version=2):
-    renamed_value: int
-```
-
-You can define a migration function like so:
-
-```python
-@dataclass
-class MyDataModel(DataModel, version=2):
-    renamed_value: int
-
-    @classmethod
-    def model_migrate(cls, version: int, data: dict[str, Any]) -> "MyDataModel":
-        if version == 1:
-            return cls(renamed_value=data["some_value"])
-        else:
-            raise ValueError(f"Unknown version: {version}")
-```
-
-Now, when you read a model with version 1, it will be automatically converted to the new
-version when its read.
-
-Note that this does not write the migrated data to the database. With that said you
-could use [DataModel.model_init][artigraph.model.base.BaseModel.model_init] to write a
-migration scripts by reading a series of old models into the new class definition,
-saving the migrated data back to the database, and deleting the old data.
-
 ## Nodes
 
-Nodes provide a way to group models together.
+The [Node][artigraph.Node] class forms the backbone of the graphs you'll create with
+Artigraph. It represents a single vertex in a graph. You can create a node by
+instantiating the class directly:
 
 ```python
-from artigraph import new_node, write_node, write_models
+import artigraph as ag
 
-node = await write_node(new_node())
+node = ag.Node()
+```
 
-await write_models(
-    parent_id=node.node_id,
-    models={
-        "model1": MyDataModel(...),
-        "model2": MyDataModel(...),
-    }
+This won't immediately save the node to the database. To do that, you'll need to call
+[write_one()][artigraph.write_one].
+
+```python
+ag.write_one(node)
+```
+
+Or, if you need to write more than one node, you can pass [write()][artigraph.write] a
+sequence of nodes.
+
+```python
+node1 = ag.Node()
+node2 = ag.Node()
+ag.write([node1, node2])
+```
+
+## Links
+
+[NodeLink][artigraph.NodeLink] objects are the edges that connect nodes in a graph. To
+create one you'll need at least two node. You can then pass their IDs to the
+constructor:
+
+```python
+import artigraph as ag
+
+node1 = ag.Node()
+node2 = ag.Node()
+
+link = ag.NodeLink(parent_id=node1.node_id, child_id=node2.node_id)
+```
+
+Node links can also have a label that describes the relationship between the nodes:
+
+```python
+link = ag.NodeLink(
+    parent_id=node1.node_id,
+    child_id=node2.node_id,
+    label="your-label-here",
 )
 ```
 
-You can then retrieve the models attached to a node using
-[read_models()][artigraph.read_models]:
+You can then write them all to the database:
 
 ```python
-model_filter = NodeRelationshipFilter(child_of=node.node_id)
-models = await read_models(model_filter)
+ag.write([node1, node2, link])
 ```
 
-To make this easier, you can use [ModelGroup][artigraph.ModelGroup]s. You can use a
-[ModelGroup][artigraph.ModelGroup] as a context manager that automatically creates a
-node and, at the end of the context, attaches any models that were added to it. For
-example:
+## Artifacts
+
+An [Artifact][artigraph.Artifact] is a node in the graph that additionally has a value.
+Without specifying anything extra, values are limited to byte strings:
 
 ```python
-from artigraph import ModelGroup, new_node
+import artigraph as ag
 
-async with ModelGroup(new_node()) as group:
-    group.add_models(
-        {
-            "training_dataset": DatasetModel(...),
-            "test_dataset": DatasetModel(...),
-            "trained_model": TrainedModel(...),
-        }
-    )
+artifact = ag.Artifact(value=b"Hello, world!")
 ```
 
-You can then retrieve artifacts from the group using
-[ModelGroup.get_models()][artigraph.ModelGroup.get_models]:
+To store other types of data, you'll need to declare a [serializer](./serializers.md):
 
 ```python
-models = await group.read_models()
+json_artifact = ag.Artifact(value={"hello": "world"}, serializer=ag.json_serializer)
 ```
 
-You can also use groups with existing node or node ID:
+You can then write the artifact to the database:
 
 ```python
-node_id = 1234
-group = ModelGroup(node=node_id)
-group.add_model("model1", MyDataModel(...))
-await group.save()
-models = await group.get_models()
-await group.remove_models()
+ag.write_one(artifact)
 ```
 
-### Nesting Nodes
-
-Nodes can be nested to create a hierarchy. For example the following code
+As with nodes, you can relate them with each other or with other nodes using node links:
 
 ```python
-from artigraph import ModelGroup, new_node
+node = ag.Node()
+artifact = ag.Artifact(value=b"Hello, world!")
+link = ag.NodeLink(parent_id=node.node_id, child_id=artifact.node_id)
 
-async with ModelGroup(new_node()) as parent:
-    async with ModelGroup(new_node()) as node:
-        async with ModelGroup(new_node()) as child1:
-            async with ModelGroup(new_node()) as grandchild:
-                pass
-        async with ModelGroup(new_node()) as child2:
-            pass
+ag.write([node, artifact, link])
 ```
 
-Will create a node hierarchy like this:
-
-```mermaid
-graph LR
-    p([parent])
-    n([node])
-    c1([child1])
-    c2([child2])
-    g([grandchild])
-    p --> n
-    n --> c1
-    n --> c2
-    c1 --> g
-```
-
-Attaching artifacts to those nested spans:
+Some data is too large to store directly in the database. For that, you can specify a
+separate [storage](./storage.md) location:
 
 ```python
-from artigraph import ModelGroup, new_node
+file_storage = ag.FileSystemStorage("path/to/storage/dir")
 
-
-@dataclass
-class MyDataModel(DataModel, version=1):
-    some_value: int
-    another_value: str
-
-
-async with ModelGroup(new_node()) as parent:
-    async with ModelGroup(new_node()) as group:
-        node.add_model("model1", MyDataModel(...))
-        async with ModelGroup(new_node()) as child1:
-            async with ModelGroup(new_node()) as grandchild:
-                grandchild.add_model("model2", MyDataModel(...))
-        async with ModelGroup(new_node()) as child2:
-            child2.add_model("model3", MyDataModel(...))
+large_artifact = ag.Artifact(
+    value={"really": "big", "data": "here"},
+    serializer=ag.json_serializer,
+    storage=file_storage,
+)
 ```
 
-Would then extend the graph:
+## Models
 
-<div id="span-graph"></div>
-
-```mermaid
-graph LR
-    p([parent])
-    n([group])
-    c1([child1])
-    c2([child2])
-    g([grandchild])
-    m1[MyDataModel]
-    m2[MyDataModel]
-    m3[MyDataModel]
-
-    p --> n
-    n --> |model1| m1
-    n --> c1
-    n --> c2
-    c1 --> g
-    g --> |model2| m2
-    c2 --> |model3| m3
-```
-
-Artigraph provides [powerful utilities](queries.md) for exploring this graph.
-
-### Customizing Nodes
-
-The built-in [Node][artigraph.Node] is pretty bare bones. If you want to add additional
-metadata to spans, you can create a custom node class by subclassing
-[Node][artigraph.Node] using SQLAlchemy's
-[single table inheritance](schema.md#single-table-inheritance).
+A [GraphModel][artigraph.GraphModel] gives structure to the data in your artifacts. The
+easiest way to create one is using the built-in [@dataclass][artigraph.dataclass]
+decorator. The only difference between this decorator and the standard library version
+is that it must be used on a subclass of `GraphModel` which requires a version (which
+will be discussed later). With that in mind, you can define a model like so:
 
 ```python
-from artigraph import Node
+import artigraph as ag
 
 
-class Run(Node):
-    __mapper_args__ = {"polymorphic_identity": "run"}
+@ag.dataclass
+class Person(ag.GraphModel, version=1):
+    name: str
+    age: int
 ```
 
-Any new columns you add should be nullable or have a default as well as have a unique
-name that doesn't conflict with any existing columns. The latter is most easily achieved
-by prefixing the column name with the name of your custom node class:
+You can then create an instance of the model and write it to the database:
 
 ```python
-from typing import Any
+person = Person(name="John Doe", age=42)
+ag.write_one(person)
+```
+
+You'll note here that you didn't have to specify a serializer for non-bytes values.
+That's because, by default, the fields of a dataclass `GraphModel` are serialized using
+the built-in JSON serializer. For fields that are not JSON-serializable or which require
+external storage, you'll need to annotate them with this information using
+[`typing.Annotated`](https://docs.python.org/3/library/typing.html#typing.Annotated):
+
+```python
 from datetime import datetime
-from sqlalchemy import JSON
-from sqlalchemy.declarative import Mapped
-from artigraph import Node
+from typing import TypeVar, Annotated
+
+import artigraph as ag
+
+T = TypeVar("T")
+
+DateTime = Annotated[datetime, ag.datetime_serializer]
+StoreFile = Annotated[T, ag.FileSystemStorage("path/to/storage/dir")]
 
 
-class Run(Node):
-    __mapper_args__ = {"polymorphic_identity": "run"}
-    run_started_at: Mapped[datetime]
-    run_ended_at: Mapped[datetime | None] = None
+@ag.dataclass
+class Person(ag.GraphModel, version=1):
+    name: str
+    age: int
+    birthday: DateTime
+    photo: StoreFile[bytes]
+
+
+person = Person(
+    name="John Doe",
+    age=42,
+    birthday=datetime(1979, 1, 1),
+    photo=b"a really big photo",
+)
+
+ag.write_one(person)
 ```
 
-You can then use your custom node class by passing it to `ModelGroup()`:
+## Async
+
+Artigraph is designed to be used in both a synchronous or asynchronous context. Many
+functions and methods are dual-use and can be called either way. One such function is
+[artigraph.write()][artigraph.write]. Synchronous use looks like this:
 
 ```python
-from artigraph import ModelNode, new_node
-from datetime import datetime, timezone
+ag.write(...)
+```
 
-run = new_node(Run, run_started_at=datetime.now(timezone.utc))
-async with ModelNode(run):
+While asynchronous use looks like this:
+
+```python
+import asyncio
+
+
+async def main():
+    await ag.write(...)
+
+
+asyncio.run(main())
+```
+
+This is similarly true for many context managers. For example, the
+[current_session()][artigraph.current_session] context manager can be used
+synchronously:
+
+```python
+with ag.current_session() as session:
     ...
 ```
 
-### Building Upon Nodes
-
-Node are a very flexible abstraction that can be used to build more complex tooling. For
-example, you could implement a decorator that automatically creates a `Run` (from the
-last section), passes the parent node to the function and automatically sets the start
-and end times of the run:
+Or asynchronously:
 
 ```python
-from functools import wraps
-from artigraph import ModelGroup, new_node, current_session
+import asyncio
 
 
-def run(func):
-    @wraps(func)
-    async def wrapper(*args, **kwargs):
-        run = new_node(Run, run_started_at=datetime.now(timezone.utc))
-        async with ModelGroup(run) as group:
-            try:
-                result = await func(*args, **kwargs)
-                await group.add_models(result)
-                return result
-            finally:
-                async with current_session() as session:
-                    run.run_ended_at = datetime.now(timezone.utc)
-                    session.add(run)
-                    await session.commit()
+async def main():
+    async with ag.current_session() as session:
+        ...
 
-    return wrapper
+
+asyncio.run(main())
 ```
 
-You could then use this decorator to create `run` functions like this:
+To force Artigraph to use version you need only access the `.a` or `.s` attributes of
+the function you're calling to get the async or sync version respectively. In the
+examples above `write.s` is the sync version and `write.a` is the async version.
 
-```python
-@run
-async def train_model(**parameters):
-    model = train_model(**parameters)
-    return {"model": model}
-```
+Being able to be explicit about whether you're using a sync or async version of a
+function can also be useful when working with type checkers since the return type of the
+dual-use function (without the `.a` or `.s`) will be the union `Awaitable[T] | T` where
+`T` is the return type of the function.
+
+A non-exhaustive list of dual-use functions, methods and context managers is below:
+
+-   [exists()][artigraph.exists]
+-   [read()][artigraph.read]
+-   [read_one()][artigraph.read_one]
+-   [write()][artigraph.write]
+-   [write_one()][artigraph.write_one]
+-   [delete()][artigraph.delete]
+-   [delete_one()][artigraph.delete_one]
+-   [delete_many()][artigraph.delete_one]
+-   [current_session()][artigraph.current_session]
+-   [new_session()][artigraph.new_session]

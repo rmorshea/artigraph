@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from artigraph.core.serializer import Serializer
+from artigraph.core.serializer.base import Serializer
 
 
 class DatetimeSerializer(Serializer):

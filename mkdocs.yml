@@ -9,6 +9,7 @@ nav:
     - Home: index.md
     - Usage: usage.md
     - Queries: queries.md
+    - Models: models.md
     - Storage: storage.md
     - Serializers: serializers.md
     - Schema: schema.md

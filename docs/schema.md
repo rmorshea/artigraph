@@ -79,6 +79,10 @@ wide variety of use cases. In general, if you find yourself needing to add a new
     are null for any row with at least one null value. As such, the size of a sparse
     row is identical to one that is well (but not completely) populated.
 
+## Node Link
+
+TODO
+
 ## Base Artifact
 
 `BaseArtifact` is a subclass of [`Node`](#node) that defines a set of columns that are
@@ -126,26 +130,26 @@ this it defines:
 
 The `remote_artifact_storage` column maps to a [storage backend](storage.md) by name.
 
-## Data Model
+## Graph Models
 
-The [dataclass-like usage of `DataModel`](usage.md#artifact-models) belies the fact that
-its underlying implementation builds atop [remote](#remote-artifact) and
-[model](#model-artifact) artifacts. Under the hood, the hierarchy of `DataModel`s and
-their fields is replicated in the database.
-
-Given an `DataModel` like
+The [dataclass-like usage of `GraphModel`](usage.md#models) belies the fact that its
+underlying implementation builds atop [database](#database-artifact),
+[remote](#remote-artifact) and [model](#model-artifact) artifacts. Under the hood, the
+hierarchy of a `GraphModel` and its fields are replicated in the database. So saving an
+`GraphModel` like the one below:
 
 ```python
-class MyDataModel(DataModel, version=1):
+import artigraph as ag
+
+
+@ag.dataclass
+class MyDataModel(ag.GraphModel, version=1):
     some_value: int
     inner_model: MyDataModel | None = None
-```
 
-Saving the following instance
 
-```python
 my_data = MyDataModel(some_value=1, inner_model=MyDataModel(some_value=2))
-await my_data.create(label="my-data")
+ag.write_one(my_data)
 ```
 
 Will result in the following graph being created in the database
@@ -163,13 +167,3 @@ graph TB
     m2 --> |some_value| f2
     m2 --> |inner_model| f3
 ```
-
-With the table contents below
-
-| node_id | node_parent_id | node_polymorphic_identity | node_created_at | node_updated_at | artifact_label | artifact_serializer   | model_artifact_type | model_artifact_version | database_artifact_data        | remote_artifact_storage | remote_artifact_location |
-| ------- | -------------- | ------------------------- | --------------- | --------------- | -------------- | --------------------- | ------------------- | ---------------------- | ----------------------------- | ----------------------- | ------------------------ |
-| 1       |                | model_artifact            | ...             | ...             | my-data        | artigraph-json-sorted | MyDataModel         | 1                      | {'artigraph_version':'x.y.z'} |                         |                          |
-| 2       | 1              | database_artifact         | ...             | ...             | some_value     | artigraph-json        |                     |                        | 1                             |                         |                          |
-| 3       | 1              | model_artifact            | ...             | ...             | inner_model    | artigraph-json-sorted | MyDataModel         | 1                      | {'artigraph_version':'x.y.z'} |                         |                          |
-| 4       | 3              | database_artifact         | ...             | ...             | some_value     | artigraph-json        |                     |                        | 2                             |                         |                          |
-| 5       | 3              | database_artifact         | ...             | ...             | inner_model    | artigraph-json        |                     |                        |                               |                         |                          |

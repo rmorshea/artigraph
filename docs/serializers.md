@@ -9,18 +9,17 @@ serializer explicitly.
 
 All built-in serializers can be found under `artigraph.serializer`:
 
-| Serializer                                                                          | Description                                                              |
-| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| [datetime.datetime_serializer][artigraph.serializer.datetime.datetime_serializer]   | Date Times                                                               |
-| [datetime.timedelta_serializer][artigraph.serializer.datetime.timedelta_serializer] | Time Deltas                                                              |
-| [json.json_serializer][artigraph.serializer.json.json_serializer]                   | JSON                                                                     |
-| [json.json_sorted_serializer][artigraph.serializer.json.json_sorted_serializer]     | JSON with sorted keys                                                    |
-| [numpy.array_serializer][artigraph.serializer.numpy.array_serializer]               | 1d and 2d [Numpy](https://numpy.org/) Arrays                             |
-| [pandas.dataframe_serializer][artigraph.serializer.pandas.dataframe_serializer]     | [Pandas](https://pandas.pydata.org/) DataFrames                          |
-| [plotly.figure_json_serializer][artigraph.serializer.plotly.figure_json_serializer] | [Plotly](https://plotly.com/python/) Figures                             |
-| [polars.dataframe_serializer][artigraph.serializer.polars.dataframe_serializer]     | [Polars](https://pola-rs.github.io/) DataFrames                          |
-| [pyarrow.feather_serializer][artigraph.serializer.pyarrow.feather_serializer]       | [PyArrow](https://arrow.apache.org/docs/python/index.html) Feather Files |
-| [pyarrow.parquet_serializer][artigraph.serializer.pyarrow.parquet_serializer]       | [PyArrow](https://arrow.apache.org/docs/python/index.html) Parquet Files |
+| Serializer                                                                                                 | Description                                                              |
+| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| [core.serializer.datetime.datetime_serializer][artigraph.datetime_serializer]                              | Date Times                                                               |
+| [core.serializer.json.json_serializer][artigraph.json_serializer]                                          | JSON                                                                     |
+| [core.serializer.json.json_sorted_serializer][artigraph.json_sorted_serializer]                            | JSON with sorted keys                                                    |
+| [extra.serializer.numpy.array_serializer][artigraph.extra.serializer.numpy.array_serializer]               | 1d and 2d [Numpy](https://numpy.org/) Arrays                             |
+| [extra.serializer.pandas.dataframe_serializer][artigraph.extra.serializer.pandas.dataframe_serializer]     | [Pandas](https://pandas.pydata.org/) DataFrames                          |
+| [extra.serializer.plotly.figure_json_serializer][artigraph.extra.serializer.plotly.figure_json_serializer] | [Plotly](https://plotly.com/python/) Figures                             |
+| [extra.serializer.polars.dataframe_serializer][artigraph.extra.serializer.polars.dataframe_serializer]     | [Polars](https://pola-rs.github.io/) DataFrames                          |
+| [extra.serializer.pyarrow.feather_serializer][artigraph.extra.serializer.pyarrow.feather_serializer]       | [PyArrow](https://arrow.apache.org/docs/python/index.html) Feather Files |
+| [extra.serializer.pyarrow.parquet_serializer][artigraph.extra.serializer.pyarrow.parquet_serializer]       | [PyArrow](https://arrow.apache.org/docs/python/index.html) Parquet Files |
 
 ## Custom Serializers
 

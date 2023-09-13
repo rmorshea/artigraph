@@ -72,14 +72,32 @@ node2 = ag.Node()
 link = ag.NodeLink(parent_id=node1.node_id, child_id=node2.node_id)
 ```
 
+Which will form the following relationship:
+
+```mermaid
+graph LR
+    n1([node1])
+    n2([node2])
+    n1 --> n2
+```
+
 Node links can also have a label that describes the relationship between the nodes:
 
 ```python
 link = ag.NodeLink(
     parent_id=node1.node_id,
     child_id=node2.node_id,
-    label="your-label-here",
+    label="your-label",
 )
+```
+
+That have a labeled edge between them:
+
+```mermaid
+graph LR
+    n1([node1])
+    n2([node2])
+    n1 -- your-label --> n2
 ```
 
 You can then write them all to the database:

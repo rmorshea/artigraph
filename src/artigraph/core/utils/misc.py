@@ -147,6 +147,6 @@ class _FrozenDataclassMeta(ABCMeta):
 
 
 class FrozenDataclass(metaclass=_FrozenDataclassMeta):
-    """All subclasses are treated as keyword only dataclasses"""
+    """All subclasses are treated as frozen keyword-only dataclasses"""
 
     _: KW_ONLY

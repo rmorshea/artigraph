@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Generic, TypedDict, TypeVar
+from typing import Any, Generic, TypeVar
 
 from typing_extensions import Self
 
@@ -39,6 +39,9 @@ class Serializer(ABC, Generic[T]):
     deprecate the old one.
     """
 
+    types: tuple[type[T], ...]
+    """The types of values this serializer supports."""
+
     def register(self) -> Self:
         """Register a serializer.
 
@@ -72,11 +75,6 @@ class Serializer(ABC, Generic[T]):
         """Deserialize a string or bytes to a value."""
         raise NotImplementedError()  # nocov
 
-
-class DataWrapper(TypedDict):
-    """A wrapper for serialized data."""
-
-    wrapper_version: int
-    serializer_name: int
-    data_encoding: str
-    data: str
+    def serializable(self, value: Any) -> bool:
+        """Check if a value can be serialized."""
+        return isinstance(value, self.types)

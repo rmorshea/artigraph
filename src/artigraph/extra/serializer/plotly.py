@@ -4,10 +4,11 @@ from plotly.graph_objs import Figure
 from artigraph.core.serializer.base import Serializer
 
 
-class FigureJsonSerializer(Serializer):
+class FigureJsonSerializer(Serializer[Figure]):
     """Serialize a plotly figure"""
 
     name = "artigraph-plotly-figure-json"
+    types = (Figure,)
 
     def serialize(self, figure: Figure) -> bytes:
         result = plotly_io.to_json(figure)

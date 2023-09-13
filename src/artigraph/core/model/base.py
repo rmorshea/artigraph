@@ -65,7 +65,7 @@ def allow_model_type_overwrites() -> Iterator[None]:
 class FieldConfig(TypedDict, total=False):
     """The metadata for an artifact model field."""
 
-    serializer: Serializer
+    serializers: Sequence[Serializer]
     """The serializer for the artifact model field."""
 
     storage: Storage
@@ -130,10 +130,7 @@ class GraphModel(ABC):
         dump_related: TaskBatch[Sequence[OrmBase]] = TaskBatch()
         for label, (value, config) in self.graph_model_data().items():
             maybe_model = _try_convert_value_to_modeled_type(value)
-            if isinstance(maybe_model, GraphLike):
-                if config:
-                    msg = f"Model artifacts cannot have a config. Got {config}"
-                    raise ValueError(msg)
+            if not config and isinstance(maybe_model, GraphLike):
                 dump_related.add(_dump_and_link, maybe_model, self.graph_node_id, label)
             else:
                 art = _make_artifact(value, config)
@@ -229,9 +226,24 @@ def _make_artifact(value: Any, config: FieldConfig) -> Artifact[Any]:
     config = FieldConfig() if config is None else config
     return Artifact(
         value=value,
-        serializer=config.get("serializer", json_serializer),
+        serializer=_pick_serializer(value, config.get("serializers", [json_serializer])),
         storage=config.get("storage"),
     )
+
+
+def _pick_serializer(value: Any, serializers: Sequence[Serializer]) -> Serializer | None:
+    if not serializers:
+        return None
+
+    if len(serializers) == 1:
+        return serializers[0]
+
+    for s in serializers:
+        if s.serializable(value):
+            return s
+
+    msg = f"Could not find a serializer for {value} among {serializers}"
+    raise ValueError(msg)
 
 
 def _get_labeled_artifacts_by_parent_id(

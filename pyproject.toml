@@ -74,6 +74,9 @@ publish-pypi = "hatch build && hatch publish"
 # --- Pytest ---------------------------------------------------------------------------------------
 
 [tool.pytest.ini_options]
+testpaths = "tests"
+xfail_strict = true
+python_files = "check*.py test_*.py"
 asyncio_mode = "auto"
 
 # --- Black ----------------------------------------------------------------------------------------

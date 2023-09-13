@@ -136,14 +136,30 @@ def get_annotated_model_data(obj: Any, field_names: Sequence[str]) -> ModelData:
     for f_name in field_names:  # type: ignore
         f_config = FieldConfig()
         hint = cls_hints.get(f_name)
-        if get_origin(hint) is Annotated:
-            for f_type_arg in get_args(hint):
+        serializers: list[Serializer] = []
+        for annotated_hint in _find_all_annotated_metadata(hint):
+            for f_type_arg in get_args(annotated_hint):
                 if isinstance(f_type_arg, Serializer):
-                    f_config["serializer"] = f_type_arg
+                    serializers.append(f_type_arg)
                 elif isinstance(f_type_arg, Storage):
+                    if "storage" in f_config:
+                        msg = (
+                            f"Multiple storage types specified for {f_name!r} "
+                            f"- {f_type_arg} and {f_config['storage']}"
+                        )
+                        raise ValueError(msg)
                     f_config["storage"] = f_type_arg
+            if serializers:
+                f_config["serializers"] = serializers
         model_field_configs[f_name] = f_config
     return {name: (getattr(obj, name), config) for name, config in model_field_configs.items()}
+
+
+def _find_all_annotated_metadata(hint: Any) -> Sequence[Annotated]:
+    """Find all Annotated metadata in a type hint."""
+    if get_origin(hint) is Annotated:
+        return [hint, *[a for h in get_args(hint) for a in _find_all_annotated_metadata(h)]]
+    return [a for h in get_args(hint) for a in _find_all_annotated_metadata(h)]
 
 
 @lru_cache(maxsize=None)

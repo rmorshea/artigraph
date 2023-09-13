@@ -25,7 +25,7 @@ _CURRENT_SESSION: ContextVar[AsyncSession | None] = ContextVar("CURRENT_SESSION"
 
 
 @contextmanager
-def engine_context(
+def current_engine(
     engine: AsyncEngine | str,
     *,
     create_tables: bool = False,

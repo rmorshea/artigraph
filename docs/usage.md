@@ -17,11 +17,11 @@ import artigraph as ag
 ag.set_engine("sqlite+aiosqlite:///example.db", create_tables=True)
 ```
 
-You can also use [engine_context()][artigraph.engine_context] to establish an engine for
+You can also use [current_engine()][artigraph.current_engine] to establish an engine for
 use within a particular block of code:
 
 ```python
-with ag.engine_context("sqlite+aiosqlite:///example.db", create_tables=True):
+with ag.current_engine("sqlite+aiosqlite:///example.db", create_tables=True):
     # Do stuff with Artigraph
 ```
 
@@ -280,4 +280,3 @@ A non-exhaustive list of dual-use functions, methods and context managers is bel
 -   [delete_one()][artigraph.delete_one]
 -   [delete_many()][artigraph.delete_one]
 -   [current_session()][artigraph.current_session]
--   [new_session()][artigraph.new_session]

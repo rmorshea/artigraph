@@ -22,7 +22,7 @@ from artigraph.core.api.funcs import (
 from artigraph.core.api.link import NodeLink
 from artigraph.core.api.node import Node
 from artigraph.core.api.proto import GraphLike
-from artigraph.core.db import current_session, engine_context, set_engine
+from artigraph.core.db import current_engine, current_session, set_engine
 from artigraph.core.model.base import FieldConfig, GraphModel, ModelInfo, ModelMetadata
 from artigraph.core.model.dataclasses import dataclass
 from artigraph.core.model.filter import ModelFilter, ModelTypeFilter
@@ -53,7 +53,7 @@ __all__ = (
     "delete_one",
     "delete_one",
     "delete",
-    "engine_context",
+    "current_engine",
     "exists",
     "FieldConfig",
     "FileSystemStorage",

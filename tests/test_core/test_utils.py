@@ -7,7 +7,7 @@ from artigraph.core.utils.anysync import (
     anysynccontextmanager,
     anysyncmethod,
 )
-from artigraph.core.utils.misc import UNDEFINED, TaskBatch, slugify
+from artigraph.core.utils.misc import UNDEFINED, ExceptionGroup, TaskBatch, slugify
 
 
 @pytest.mark.parametrize(
@@ -92,3 +92,44 @@ async def test_anysynccontextmanager():
 
     with some_ctx() as x:
         assert x == 1
+
+
+async def test_empty_task_batch():
+    assert await TaskBatch().gather() == []
+
+
+async def test_task_batch_cancel_slow_task_on_error():
+    did_cancel = False
+
+    async def slow_task():
+        nonlocal did_cancel
+        # this will never exit
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            did_cancel = True
+            raise
+
+    async def task_with_error():
+        raise RuntimeError()
+
+    batch = TaskBatch[int]()
+    batch.add(slow_task)
+    batch.add(task_with_error)
+
+    with pytest.raises(RuntimeError):
+        await batch.gather()
+
+    assert did_cancel
+
+
+async def test_task_batch_raise_exception_group():
+    async def task_with_error():
+        raise RuntimeError()
+
+    batch = TaskBatch[int]()
+    batch.add(task_with_error)
+    batch.add(task_with_error)
+
+    with pytest.raises(ExceptionGroup):
+        await batch.gather()

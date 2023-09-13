@@ -25,6 +25,7 @@ from artigraph.core.model.base import (
     GraphModel,
     ModelData,
     ModelInfo,
+    allow_model_type_overwrites,
 )
 from artigraph.core.serializer.base import Serializer
 from artigraph.core.storage.base import Storage
@@ -102,25 +103,28 @@ def dataclass(
             slots=slots,
         )
 
-        @_dataclass(frozen=frozen)
-        class _DataclassModel(cls, version=cls.graph_model_version):
-            graph_node_id: UUID = field(default_factory=uuid1, kw_only=True)
+        with allow_model_type_overwrites():
 
-            @classmethod
-            def graph_model_init(cls, info: ModelInfo, data: dict[str, Any]) -> Self:
-                return cls(graph_node_id=info.node_id, **data)
+            @_dataclass(frozen=frozen)
+            class _DataclassModel(cls, version=cls.graph_model_version):
+                graph_node_id: UUID = field(default_factory=uuid1, kw_only=True)
+                graph_model_name = getattr(cls, "graph_model_name", cls.__name__)
 
-            def graph_model_data(self) -> ModelData:
-                return get_annotated_model_data(
-                    self,
-                    [
-                        f.name
-                        for f in fields(self)
-                        if f.init
-                        # exclude this since it's on the DB record anyway
-                        and f.name != "graph_node_id"
-                    ],
-                )
+                @classmethod
+                def graph_model_init(cls, info: ModelInfo, data: dict[str, Any]) -> Self:
+                    return cls(graph_node_id=info.node_id, **data)
+
+                def graph_model_data(self) -> ModelData:
+                    return get_annotated_model_data(
+                        self,
+                        [
+                            f.name
+                            for f in fields(self)
+                            if f.init
+                            # exclude this since it's on the DB record anyway
+                            and f.name != "graph_node_id"
+                        ],
+                    )
 
         _DataclassModel.__name__ = cls.__name__
 

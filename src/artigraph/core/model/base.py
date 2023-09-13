@@ -103,7 +103,10 @@ class GraphModel(ABC):
             cls.graph_model_name = cls.__name__
 
         if not ALLOW_MODEL_TYPE_OVERWRITES.get() and cls.graph_model_name in MODEL_TYPE_BY_NAME:
-            msg = f"Artifact model {cls.graph_model_name!r} already exists"
+            msg = (
+                f"Artifact model {cls.graph_model_name!r} already exists "
+                f"as {MODEL_TYPE_BY_NAME[cls.graph_model_name]}"
+            )
             raise RuntimeError(msg)
         else:
             MODEL_TYPE_BY_NAME[cls.graph_model_name] = cls

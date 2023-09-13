@@ -30,7 +30,7 @@ R = TypeVar("R")
 SLUG_REPLACE_PATTERN = re.compile(r"[^a-z0-9]+")
 """A pattern for replacing non-alphanumeric characters in slugs"""
 
-if sys.version_info < (3, 11):
+if sys.version_info < (3, 11):  # nocov
 
     class ExceptionGroup(Exception):  # noqa: N818, A001
         """An exception that contains multiple exceptions
@@ -49,6 +49,9 @@ if sys.version_info < (3, 11):
                 for index, exc in enumerate(self.exceptions)
             )
             return f"{super().__str__()}\n\n{tracebacks}"
+
+else:
+    ExceptionGroup = ExceptionGroup  # noqa: A001
 
 
 def create_sentinel(name: str) -> Any:
@@ -110,7 +113,7 @@ class TaskBatch(Generic[R]):
                     t.cancel()
                 await asyncio.wait(pending)
             msg = "One or more tasks failed"
-            raise ExceptionGroup(msg, errors)
+            raise ExceptionGroup(msg, errors) if len(errors) > 1 else errors[0]
 
         return [t.result() for t in tasks]
 

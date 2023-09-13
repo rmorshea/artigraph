@@ -1,24 +1,32 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Annotated, Any, TypeVar
 
 import pytest
 
 from artigraph.core.api.filter import ModelFilter, NodeFilter, NodeLinkFilter
+from artigraph.core.api.funcs import write_one
 from artigraph.core.api.link import NodeLink
 from artigraph.core.api.node import Node
 from artigraph.core.model.base import GraphModel
 from artigraph.core.model.dataclasses import dataclass
 from artigraph.core.serializer.datetime import datetime_serializer
 from artigraph.core.serializer.json import json_serializer
-from artigraph.core.storage.file import temp_file_storage
+from artigraph.core.storage.file import FileSystemStorage, temp_file_storage
 from tests.common.check import check_can_read_write_delete_one
 
 T = TypeVar("T")
 DateTime = Annotated[datetime, datetime_serializer]
 Json = Annotated[Any, json_serializer]
 TempFileStorage = Annotated[T, temp_file_storage]
+tmp_path = TemporaryDirectory()
+store1 = FileSystemStorage(Path(tmp_path.name, "store1"))
+store2 = FileSystemStorage(Path(tmp_path.name, "store2"))
+Store1 = Annotated[T, store1]
+Store2 = Annotated[T, store2]
 
 
 @dataclass
@@ -31,12 +39,21 @@ class SimpleModel(GraphModel, version=1):
     dt_with_storage: TempFileStorage[DateTime | None] = None
 
 
-def test_dataclass_must_inherit_from_graph_model():
+def test_dataclass_model_must_inherit_from_graph_model():
     with pytest.raises(TypeError):
 
         @dataclass
         class NotAGraphModel:
             pass
+
+
+async def test_dataclass_model_one_field_cannot_have_multiple_storages(tmp_path):
+    @dataclass
+    class ModelFieldHasMultipleStorages(GraphModel, version=1):
+        x: Store1[Store2[bytes]]
+
+    with pytest.raises(ValueError):
+        await write_one(ModelFieldHasMultipleStorages(x=b"hello"))
 
 
 @pytest.mark.parametrize(

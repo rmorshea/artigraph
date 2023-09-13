@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Any, AsyncIterator, Callable, Iterator, TypeVar
+from typing import AsyncIterator, Callable, Iterator, TypeVar
 
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -40,19 +40,9 @@ def engine_context(
 
 
 @anysynccontextmanager
-async def new_session(**kwargs: Any) -> AsyncIterator[AsyncSession]:
-    """Define which session to use in the context."""
-    kwargs.setdefault("expire_on_commit", False)
-    async with async_sessionmaker(await get_engine(), **kwargs)() as session:
-        reset = set_session(session)
-        try:
-            yield session
-        finally:
-            reset()
-
-
-@anysynccontextmanager
-async def current_session() -> AsyncIterator[AsyncSession]:
+async def current_session(
+    make_session: async_sessionmaker[AsyncSession] | None = None,
+) -> AsyncIterator[AsyncSession]:
     """A context manager for an asynchronous database session."""
     session = get_session()
 
@@ -60,7 +50,10 @@ async def current_session() -> AsyncIterator[AsyncSession]:
         yield session
         return
 
-    async with AsyncSession(await get_engine(), expire_on_commit=False) as session:
+    make_session = make_session or async_sessionmaker(await get_engine(), expire_on_commit=False)
+
+    async with make_session() as session:
+        reset = set_session(session)
         try:
             yield session
         except Exception:
@@ -68,6 +61,8 @@ async def current_session() -> AsyncIterator[AsyncSession]:
             raise
         else:
             await session.commit()
+        finally:
+            reset()
 
 
 def set_engine(engine: AsyncEngine | str, *, create_tables: bool = False) -> Callable[[], None]:

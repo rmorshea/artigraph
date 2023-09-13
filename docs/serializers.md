@@ -33,6 +33,9 @@ T = TypeVar("T")
 
 class CustomSerializer(Serializer[T]):
 
+    types = (object,)
+    """The types that this serializer can handle"""
+
     def __init__(self):
         # This must be GLOBALLY unique and stable across versions!
         self.name = "custom-serializer"

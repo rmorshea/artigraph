@@ -1,5 +1,6 @@
 import moto
 import pytest
+from sqlalchemy import event
 
 from artigraph.core.db import current_engine
 
@@ -12,6 +13,11 @@ def engine():
         "sqlite+aiosqlite:///:memory:",
         create_tables=True,
     ) as eng:
+        event.listen(
+            eng.sync_engine,
+            "connect",
+            lambda c, _: c.execute("pragma foreign_keys=on"),
+        )
         yield eng
 
 

@@ -24,7 +24,7 @@ class OrmNodeLink(OrmBase):
     child_id: Mapped[UUID] = mapped_column(ForeignKey(OrmNode.node_id), nullable=False)
     """The ID of the child node."""
 
-    parent_id: Mapped[UUID | None] = mapped_column(ForeignKey(OrmNode.node_id), default=None)
+    parent_id: Mapped[UUID] = mapped_column(ForeignKey(OrmNode.node_id), nullable=False)
     """The ID of the parent node."""
 
     label: Mapped[str | None] = mapped_column(nullable=True, default=None)

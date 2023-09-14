@@ -7,6 +7,7 @@ from functools import wraps
 from typing import (
     Any,
     AsyncContextManager,
+    AsyncIterator,
     Callable,
     Concatenate,
     Coroutine,
@@ -49,7 +50,7 @@ def anysyncmethod(
 
 
 def anysynccontextmanager(
-    func: Callable[P, Coroutine[None, None, R]]
+    func: Callable[P, AsyncIterator[R]]
 ) -> Callable[P, _AnySyncGeneratorContextManager[R]]:
     make_ctx = asynccontextmanager(func)
 

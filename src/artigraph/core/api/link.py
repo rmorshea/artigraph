@@ -17,10 +17,10 @@ class NodeLink(FrozenDataclass):
     graph_orm_type: ClassVar[type[L]] = OrmNodeLink
     """The ORM type for this node."""
 
-    child_id: UUID | None = None
+    child_id: UUID
     """The ID of the child node."""
 
-    parent_id: UUID | None = None
+    parent_id: UUID
     """The ID of the parent node."""
 
     label: str | None = None

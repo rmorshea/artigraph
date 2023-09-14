@@ -6,6 +6,7 @@ from typing import Any, ClassVar
 from uuid import uuid1
 
 from sqlalchemy import func
+from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import DeclarativeBase, Mapped, MappedAsDataclass, mapped_column
 
 
@@ -17,6 +18,15 @@ def make_uuid() -> str:
 def get_poly_graph_orm_type(table: str, poly_id: str) -> type[OrmBase]:
     """Get the ORM type for the given table and polymorphic identity."""
     return _ORM_TYPE_BY_TABLE_AND_POLY_ID[(table, poly_id)]
+
+
+def get_fk_dependency_rank(graph_orm_type: type[OrmBase]) -> int:
+    """Get the foreign key dependency rank of the given ORM type.
+
+    This is use to determine the order in which records should be inserted or deleted
+    based on their foreign key dependencies.
+    """
+    return _FK_DEPENDENCY_RANK_BY_TABLE_NAME[graph_orm_type.__tablename__]
 
 
 class OrmBase(MappedAsDataclass, DeclarativeBase):
@@ -35,7 +45,16 @@ class OrmBase(MappedAsDataclass, DeclarativeBase):
                 if cls is not maybe_conflict_cls:  # nocov
                     msg = f"Polymorphic ID {poly_id} exists as {maybe_conflict_cls}"
                     raise ValueError(msg)
+
         super().__init_subclass__(**kwargs)
+
+        inspector = inspect(cls)
+        rank = 0
+        for c in inspector.columns:
+            for fk in c.foreign_keys:
+                if fk.column.table.name != cls.__tablename__:
+                    rank = max(rank, _FK_DEPENDENCY_RANK_BY_TABLE_NAME[fk.column.table.name] + 1)
+        _FK_DEPENDENCY_RANK_BY_TABLE_NAME[cls.__tablename__] = rank
 
     created_at: Mapped[datetime] = mapped_column(
         nullable=False,
@@ -55,3 +74,6 @@ class OrmBase(MappedAsDataclass, DeclarativeBase):
 
 _ORM_TYPE_BY_TABLE_AND_POLY_ID: dict[tuple[str, str], type[OrmBase]] = {}
 """A mapping from polymorphic identity to ORM type."""
+
+_FK_DEPENDENCY_RANK_BY_TABLE_NAME: dict[str, int] = {}
+"""A mapping from table name to FK dependency rank."""

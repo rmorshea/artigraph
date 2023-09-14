@@ -11,7 +11,11 @@ from sqlalchemy import delete as sql_delete
 from artigraph.core.api.filter import Filter, MultiFilter
 from artigraph.core.api.proto import GraphLike
 from artigraph.core.db import current_session
-from artigraph.core.orm.base import OrmBase, get_poly_graph_orm_type
+from artigraph.core.orm.base import (
+    OrmBase,
+    get_fk_dependency_rank,
+    get_poly_graph_orm_type,
+)
 from artigraph.core.utils.anysync import anysync
 from artigraph.core.utils.misc import TaskBatch
 
@@ -80,7 +84,7 @@ async def delete_many(objs: Sequence[GraphLike]) -> None:
         for o_type, o_filters in filters_by_type.items():
             where = o_filters[0] if len(o_filters) == 1 else MultiFilter(op="or", filters=o_filters)
             await delete(o_type, where)
-        session.commit()
+        await session.commit()
 
 
 @anysync
@@ -88,8 +92,8 @@ async def delete(cls: type[GraphLike], where: Filter) -> None:
     """Delete records matching the given filter."""
     related_filters = cls.graph_filter_related(where)
     async with current_session():
-        for o_type, o_where in related_filters.items():
-            await orm_delete(o_type, o_where)
+        for o_type in sorted(related_filters, key=get_fk_dependency_rank, reverse=True):
+            await orm_delete(o_type, related_filters[o_type])
         # must delete this last since the related deletion queries may depend on it
         await orm_delete(cls.graph_orm_type, where)
 
@@ -162,13 +166,15 @@ async def orm_delete(graph_orm_type: type[S], where: Filter) -> None:
     cmd = sql_delete(graph_orm_type).where(where.create())
     async with current_session() as session:
         await session.execute(cmd)
+        await session.flush()
 
 
 async def orm_write(orm_objs: Collection[S]) -> None:
     """Create ORM records and, if given, refresh their attributes."""
     async with current_session() as session:
-        session.add_all(orm_objs)
-        await session.flush()
+        for objs in _order_records_by_dependency_rank(orm_objs):
+            session.add_all(objs)
+            await session.flush()
 
 
 def load_orm_from_row(graph_orm_type: type[S], row: Row) -> S:
@@ -222,3 +228,13 @@ def _make_non_poly_obj(
     """Create an ORM object from a SQLAlchemy row."""
     kwargs = {k: row_mapping[k] for k in keys}
     return graph_orm_type(**kwargs)
+
+
+def _order_records_by_dependency_rank(records: Sequence[OrmBase]) -> Sequence[Sequence[OrmBase]]:
+    """Order records by dependency rank in O(N)"""
+    rank_by_graph_orm_type = {r.__tablename__: get_fk_dependency_rank(type(r)) for r in records}
+    max_rank = max(rank_by_graph_orm_type.values())
+    records_by_rank: list[list[OrmBase]] = [[] for _ in range(max_rank + 1)]
+    for r in records:
+        records_by_rank[rank_by_graph_orm_type[r.__tablename__]].append(r)
+    return [records for records in records_by_rank if records]

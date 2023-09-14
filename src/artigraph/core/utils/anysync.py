@@ -4,6 +4,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from functools import wraps
+from types import TracebackType
 from typing import (
     Any,
     AsyncContextManager,
@@ -15,6 +16,7 @@ from typing import (
     ParamSpec,
     Protocol,
     TypeVar,
+    cast,
 )
 
 P = ParamSpec("P")
@@ -36,7 +38,7 @@ def anysync(func: Callable[P, Coroutine[None, None, R]]) -> AnySyncFunc[P, R]:
     anysnc_f = _create_anysync_function(func)
     anysnc_f.a = func
     anysnc_f.s = _create_sync_function(func)
-    return anysnc_f
+    return cast(AnySyncFunc[P, R], anysnc_f)
 
 
 def anysyncmethod(
@@ -81,27 +83,46 @@ class AnySyncMethod(Generic[P, R]):
         return anysync(bound_func)
 
 
-class _AnySyncGeneratorContextManager(Generic[R]):
+class AnySynContextManager(Generic[R]):
+    async def _enter(self) -> R:
+        raise NotImplementedError()
+
+    async def _exit(
+        self,
+        exc_type: type[BaseException],
+        exc_value: BaseException,
+        exc_tb: TracebackType,
+    ) -> None | bool:
+        raise NotImplementedError()
+
+    def __enter__(self) -> R:
+        return self._anyenter.s()
+
+    def __exit__(self, *args: Any) -> None:
+        self._anyexit.s(*args)
+
+    async def __aenter__(self) -> R:
+        return await self._anyenter.a()
+
+    async def __aexit__(self, *args: Any) -> None:
+        return await self._anyexit.a(*args)
+
+    @anysyncmethod
+    async def _anyenter(self) -> R:
+        return await self._enter()
+
+    @anysyncmethod
+    async def _anyexit(self, *args: Any) -> bool | None:
+        return await self._exit(*args)
+
+
+class _AnySyncGeneratorContextManager(AnySynContextManager[R]):
     def __init__(self, ctx: AsyncContextManager) -> None:
         self._ctx = ctx
 
-    def __enter__(self) -> R:
-        return self._enter.s()
-
-    def __exit__(self, *args: Any) -> None:
-        self._exit.s(*args)
-
-    async def __aenter__(self) -> R:
-        return await self._enter.a()
-
-    async def __aexit__(self, *args: Any) -> None:
-        return await self._exit.a(*args)
-
-    @anysyncmethod
     async def _enter(self) -> R:
         return await self._ctx.__aenter__()
 
-    @anysyncmethod
     async def _exit(self, *args) -> None:
         return await self._ctx.__aexit__(*args)
 

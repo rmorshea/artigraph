@@ -115,7 +115,7 @@ class MultiFilter(Filter):
 class NodeFilter(Filter, Generic[N]):
     """Filter nodes that meet the given conditions"""
 
-    node_id: ValueFilter[str] | Sequence[str] | str | None = None
+    node_id: ValueFilter[UUID] | Sequence[UUID] | UUID | None = None
     """Nodes must have this ID or meet this condition."""
     node_type: NodeTypeFilter[N] | type[N] | None = None
     """Nodes must be one of these types."""
@@ -123,14 +123,16 @@ class NodeFilter(Filter, Generic[N]):
     """Filter nodes by their creation time."""
     updated_at: ValueFilter[datetime] | datetime | None = None
     """Filter nodes by their last update time."""
-    parent_of: NodeFilter | Sequence[str] | str | None = None
+    parent_of: NodeFilter | Sequence[UUID] | UUID | None = None
     """Nodes must be the parent of one of these nodes."""
-    child_of: NodeFilter | Sequence[str] | str | None = None
+    child_of: NodeFilter | Sequence[UUID] | UUID | None = None
     """Nodes must be the child of one of these nodes."""
-    descendant_of: NodeFilter | Sequence[str] | str | None = None
+    descendant_of: NodeFilter | Sequence[UUID] | UUID | None = None
     """Nodes must be the descendant of one of these nodes."""
-    ancestor_of: NodeFilter | Sequence[str] | str | None = None
+    ancestor_of: NodeFilter | Sequence[UUID] | UUID | None = None
     """Nodes must be the ancestor of one of these nodes."""
+    labels: ValueFilter[str] | Sequence[str] | str | None = None
+    """Nodes must have a link with one of these labels."""
 
     def compose(self, expr: Expression) -> Expression:
         node_id = to_value_filter(self.node_id)
@@ -165,6 +167,11 @@ class NodeFilter(Filter, Generic[N]):
                 )
             )
 
+        if self.labels:
+            expr &= OrmNode.node_id.in_(
+                select(OrmNodeLink.child_id).where(NodeLinkFilter(label=self.labels).create())
+            )
+
         return expr
 
 
@@ -173,14 +180,15 @@ class NodeLinkFilter(Filter):
 
     link_id: ValueFilter[int] | int | None = None
     """Links must have this ID or meet this condition."""
-    parent: NodeFilter | Sequence[str] | str | None = None
+    parent: NodeFilter | Sequence[UUID] | UUID | None = None
     """Links must have one of these nodes as their parent."""
-    child: NodeFilter | Sequence[str] | str | None = None
+    child: NodeFilter | Sequence[UUID] | UUID | None = None
     """Links must have one of these nodes as their child."""
-    descendant: NodeFilter | Sequence[str] | str | None = None
+    descendant: NodeFilter | Sequence[UUID] | UUID | None = None
     """Links must have one of these nodes as their descendant."""
-    ancestor: NodeFilter | Sequence[str] | str | None = None
+    ancestor: NodeFilter | Sequence[UUID] | UUID | None = None
     """Links must have one of these nodes as their ancestor."""
+    label: ValueFilter[str] | Sequence[str] | str | None = None
 
     def compose(self, expr: Expression) -> Expression:
         link_id = to_value_filter(self.link_id)
@@ -188,6 +196,7 @@ class NodeLinkFilter(Filter):
         child_id = to_node_id_selector(self.child)
         descendant_id = to_node_id_selector(self.descendant)
         ancestor_id = to_node_id_selector(self.ancestor)
+        label = to_value_filter(self.label)
 
         if link_id is not None:
             expr &= link_id.against(OrmNodeLink.link_id).create()
@@ -244,6 +253,9 @@ class NodeLinkFilter(Filter):
                 )
             )
 
+        if label is not None:
+            expr &= label.against(OrmNodeLink.label).create()
+
         return expr
 
 
@@ -280,20 +292,6 @@ class ArtifactFilter(NodeFilter[A]):
         default_factory=lambda: NodeTypeFilter(type=[OrmArtifact])  # type: ignore
     )
     """Artifacts must be one of these types."""
-    artifact_label: ValueFilter[str] | str | None = None
-    """Filter artifacts by their label."""
-
-    def compose(self, expr: Expression) -> Expression:
-        expr = super().compose(expr)
-
-        if self.artifact_label:
-            expr = (
-                to_value_filter(self.artifact_label)
-                .against(OrmArtifact.artifact_label)
-                .compose(expr)
-            )
-
-        return expr
 
 
 class ModelFilter(ArtifactFilter[OrmModelArtifact], Generic[M]):
@@ -367,6 +365,8 @@ class ValueFilter(Filter, Generic[T]):
     """The column must be less than this value."""
     le: T | None = column_op(default=None, op=operator.le)
     """The column must be less than or equal to this value."""
+    ne: T | None = column_op(default=None, op=operator.ne)
+    """The column must not be equal to this value."""
     eq: T | None = column_op(default=None, op=operator.eq)
     """The column must be equal to this value."""
     in_: Collection[T] | None = column_op(default=None, op=Column.in_)

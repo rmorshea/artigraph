@@ -38,10 +38,10 @@ class Node(FrozenDataclass, Generic[N]):
     ) -> dict[type[OrmNodeLink], NodeLinkFilter]:
         return {OrmNodeLink: NodeLinkFilter(parent=where) | NodeLinkFilter(child=where)}
 
-    async def graph_dump_self(self) -> OrmNode:
+    async def graph_dump_self(self) -> N:
         return OrmNode(node_id=self.node_id)
 
-    async def graph_dump_related(self) -> Sequence[OrmNode]:
+    async def graph_dump_related(self) -> Sequence[Any]:
         return []
 
     @classmethod

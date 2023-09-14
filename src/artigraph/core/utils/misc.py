@@ -112,6 +112,11 @@ class TaskBatch(Generic[R]):
                 for t in pending:
                     t.cancel()
                 await asyncio.wait(pending)
+
+            for e in errors:
+                if not isinstance(e, Exception):
+                    raise e
+
             msg = "One or more tasks failed"
             raise ExceptionGroup(msg, errors) if len(errors) > 1 else errors[0]
 
@@ -129,7 +134,7 @@ _DATACLASS_KWONLY_PARAMS = {
 }
 
 
-@dataclass_transform(field_specifiers=(field,))
+@dataclass_transform(field_specifiers=(field,), kw_only_default=True)
 class _FrozenDataclassMeta(ABCMeta):
     """A metaclass that makes all subclasses dataclasses"""
 

@@ -14,13 +14,13 @@ async def test_write_read_delete_node():
     node_filter = NodeFilter(node_id=parent1.node_id)
     node_link_filter = NodeLinkFilter(parent=parent1.node_id)
 
-    parent = await read_one(Node, node_filter)
+    parent = await read_one.a(Node, node_filter)
     assert parent.node_id == parent1.node_id
-    assert await exists(NodeLink, node_link_filter)
+    assert await exists.a(NodeLink, node_link_filter)
 
-    await delete_one(parent)
-    assert not await exists(Node, node_filter)
-    assert not await exists(NodeLink, node_link_filter)
+    await delete_one.a(parent)
+    assert not await exists.a(Node, node_filter)
+    assert not await exists.a(NodeLink, node_link_filter)
 
 
 async def create_graph() -> dict[str, Node]:
@@ -102,7 +102,7 @@ async def create_graph() -> dict[str, Node]:
         label="grandparent_to_parent3",
     )
 
-    await write(
+    await write.a(
         [
             grandparent,
             parent1,

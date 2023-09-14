@@ -57,7 +57,7 @@ class Artifact(Node[OrmArtifact], Generic[T]):
             location = await self.storage.create(data)
             artifact = OrmRemoteArtifact(
                 node_id=self.node_id,
-                artifact_serializer=self.serializer.name,
+                artifact_serializer=serializer_name,
                 remote_artifact_storage=self.storage.name,
                 remote_artifact_location=location,
             )

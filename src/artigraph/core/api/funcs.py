@@ -33,7 +33,7 @@ async def exists(cls: type[GraphLike], where: Filter) -> bool:
 @anysync
 async def read_one(cls: type[G], where: Filter) -> G:
     """Read a record that matches the given filter."""
-    one = await read_one_or_none(cls, where)
+    one = await read_one_or_none.a(cls, where)
     if one is None:
         msg = f"No record found matching filter {where}"
         raise ValueError(msg)
@@ -229,6 +229,8 @@ def _make_non_poly_obj(
 
 def _order_records_by_dependency_rank(records: Sequence[OrmBase]) -> Sequence[Sequence[OrmBase]]:
     """Order records by dependency rank in O(N)"""
+    if not records:
+        return []
     rank_by_graph_orm_type = {r.__tablename__: get_fk_dependency_rank(type(r)) for r in records}
     max_rank = max(rank_by_graph_orm_type.values())
     records_by_rank: list[list[OrmBase]] = [[] for _ in range(max_rank + 1)]

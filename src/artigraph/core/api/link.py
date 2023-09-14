@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import field
-from typing import ClassVar, Sequence, TypeVar
+from typing import Any, ClassVar, Sequence, TypeVar
 from uuid import UUID, uuid1
+
+from typing_extensions import Self
 
 from artigraph.core.api.filter import NodeLinkFilter
 from artigraph.core.orm.link import OrmNodeLink
@@ -44,11 +46,11 @@ class NodeLink(FrozenDataclass):
             label=self.label,
         )
 
-    async def graph_dump_related(self) -> Sequence[OrmNodeLink]:
+    async def graph_dump_related(self) -> Sequence[Any]:
         return []
 
     @classmethod
-    async def graph_load(cls, self_records: Sequence[OrmNodeLink], _: dict) -> NodeLink:
+    async def graph_load(cls, self_records: Sequence[OrmNodeLink], _: dict) -> Sequence[Self]:
         return [
             cls(
                 link_id=r.link_id,

@@ -116,9 +116,7 @@ class GraphModel:
         return NodeFilter(node_id=self.graph_node_id)
 
     @classmethod
-    def graph_filter_related(
-        cls, where: NodeFilter[Any]
-    ) -> dict[type[OrmNodeLink] | type[OrmNode], NodeLinkFilter]:
+    def graph_filter_related(cls, where: NodeFilter[Any]) -> dict[type[OrmBase], NodeLinkFilter]:
         return {
             OrmArtifact: NodeFilter(descendant_of=where),
             OrmNodeLink: NodeLinkFilter(ancestor=where),
@@ -147,8 +145,13 @@ class GraphModel:
     ) -> Sequence[Self]:
         arts_dict_by_p_id = _get_labeled_artifacts_by_parent_id(self_records, related_records)
         return [
-            await cls._graph_load_from_labeled_artifacts_by_parent_id(art, arts_dict_by_p_id)
+            (
+                await model_type._graph_load_from_labeled_artifacts_by_parent_id(
+                    art, arts_dict_by_p_id
+                )
+            )
             for art in self_records
+            if issubclass(model_type := get_model_type_by_name(art.model_artifact_type_name), cls)
         ]
 
     @classmethod

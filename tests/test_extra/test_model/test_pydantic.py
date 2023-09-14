@@ -17,18 +17,18 @@ async def test_write_read_delete_non_nested_dataclass_model():
     model = PydanticSimpleModel(x=1, y="2")
     model_filter = ModelFilter(node_id=model.graph_node_id, model_type=PydanticSimpleModel)
 
-    await write_one(model)
-    assert await exists(PydanticSimpleModel, model_filter)
-    assert await exists(Node, NodeFilter(descendant_of=model.graph_node_id))
-    assert await exists(NodeLink, NodeLinkFilter(ancestor=model.graph_node_id))
+    await write_one.a(model)
+    assert await exists.a(PydanticSimpleModel, model_filter)
+    assert await exists.a(Node, NodeFilter(descendant_of=model.graph_node_id))
+    assert await exists.a(NodeLink, NodeLinkFilter(ancestor=model.graph_node_id))
 
-    db_model = await read_one(PydanticSimpleModel, model_filter)
+    db_model = await read_one.a(PydanticSimpleModel, model_filter)
     assert db_model == model
 
-    await delete_one(model)
-    assert not await exists(PydanticSimpleModel, model_filter)
-    assert not await exists(Node, NodeFilter(descendant_of=model.graph_node_id))
-    assert not await exists(NodeLink, NodeLinkFilter(ancestor=model.graph_node_id))
+    await delete_one.a(model)
+    assert not await exists.a(PydanticSimpleModel, model_filter)
+    assert not await exists.a(Node, NodeFilter(descendant_of=model.graph_node_id))
+    assert not await exists.a(NodeLink, NodeLinkFilter(ancestor=model.graph_node_id))
 
 
 async def test_write_read_delete_nested_dataclass_model():
@@ -37,15 +37,15 @@ async def test_write_read_delete_nested_dataclass_model():
     )
     model_filter = ModelFilter(node_id=model.graph_node_id, model_type=PydanticSimpleModel)
 
-    await write_one(model)
-    assert await exists(PydanticSimpleModel, model_filter)
-    assert await exists(Node, NodeFilter(descendant_of=model.graph_node_id))
-    assert await exists(NodeLink, NodeLinkFilter(ancestor=model.graph_node_id))
+    await write_one.a(model)
+    assert await exists.a(PydanticSimpleModel, model_filter)
+    assert await exists.a(Node, NodeFilter(descendant_of=model.graph_node_id))
+    assert await exists.a(NodeLink, NodeLinkFilter(ancestor=model.graph_node_id))
 
-    db_model = await read_one(PydanticSimpleModel, model_filter)
+    db_model = await read_one.a(PydanticSimpleModel, model_filter)
     assert db_model == model
 
-    await delete_one(model)
-    assert not await exists(PydanticSimpleModel, model_filter)
-    assert not await exists(Node, NodeFilter(descendant_of=model.graph_node_id))
-    assert not await exists(NodeLink, NodeLinkFilter(ancestor=model.graph_node_id))
+    await delete_one.a(model)
+    assert not await exists.a(PydanticSimpleModel, model_filter)
+    assert not await exists.a(Node, NodeFilter(descendant_of=model.graph_node_id))
+    assert not await exists.a(NodeLink, NodeLinkFilter(ancestor=model.graph_node_id))

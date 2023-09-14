@@ -1,7 +1,7 @@
 import asyncio
-from logging import Filter
 from typing import Sequence
 
+from artigraph.core.api.filter import Filter
 from artigraph.core.api.funcs import delete_one, exists, read_one, write_one
 from artigraph.core.api.proto import GraphLike
 

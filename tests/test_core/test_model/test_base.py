@@ -24,7 +24,7 @@ def test_try_convert_value_to_and_from_modeled_type(value):
 
 
 def test_cannot_define_model_with_same_name():
-    class SomeModelName(GraphModel, version=1):
+    class SomeModelName(GraphModel, version=1):  # type: ignore
         pass
 
     with pytest.raises(RuntimeError):

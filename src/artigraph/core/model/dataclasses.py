@@ -127,6 +127,7 @@ def dataclass(
                     )
 
         _DataclassModel.__name__ = cls.__name__
+        _DataclassModel.__qualname__ = cls.__qualname__
 
         return _DataclassModel
 

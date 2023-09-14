@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import field
 from typing import (
     TYPE_CHECKING,
     Generic,
@@ -47,10 +46,7 @@ Expression = ColumnElement[bool]
 class ModelFilter(ArtifactFilter[OrmModelArtifact], Generic[M]):
     """A filter for models."""
 
-    node_type: NodeTypeFilter[OrmModelArtifact] = field(
-        # delay this in case tables are defined late
-        default_factory=lambda: NodeTypeFilter(type=[OrmModelArtifact])
-    )
+    node_type: NodeTypeFilter[OrmModelArtifact] = NodeTypeFilter(type=[OrmModelArtifact])
     """Models must be one of these types."""
     model_type: Sequence[ModelTypeFilter[M]] | ModelTypeFilter[M] | type[M] | None = None
     """Models must be one of these types."""

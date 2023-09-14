@@ -13,6 +13,7 @@ def engine():
         "sqlite+aiosqlite:///:memory:",
         create_tables=True,
     ) as eng:
+        # enforce foreign key constraints
         event.listen(
             eng.sync_engine,
             "connect",

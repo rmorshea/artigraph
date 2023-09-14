@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from artigraph.core.api.filter import ModelFilter, NodeFilter, NodeLinkFilter
+from artigraph.core.api.filter import NodeFilter, NodeLinkFilter
 from artigraph.core.api.funcs import delete_one, exists, read_one, write_one
 from artigraph.core.api.link import NodeLink
 from artigraph.core.api.node import Node
+from artigraph.core.model.filter import ModelFilter
 from artigraph.extra.model.pydantic import PydanticModel
 
 

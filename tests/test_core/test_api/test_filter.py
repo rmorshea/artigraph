@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from uuid import uuid4
+from uuid import uuid1, uuid4
 
 from artigraph.core.api.filter import MultiFilter, NodeFilter, ValueFilter
 from artigraph.core.api.funcs import orm_read_one_or_none, orm_write
@@ -13,18 +13,19 @@ async def test_filter_by_node_created_and_update_at():
 
     await orm_write([node])
 
-    assert (
-        await orm_read_one_or_none(OrmNode, NodeFilter(created_at=created_at))
-    ).node_id == node.node_id
-    assert (
-        await orm_read_one_or_none(OrmNode, NodeFilter(updated_at=updated_at))
-    ).node_id == node.node_id
+    created_at_read = await orm_read_one_or_none(OrmNode, NodeFilter(created_at=created_at))
+    assert created_at_read is not None
+    assert created_at_read.node_id == node.node_id
+
+    updated_at_read = await orm_read_one_or_none(OrmNode, NodeFilter(updated_at=updated_at))
+    assert updated_at_read is not None
+    assert updated_at_read.node_id == node.node_id
 
 
 def test_multi_and_filter():
-    vf1 = ValueFilter(gt=1).against(OrmNode.node_id)
-    vf2 = ValueFilter(lt=3).against(OrmNode.node_id)
-    vf3 = ValueFilter(eq=2).against(OrmNode.node_id)
+    vf1 = ValueFilter(gt=uuid1()).against(OrmNode.node_id)
+    vf2 = ValueFilter(lt=uuid1()).against(OrmNode.node_id)
+    vf3 = ValueFilter(eq=uuid1()).against(OrmNode.node_id)
 
     multi_filter = vf1 & vf2 & vf3
     assert multi_filter == MultiFilter(op="and", filters=(vf1, vf2, vf3))
@@ -36,9 +37,9 @@ def test_multi_and_filter():
 
 
 def test_multi_or_filter():
-    vf1 = ValueFilter(gt=1).against(OrmNode.node_id)
-    vf2 = ValueFilter(lt=3).against(OrmNode.node_id)
-    vf3 = ValueFilter(eq=2).against(OrmNode.node_id)
+    vf1 = ValueFilter(gt=uuid1()).against(OrmNode.node_id)
+    vf2 = ValueFilter(lt=uuid1()).against(OrmNode.node_id)
+    vf3 = ValueFilter(eq=uuid1()).against(OrmNode.node_id)
 
     multi_filter = vf1 | vf2 | vf3
     assert multi_filter == MultiFilter(op="or", filters=(vf1, vf2, vf3))
@@ -50,10 +51,10 @@ def test_multi_or_filter():
 
 
 def test_multi_and_or_filter():
-    vf1 = ValueFilter(gt=1).against(OrmNode.node_id)
-    vf2 = ValueFilter(lt=3).against(OrmNode.node_id)
-    vf3 = ValueFilter(eq=2).against(OrmNode.node_id)
-    vf4 = ValueFilter(eq=4).against(OrmNode.node_id)
+    vf1 = ValueFilter(gt=uuid1()).against(OrmNode.node_id)
+    vf2 = ValueFilter(lt=uuid1()).against(OrmNode.node_id)
+    vf3 = ValueFilter(eq=uuid1()).against(OrmNode.node_id)
+    vf4 = ValueFilter(eq=uuid1()).against(OrmNode.node_id)
 
     multi_filter = (vf1 & vf2) | (vf3 & vf4)
     assert multi_filter == MultiFilter(
@@ -71,10 +72,10 @@ def test_multi_and_or_filter():
 
 
 def test_multi_filter_flattens_if_two_with_same_op():
-    vf1 = ValueFilter(gt=1).against(OrmNode.node_id)
-    vf2 = ValueFilter(lt=3).against(OrmNode.node_id)
-    vf3 = ValueFilter(eq=2).against(OrmNode.node_id)
-    vf4 = ValueFilter(eq=4).against(OrmNode.node_id)
+    vf1 = ValueFilter(gt=uuid1()).against(OrmNode.node_id)
+    vf2 = ValueFilter(lt=uuid1()).against(OrmNode.node_id)
+    vf3 = ValueFilter(eq=uuid1()).against(OrmNode.node_id)
+    vf4 = ValueFilter(eq=uuid1()).against(OrmNode.node_id)
 
     multi_filter = (vf1 & vf2) & (vf3 & vf4)
     assert multi_filter == MultiFilter(

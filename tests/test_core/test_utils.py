@@ -1,4 +1,5 @@
 import asyncio
+from typing import Awaitable, cast
 
 import pytest
 
@@ -52,7 +53,7 @@ def test_anysync_functions():
     assert some_func() == 1
 
     async def async_wrapper():
-        return await some_func()
+        return await cast(Awaitable, some_func())
 
     assert asyncio.run(async_wrapper()) == 1
 
@@ -84,7 +85,7 @@ def test_anysyncmethod():
 
 async def test_anysynccontextmanager():
     @anysynccontextmanager
-    async def some_ctx() -> int:
+    async def some_ctx():
         yield 1
 
     async with some_ctx() as x:
@@ -113,7 +114,7 @@ async def test_task_batch_cancel_slow_task_on_error():
     async def task_with_error():
         raise RuntimeError()
 
-    batch = TaskBatch[int]()
+    batch = TaskBatch[None]()
     batch.add(slow_task)
     batch.add(task_with_error)
 

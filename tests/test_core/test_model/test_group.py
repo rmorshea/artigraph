@@ -15,23 +15,8 @@ async def test_model_group_add_and_get_models():
         group.add_model("model1", model1)
         group.add_model("model2", model2)
 
-    models = await group.get_models()
+    models = await group.get_models.a()
     assert models == {"model1": model1, "model2": model2}
 
-    fresh_models = await group.get_models(fresh=True)
+    fresh_models = await group.get_models.a(fresh=True)
     assert fresh_models == {"model1": model1, "model2": model2}
-
-
-async def test_model_group_get_group_allow_none():
-    """Test getting a group with allow_none."""
-    node = Node()
-
-    async with ModelGroup(node) as group:
-        model1 = SimpleDataclassModel(1)
-        group.add_model("model1", model1)
-
-    models = await group.get_models(["model1", "model2"], allow_none=True)
-    assert models == {"model1": model1, "model2": None}
-
-    fresh_models = await group.get_models(["model1", "model2"], fresh=True, allow_none=True)
-    assert fresh_models == {"model1": model1, "model2": None}

@@ -4,13 +4,13 @@ from dataclasses import dataclass as _dataclass
 from dataclasses import field, fields
 from functools import lru_cache
 from typing import (
-    TYPE_CHECKING,
     Annotated,
     Any,
     Callable,
     Sequence,
     TypeVar,
     cast,
+    dataclass_transform,
     get_args,
     get_origin,
     get_type_hints,
@@ -29,9 +29,18 @@ from artigraph.core.model.base import (
 from artigraph.core.serializer.base import Serializer
 from artigraph.core.storage.base import Storage
 
+F = TypeVar("F", bound=Callable[..., Any])
 T = TypeVar("T", bound=type[GraphModel])
 
 
+def _copy_signature(_: F) -> Callable[[Any], F]:
+    def wrapper(copy_to: Any) -> F:
+        return cast(F, copy_to)
+
+    return wrapper
+
+
+@dataclass_transform(field_specifiers=(field,))
 def dataclass(cls: type[T] | None = None, **kwargs: Any) -> type[T] | Callable[[type[T]], type[T]]:
     """A decorator that makes a class into a dataclass GraphModel.
 
@@ -74,11 +83,6 @@ def dataclass(cls: type[T] | None = None, **kwargs: Any) -> type[T] | Callable[[
         return cast(type[T], _DataclassModel)
 
     return decorator if cls is None else decorator(cls)
-
-
-if TYPE_CHECKING:
-    # we should have the exact same interface
-    dataclass = _dataclass  # type: ignore  # noqa: F811
 
 
 def get_annotated_model_data(obj: Any, field_names: Sequence[str]) -> ModelData:

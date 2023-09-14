@@ -7,12 +7,13 @@ from typing import Annotated, TypeVar
 
 import pytest
 
-from artigraph.core.api.filter import ModelFilter, NodeFilter, NodeLinkFilter
+from artigraph.core.api.filter import NodeFilter, NodeLinkFilter
 from artigraph.core.api.funcs import write_one
 from artigraph.core.api.link import NodeLink
 from artigraph.core.api.node import Node
 from artigraph.core.model.base import GraphModel
 from artigraph.core.model.dataclasses import dataclass
+from artigraph.core.model.filter import ModelFilter
 from artigraph.core.storage.file import FileSystemStorage
 from tests.common.check import check_can_read_write_delete_one
 from tests.common.model import SimpleDataclassModel

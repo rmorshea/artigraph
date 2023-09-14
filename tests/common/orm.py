@@ -1,11 +1,12 @@
 from dataclasses import field
-from typing import Any, ClassVar, Iterator, Sequence
+from typing import Any, ClassVar, Sequence
 from uuid import UUID, uuid1
 
 from sqlalchemy.orm import Mapped, mapped_column
 from typing_extensions import Self
 
-from artigraph.core.api.filter import ValueFilter
+from artigraph.core.api.base import GraphBase
+from artigraph.core.api.filter import Filter, ValueFilter
 from artigraph.core.api.node import Node
 from artigraph.core.orm.base import OrmBase
 from artigraph.core.utils.misc import FrozenDataclass
@@ -43,8 +44,8 @@ class OrmFakePolyBeta(OrmFakePoly):
     fake_beta: Mapped[str] = mapped_column(nullable=True)
 
 
-class Fake(FrozenDataclass):
-    graph_orm_type: ClassVar[OrmFake] = OrmFake
+class Fake(FrozenDataclass, GraphBase[OrmFake, Any, Filter]):
+    graph_orm_type: ClassVar[type[OrmFake]] = OrmFake
 
     fake_data: str = ""
     fake_id: UUID = field(default_factory=uuid1)
@@ -67,8 +68,8 @@ class Fake(FrozenDataclass):
         return [cls(fake_id=r.fake_id, fake_data=r.fake_data) for r in records]
 
 
-class FakePoly(FrozenDataclass):
-    graph_orm_type: ClassVar[OrmFakePoly] = OrmFakePoly
+class FakePoly(FrozenDataclass, GraphBase[OrmFakePoly, Any, Filter]):
+    graph_orm_type: ClassVar[type[OrmFakePoly]] = OrmFakePoly
 
     fake_data: str
     fake_id: UUID = field(default_factory=uuid1)
@@ -104,7 +105,7 @@ class FakePoly(FrozenDataclass):
         return []
 
     @classmethod
-    async def graph_load(cls, records: Sequence[OrmFakePoly], _: dict) -> Iterator[Self]:
+    async def graph_load(cls, records: Sequence[OrmFakePoly], _: dict) -> Sequence[Self]:
         objs: list[Self] = []
         for record in records:
             if isinstance(record, OrmFakePolyAlpha):

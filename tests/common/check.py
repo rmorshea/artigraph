@@ -12,21 +12,21 @@ async def check_can_read_write_delete_one(
     self_filter: Filter,
     related_filters: Sequence[tuple[type[GraphBase], Filter]] = (),
 ):
-    await write_one(value)
+    await write_one.a(value)
 
-    db_value = await read_one(type(value), self_filter)
+    db_value = await read_one.a(type(value), self_filter)
     assert db_value == value
 
     # check existance after since read gives a better error
     await check_exists(*related_filters)
 
-    await delete_one(value)
+    await delete_one.a(value)
     await check_not_exists((type(value), self_filter), *related_filters)
 
 
 async def check_not_exists(*filters: tuple[type[GraphBase], Filter]) -> None:
-    assert not any(await asyncio.gather(*[exists(t, f) for t, f in filters]))
+    assert not any(await asyncio.gather(*[exists.a(t, f) for t, f in filters]))
 
 
 async def check_exists(*filters: tuple[type[GraphBase], Filter]) -> None:
-    assert all(await asyncio.gather(*[exists(t, f) for t, f in filters]))
+    assert all(await asyncio.gather(*[exists.a(t, f) for t, f in filters]))

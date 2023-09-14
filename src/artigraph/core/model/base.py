@@ -87,7 +87,12 @@ class GraphModel(GraphBase[OrmModelArtifact, OrmBase, NodeFilter[Any]]):
         raise NotImplementedError()
 
     @classmethod
-    def graph_model_init(cls, info: ModelInfo, kwargs: dict[str, Any], /) -> Self:  # nocov
+    def graph_model_init(
+        cls,
+        info: ModelInfo,  # noqa: ARG003
+        kwargs: dict[str, Any],
+        /,
+    ) -> Self:  # nocov
         """Initialize the artifact model, migrating it if necessary."""
         return cls(**kwargs)
 

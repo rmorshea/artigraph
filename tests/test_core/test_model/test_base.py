@@ -43,5 +43,5 @@ def test_cannot_define_model_with_same_name():
 
     with pytest.raises(RuntimeError):
 
-        class SomeModelName(GraphModel, version=1):
+        class SomeModelName(GraphModel, version=1):  # noqa: F811
             pass

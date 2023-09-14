@@ -34,14 +34,14 @@ class GraphBase(abc.ABC, Generic[S, R, F]):
         """Dump all other related objects into ORM records."""
         raise NotImplementedError()
 
-    @abc.abstractclassmethod
     @classmethod
+    @abc.abstractmethod
     def graph_filter_related(cls, self_filter: Filter, /) -> Mapping[type[R], Filter]:
         """Get the filters for records of related ORM records required to construct this object."""
         raise NotImplementedError()
 
-    @abc.abstractclassmethod
     @classmethod
+    @abc.abstractmethod
     async def graph_load(
         cls,
         self_records: Sequence[S],

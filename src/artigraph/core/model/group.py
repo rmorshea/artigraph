@@ -57,7 +57,7 @@ class ModelGroup(AnySynContextManager["ModelGroup"]):
     @anysyncmethod
     async def get_models(
         self,
-        labels: Sequence[str] | None = ...,
+        labels: Sequence[str] | None = None,
         *,
         fresh: bool = False,
     ) -> dict[str, GraphModel]:

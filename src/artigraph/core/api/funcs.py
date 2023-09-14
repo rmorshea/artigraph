@@ -3,13 +3,13 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Collection
 from dataclasses import fields
-from typing import Any, Sequence, TypeVar
+from typing import Any, Sequence, TypeVar, cast
 
-from sqlalchemy import Row, select
+from sqlalchemy import Row, RowMapping, select
 from sqlalchemy import delete as sql_delete
 
+from artigraph.core.api.base import GraphBase
 from artigraph.core.api.filter import Filter, MultiFilter
-from artigraph.core.api.proto import GraphLike
 from artigraph.core.db import current_session
 from artigraph.core.orm.base import (
     OrmBase,
@@ -21,11 +21,11 @@ from artigraph.core.utils.misc import TaskBatch
 
 S = TypeVar("S", bound=OrmBase)
 R = TypeVar("R", bound=OrmBase)
-G = TypeVar("G", bound=GraphLike)
+G = TypeVar("G", bound=GraphBase)
 
 
 @anysync
-async def exists(cls: type[GraphLike], where: Filter) -> bool:
+async def exists(cls: type[GraphBase], where: Filter) -> bool:
     """Check if records exist."""
     return await orm_exists(cls.graph_orm_type, where)
 
@@ -50,7 +50,7 @@ async def read_one_or_none(cls: type[G], where: Filter) -> G | None:
         graph_orm_type: await orm_read(graph_orm_type, related_filter)
         for graph_orm_type, related_filter in cls.graph_filter_related(where).items()
     }
-    return (await cls.graph_load([record], related_records))[0]
+    return cast(G, (await cls.graph_load([record], related_records))[0])
 
 
 @anysync
@@ -65,27 +65,27 @@ async def read(cls: type[G], where: Filter) -> Sequence[G]:
 
 
 @anysync
-async def delete_one(obj: GraphLike) -> None:
+async def delete_one(obj: GraphBase) -> None:
     """Delete a record."""
-    return await delete_many([obj])
+    return await delete_many.a([obj])
 
 
 @anysync
-async def delete_many(objs: Sequence[GraphLike]) -> None:
+async def delete_many(objs: Sequence[GraphBase]) -> None:
     """Delete records."""
-    filters_by_type: defaultdict[type[GraphLike], list[Filter]] = defaultdict(list)
+    filters_by_type: defaultdict[type[GraphBase], list[Filter]] = defaultdict(list)
     for o in objs:
         filters_by_type[type(o)].append(o.graph_filter_self())
 
     async with current_session() as session:
         for o_type, o_filters in filters_by_type.items():
             where = o_filters[0] if len(o_filters) == 1 else MultiFilter(op="or", filters=o_filters)
-            await delete(o_type, where)
+            await delete.a(o_type, where)
         await session.commit()
 
 
 @anysync
-async def delete(cls: type[GraphLike], where: Filter) -> None:
+async def delete(cls: type[GraphBase], where: Filter) -> None:
     """Delete records matching the given filter."""
     related_filters = cls.graph_filter_related(where)
     async with current_session():
@@ -96,27 +96,27 @@ async def delete(cls: type[GraphLike], where: Filter) -> None:
 
 
 @anysync
-async def write_one(obj: GraphLike) -> None:
+async def write_one(obj: GraphBase) -> None:
     """Create a record."""
-    return await write([obj])
+    return await write.a([obj])
 
 
 @anysync
-async def write(objs: Collection[GraphLike]) -> None:
+async def write(objs: Collection[GraphBase]) -> None:
     """Create records and, if given, refresh their attributes."""
     await orm_write(await dump(objs))
 
 
-async def dump_one(obj: GraphLike[S, R, Filter]) -> tuple[S, Sequence[R]]:
+async def dump_one(obj: GraphBase[S, R, Any]) -> tuple[S, Sequence[R]]:
     first, *rest = await dump_one_flat(obj)
     return first, rest  # type: ignore
 
 
-async def dump_one_flat(obj: GraphLike[S, R, Filter]) -> Sequence[S | R]:
+async def dump_one_flat(obj: GraphBase[S, R, Any]) -> Sequence[S | R]:
     return await dump([obj])
 
 
-async def dump(objs: Sequence[GraphLike[S, R, Filter]]) -> Sequence[S | R]:
+async def dump(objs: Collection[GraphBase[S, R, Filter]]) -> Sequence[S | R]:
     """Dump objects into ORM records."""
     dump_self_records: TaskBatch[OrmBase] = TaskBatch()
     for o in objs:
@@ -131,7 +131,7 @@ async def dump(objs: Sequence[GraphLike[S, R, Filter]]) -> Sequence[S | R]:
         dump_all_records.add(o.graph_dump_related)
 
     records_seqs = await dump_all_records.gather()
-    return [r for rs in records_seqs for r in rs]
+    return [cast(S | R, r) for rs in records_seqs for r in rs]
 
 
 async def orm_exists(graph_orm_type: type[S], where: Filter) -> bool:
@@ -190,26 +190,28 @@ def load_orms_from_rows(graph_orm_type: type[S], rows: Sequence[Row]) -> Sequenc
         init_field_names = {f.name for f in fields(graph_orm_type) if f.init}
         return [_make_non_poly_obj(graph_orm_type, init_field_names, row._mapping) for row in rows]
     else:
-        table = graph_orm_type.__tablename__
         keys_by_graph_orm_type: dict[type[OrmBase], set[str]] = {}
         return [
-            _make_poly_obj(table, poly_on, keys_by_graph_orm_type, row._mapping) for row in rows
+            _make_poly_obj(graph_orm_type, poly_on, keys_by_graph_orm_type, row._mapping)
+            for row in rows
         ]
 
 
 def _make_poly_obj(
-    table: str,
+    graph_orm_type: type[S],
     poly_on: str,
-    keys_by_graph_orm_type: dict[str, set[str]],
-    row_mapping: dict[str, Any],
+    keys_by_graph_orm_type: dict[type[OrmBase], set[str]],
+    row_mapping: RowMapping,
 ) -> S:
     poly_id = row_mapping[poly_on]
-    graph_orm_type = get_poly_graph_orm_type(table, poly_id)
-    if graph_orm_type not in keys_by_graph_orm_type:
-        keys = keys_by_graph_orm_type[graph_orm_type] = _get_init_field_names(graph_orm_type)
+    specific_graph_orm_type = get_poly_graph_orm_type(graph_orm_type.__tablename__, poly_id)
+    if specific_graph_orm_type not in keys_by_graph_orm_type:
+        keys = keys_by_graph_orm_type[specific_graph_orm_type] = _get_init_field_names(
+            specific_graph_orm_type
+        )
     else:
-        keys = keys_by_graph_orm_type[graph_orm_type]
-    return _make_non_poly_obj(graph_orm_type, keys, row_mapping)
+        keys = keys_by_graph_orm_type[specific_graph_orm_type]
+    return cast(S, _make_non_poly_obj(specific_graph_orm_type, keys, row_mapping))
 
 
 def _get_init_field_names(graph_orm_type: type[S]) -> set[str]:
@@ -220,14 +222,14 @@ def _get_init_field_names(graph_orm_type: type[S]) -> set[str]:
 def _make_non_poly_obj(
     graph_orm_type: type[S],
     keys: set[str],
-    row_mapping: dict[str, Any],
+    row_mapping: RowMapping,
 ) -> S:
     """Create an ORM object from a SQLAlchemy row."""
     kwargs = {k: row_mapping[k] for k in keys}
     return graph_orm_type(**kwargs)
 
 
-def _order_records_by_dependency_rank(records: Sequence[OrmBase]) -> Sequence[Sequence[OrmBase]]:
+def _order_records_by_dependency_rank(records: Collection[OrmBase]) -> Sequence[Sequence[OrmBase]]:
     """Order records by dependency rank in O(N)"""
     if not records:
         return []

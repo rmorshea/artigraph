@@ -1,6 +1,7 @@
 __version__ = "0.0.8"
 
 from artigraph.core.api.artifact import Artifact, load_deserialized_artifact_value
+from artigraph.core.api.base import GraphBase
 from artigraph.core.api.filter import (
     ArtifactFilter,
     Filter,
@@ -21,7 +22,6 @@ from artigraph.core.api.funcs import (
 )
 from artigraph.core.api.link import NodeLink
 from artigraph.core.api.node import Node
-from artigraph.core.api.proto import GraphLike
 from artigraph.core.db import current_engine, current_session, set_engine
 from artigraph.core.model.base import FieldConfig, GraphModel, ModelInfo, ModelMetadata
 from artigraph.core.model.dataclasses import dataclass
@@ -61,7 +61,7 @@ __all__ = (
     "get_polymorphic_identities",
     "get_serializer_by_name",
     "get_storage_by_name",
-    "GraphLike",
+    "GraphBase",
     "GraphModel",
     "json_serializer",
     "json_sorted_serializer",

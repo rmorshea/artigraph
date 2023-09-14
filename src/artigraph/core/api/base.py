@@ -1,38 +1,46 @@
 from __future__ import annotations
 
-from typing import ClassVar, Mapping, Sequence, TypeVar, runtime_checkable
+import abc
+from typing import ClassVar, Generic, Mapping, Sequence, TypeVar
 
-from typing_extensions import Protocol, Self
+from typing_extensions import Self
 
 from artigraph.core.api.filter import Filter
 from artigraph.core.orm.base import OrmBase
 
 S = TypeVar("S", bound=OrmBase)
 R = TypeVar("R", bound=OrmBase)
-G = TypeVar("G", bound="GraphLike")
 F = TypeVar("F", bound=Filter)
 
 
-@runtime_checkable
-class GraphLike(Protocol[S, R, F]):
+class GraphBase(abc.ABC, Generic[S, R, F]):
     """Protocol for objects that can be converted to and from Artigraph ORM records."""
 
-    graph_orm_type: ClassVar[type[S]]
+    graph_orm_type: ClassVar[type[OrmBase]]
     """The ORM type that represents this object."""
 
+    @abc.abstractmethod
     def graph_filter_self(self) -> F:
         """Get the filter for records of the ORM type that represent the object."""
+        raise NotImplementedError()
 
-    @classmethod
-    def graph_filter_related(cls, self_filter: F, /) -> Mapping[type[R], Filter]:
-        """Get the filters for records of related ORM records required to construct this object."""
-
+    @abc.abstractmethod
     async def graph_dump_self(self) -> S:
         """Dump the object into an ORM record."""
+        raise NotImplementedError()
 
+    @abc.abstractmethod
     async def graph_dump_related(self) -> Sequence[R]:
         """Dump all other related objects into ORM records."""
+        raise NotImplementedError()
 
+    @abc.abstractclassmethod
+    @classmethod
+    def graph_filter_related(cls, self_filter: Filter, /) -> Mapping[type[R], Filter]:
+        """Get the filters for records of related ORM records required to construct this object."""
+        raise NotImplementedError()
+
+    @abc.abstractclassmethod
     @classmethod
     async def graph_load(
         cls,
@@ -41,3 +49,4 @@ class GraphLike(Protocol[S, R, F]):
         /,
     ) -> Sequence[Self]:
         """Load ORM records into objects."""
+        raise NotImplementedError()

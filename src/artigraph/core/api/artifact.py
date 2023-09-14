@@ -8,7 +8,7 @@ from artigraph.core.serializer.base import Serializer, get_serializer_by_name
 from artigraph.core.storage.base import Storage, get_storage_by_name
 
 T = TypeVar("T")
-O = TypeVar("O", bound="OrmArtifact")  # noqa: E741
+O = TypeVar("O", bound="OrmArtifact")
 
 
 async def load_deserialized_artifact_value(obj: OrmArtifact) -> Any:

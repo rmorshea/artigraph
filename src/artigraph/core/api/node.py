@@ -4,7 +4,6 @@ from dataclasses import field
 from typing import (
     Any,
     ClassVar,
-    Generic,
     Sequence,
     TypeVar,
 )
@@ -12,7 +11,8 @@ from uuid import UUID, uuid1
 
 from typing_extensions import Self
 
-from artigraph.core.api.filter import NodeFilter, NodeLinkFilter
+from artigraph.core.api.base import GraphBase
+from artigraph.core.api.filter import Filter, NodeFilter, NodeLinkFilter
 from artigraph.core.orm.link import OrmNodeLink
 from artigraph.core.orm.node import OrmNode
 from artigraph.core.utils.misc import FrozenDataclass
@@ -20,10 +20,10 @@ from artigraph.core.utils.misc import FrozenDataclass
 N = TypeVar("N", bound=OrmNode)
 
 
-class Node(FrozenDataclass, Generic[N]):
+class Node(FrozenDataclass, GraphBase[N, OrmNodeLink, NodeFilter[Any]]):
     """A wrapper around an ORM node record."""
 
-    graph_orm_type: ClassVar[type[N]] = OrmNode
+    graph_orm_type: ClassVar[type[OrmNode]] = OrmNode
     """The ORM type for this node."""
 
     node_id: UUID = field(default_factory=uuid1)
@@ -32,17 +32,15 @@ class Node(FrozenDataclass, Generic[N]):
     def graph_filter_self(self) -> NodeFilter[Any]:
         return NodeFilter(node_id=self.node_id)
 
-    @classmethod
-    def graph_filter_related(
-        cls, where: NodeFilter[Any]
-    ) -> dict[type[OrmNodeLink], NodeLinkFilter]:
-        return {OrmNodeLink: NodeLinkFilter(parent=where) | NodeLinkFilter(child=where)}
-
-    async def graph_dump_self(self) -> N:
+    async def graph_dump_self(self) -> OrmNode:
         return OrmNode(node_id=self.node_id)
 
     async def graph_dump_related(self) -> Sequence[Any]:
         return []
+
+    @classmethod
+    def graph_filter_related(cls, where: NodeFilter[Any]) -> dict[type[OrmNodeLink], Filter]:
+        return {OrmNodeLink: NodeLinkFilter(parent=where) | NodeLinkFilter(child=where)}
 
     @classmethod
     async def graph_load(

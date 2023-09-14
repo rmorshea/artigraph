@@ -4,7 +4,6 @@ import operator
 from dataclasses import field, fields, replace
 from datetime import datetime
 from typing import (
-    TYPE_CHECKING,
     Any,
     Callable,
     Collection,
@@ -12,6 +11,7 @@ from typing import (
     Literal,
     Sequence,
     TypeVar,
+    cast,
 )
 from uuid import UUID
 
@@ -28,29 +28,26 @@ from sqlalchemy import (
 from sqlalchemy.orm import aliased
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.sql.elements import ExpressionClauseList
+from sqlalchemy.sql.operators import OperatorType
 from typing_extensions import ParamSpec, Self
 
-from artigraph.core.orm.artifact import OrmArtifact, OrmModelArtifact
+from artigraph.core.orm.artifact import OrmArtifact
 from artigraph.core.orm.link import OrmNodeLink
 from artigraph.core.orm.node import OrmNode, get_polymorphic_identities
-from artigraph.core.utils.misc import FrozenDataclass, get_subclasses
-
-if TYPE_CHECKING:
-    from artigraph.core.model import GraphModel
+from artigraph.core.utils.misc import FrozenDataclass
 
 P = ParamSpec("P")
 T = TypeVar("T")
 N = TypeVar("N", bound=OrmNode)
 A = TypeVar("A", bound=OrmArtifact)
 Q = TypeVar("Q", bound="Select | Update | Delete | Exists")
-M = TypeVar("M", bound="GraphModel")
 
 Expression = ColumnElement[bool]
 """An alias for a sqlalchemy `OperatorExpression`"""
 
 
 # An empty filter that does nothing
-_NO_OP = ExpressionClauseList(operator.and_)
+_NO_OP = ExpressionClauseList(cast(OperatorType, operator.and_))
 
 
 class Filter(FrozenDataclass):
@@ -136,6 +133,8 @@ class NodeFilter(Filter, Generic[N]):
 
     def compose(self, expr: Expression) -> Expression:
         node_id = to_value_filter(self.node_id)
+        created_at = to_value_filter(self.created_at)
+        updated_at = to_value_filter(self.updated_at)
 
         if node_id is not None:
             expr &= node_id.against(OrmNode.node_id).create()
@@ -147,11 +146,11 @@ class NodeFilter(Filter, Generic[N]):
                 else NodeTypeFilter(type=[self.node_type])
             ).create()
 
-        if self.created_at:
-            expr &= to_value_filter(self.created_at).against(OrmNode.created_at).create()
+        if created_at:
+            expr &= created_at.against(OrmNode.created_at).create()
 
-        if self.updated_at:
-            expr &= to_value_filter(self.updated_at).against(OrmNode.updated_at).create()
+        if updated_at:
+            expr &= updated_at.against(OrmNode.updated_at).create()
 
         if self.parent_of or self.ancestor_of:
             expr &= OrmNode.node_id.in_(
@@ -178,7 +177,7 @@ class NodeFilter(Filter, Generic[N]):
 class NodeLinkFilter(Filter):
     """Filter node links."""
 
-    link_id: ValueFilter[int] | int | None = None
+    link_id: ValueFilter[UUID] | UUID | None = None
     """Links must have this ID or meet this condition."""
     parent: NodeFilter | Sequence[UUID] | UUID | None = None
     """Links must have one of these nodes as their parent."""
@@ -294,58 +293,6 @@ class ArtifactFilter(NodeFilter[A]):
     """Artifacts must be one of these types."""
 
 
-class ModelFilter(ArtifactFilter[OrmModelArtifact], Generic[M]):
-    """A filter for models."""
-
-    node_type: NodeTypeFilter[OrmModelArtifact] = field(
-        # delay this in case tables are defined late
-        default_factory=lambda: NodeTypeFilter(type=[OrmModelArtifact])
-    )
-    """Models must be one of these types."""
-    model_type: Sequence[ModelTypeFilter[M]] | ModelTypeFilter[M] | type[M] | None = None
-    """Models must be one of these types."""
-
-    def compose(self, expr: Expression) -> Expression:
-        expr = super().compose(expr)
-
-        model_type = to_sequence_or_none(self.model_type)
-
-        if model_type is not None:
-            expr &= MultiFilter(
-                op="or", filters=[_to_model_type_filter(mt) for mt in model_type]
-            ).create()
-
-        return expr
-
-
-class ModelTypeFilter(Generic[M], Filter):
-    """Filter models by their type and version"""
-
-    type: type[M]  # noqa: A003
-    """Models must be this type."""
-    version: ValueFilter | int | None = None
-    """Models must be this version."""
-    subclasses: bool = True
-    """If True, include subclasses of the given model type."""
-
-    def compose(self, expr: Expression) -> Expression:
-        if self.subclasses:
-            expr &= OrmModelArtifact.model_artifact_type_name.in_(
-                [m.graph_model_name for m in get_subclasses(self.type)]
-            )
-        else:
-            expr &= OrmModelArtifact.model_artifact_type_name == self.type.graph_model_name
-
-        if self.version is not None:
-            expr &= (
-                to_value_filter(self.version)
-                .against(OrmModelArtifact.model_artifact_version)
-                .create()
-            )
-
-        return expr
-
-
 def column_op(*, op: Callable[[Any, Any], BinaryExpression], **kwargs: Any) -> Any:
     """Apply a comparison operator to a column."""
     return field(metadata={"op": op}, **kwargs)
@@ -354,7 +301,7 @@ def column_op(*, op: Callable[[Any, Any], BinaryExpression], **kwargs: Any) -> A
 class ValueFilter(Filter, Generic[T]):
     """Filter a column by comparing it to a value."""
 
-    column: InstrumentedAttribute[T] = field(repr=False, default=None)
+    column: InstrumentedAttribute[T] | None = field(repr=False, default=None)
     """The column to filter."""
 
     gt: T | None = column_op(default=None, op=operator.gt)
@@ -382,17 +329,25 @@ class ValueFilter(Filter, Generic[T]):
     is_not: bool | None = column_op(default=None, op=Column.isnot)
     """The column must not be this value."""
 
-    def against(self, column: InstrumentedAttribute[T]) -> Self:
+    def against(self, column: InstrumentedAttribute[T] | InstrumentedAttribute[T | None]) -> Self:
         """Filter against the given column."""
         return replace(self, column=column)
 
     def compose(self, expr: Expression) -> Expression:
+        # InstrumentedAttribute is a descriptor so the type checker thinks
+        # self.column is of type T, not InstrumentedAttribute[T]
+        column = cast(InstrumentedAttribute[T] | None, self.column)
+
+        if column is None:
+            msg = "No column to filter against - did you forget to call `against`?"
+            raise ValueError(msg)
         for f in fields(self):
             if "op" in f.metadata:
                 op_value = getattr(self, f.name, None)
                 if op_value is not None:
                     op: Callable[[InstrumentedAttribute[T], T], BinaryExpression] = f.metadata["op"]
-                    expr &= op(self.column, op_value)
+                    expr &= op(column, op_value)
+
         return expr
 
 
@@ -416,8 +371,8 @@ def to_value_filter(value: T | Sequence[T] | ValueFilter[T] | None) -> ValueFilt
 
 
 def to_node_id_selector(
-    value: NodeFilter | Sequence[str] | str | None,
-) -> Select[UUID] | Sequence[UUID] | None:
+    value: NodeFilter | Sequence[UUID] | UUID | None,
+) -> Select[tuple[UUID, ...]] | Sequence[UUID] | None:
     """Convert a node filter to a node ID selector."""
     if value is None:
         return value
@@ -429,11 +384,3 @@ def to_node_id_selector(
         return [value]
 
     return value
-
-
-def _to_model_type_filter(model_type: type[GraphModel] | ModelTypeFilter) -> ModelTypeFilter:
-    return (
-        model_type
-        if isinstance(model_type, ModelTypeFilter)
-        else ModelTypeFilter(type=model_type, version=model_type.graph_model_version)
-    )

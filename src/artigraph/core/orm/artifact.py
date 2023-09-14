@@ -14,7 +14,7 @@ class OrmArtifact(OrmNode):
     __table_args__ = (UniqueConstraint("node_parent_id", "artifact_label"),)
     __mapper_args__: ClassVar[dict[str, Any]] = {"polymorphic_abstract": True}
 
-    artifact_serializer: Mapped[str] = mapped_column(nullable=True)
+    artifact_serializer: Mapped[str | None]
     """The name of the serializer used to serialize the artifact."""
 
 
@@ -37,7 +37,7 @@ class OrmDatabaseArtifact(OrmArtifact):
     polymorphic_identity = "database_artifact"
     __mapper_args__: ClassVar[dict[str, Any]] = {"polymorphic_identity": polymorphic_identity}
 
-    database_artifact_data: Mapped[bytes] = mapped_column(nullable=True)
+    database_artifact_data: Mapped[bytes | None]
     """The data of the artifact."""
 
 

@@ -1,16 +1,17 @@
 from __future__ import annotations
 
 from contextvars import ContextVar
-from typing import Any, Literal, Sequence, overload
+from typing import Any, Sequence
 
 from typing_extensions import Self
 
-from artigraph.core.api.filter import ModelFilter, NodeLinkFilter, ValueFilter
+from artigraph.core.api.base import GraphBase
+from artigraph.core.api.filter import NodeLinkFilter, ValueFilter
 from artigraph.core.api.funcs import delete, read, write
 from artigraph.core.api.link import NodeLink
 from artigraph.core.api.node import Node
-from artigraph.core.api.proto import GraphLike
 from artigraph.core.model.base import GraphModel
+from artigraph.core.model.filter import ModelFilter
 from artigraph.core.utils.anysync import AnySynContextManager, anysyncmethod
 
 _CURRENT_MODEL_GROUP: ContextVar[ModelGroup | None] = ContextVar(
@@ -49,70 +50,32 @@ class ModelGroup(AnySynContextManager["ModelGroup"]):
         self._models.update(models)
 
     @anysyncmethod
-    async def get_model(
-        self,
-        label: str,
-        *,
-        fresh: bool = False,
-        allow_none: bool = False,
-    ) -> GraphModel:
+    async def get_model(self, label: str, *, fresh: bool = False) -> GraphModel:
         """Get a model from this group."""
-        return (await self.get_models([label], fresh=fresh, allow_none=allow_none))[label]
+        return (await self.get_models.a([label], fresh=fresh))[label]
 
-    @overload
+    @anysyncmethod
     async def get_models(
         self,
         labels: Sequence[str] | None = ...,
         *,
         fresh: bool = False,
-        allow_none: Literal[True],
-    ) -> dict[str, GraphModel | None]:
-        ...
-
-    @overload
-    async def get_models(
-        self,
-        labels: Sequence[str] | None = ...,
-        *,
-        fresh: bool = False,
-        allow_none: bool = ...,
-    ) -> dict[str, GraphModel | None]:
-        ...
-
-    async def get_models(
-        self,
-        labels: Sequence[str] | None = None,
-        *,
-        fresh: bool = False,
-        allow_none: bool = False,
-    ) -> dict[str, GraphModel | None]:
-        """Get models from this group."""
+    ) -> dict[str, GraphModel]:
+        """Get models from this group - if a label is not in the group, it will be ignored."""
         if fresh:
             await self._refresh_models(labels)
-
-        labels = labels or tuple(self._models)
-
-        if allow_none:
-            return {label: self._models.get(label) for label in labels}
-
-        missing_labels = set(labels).difference(self._models)
-        if missing_labels:
-            msg = f"Models with labels {list(missing_labels)} are not in this group"
-            raise ValueError(msg)
-
-        return {label: self._models[label] for label in labels}
-
-    get_models = anysyncmethod(get_models)
+        labels = [l for l in labels if l in self._models] if labels else tuple(self._models)
+        return {l: self._models[l] for l in labels}
 
     @anysyncmethod
     async def delete_model(self, label: str) -> None:
         """Delete a model from this group."""
-        return await self.delete_models([label])
+        return await self.delete_models.a([label])
 
     @anysyncmethod
     async def delete_models(self, labels: Sequence[str] | None = None) -> None:
         """Delete models from this group."""
-        await delete(GraphModel, ModelFilter(child_of=self.node.node_id, labels=labels))
+        await delete.a(GraphModel, ModelFilter(child_of=self.node.node_id, labels=labels))
 
     async def _refresh_models(self, labels: Sequence[str] | None = None) -> None:
         node_links = await read.a(
@@ -123,13 +86,13 @@ class ModelGroup(AnySynContextManager["ModelGroup"]):
             ),
         )
         child_ids = [link.child_id for link in node_links]
-        labels_by_id = {link.child_id: link.label for link in node_links}
+        labels_by_id = {link.child_id: link.label for link in node_links if link.label is not None}
         model_list = await read.a(GraphModel, ModelFilter(node_id=ValueFilter(in_=child_ids)))
         self._models.update({labels_by_id[m.graph_node_id]: m for m in model_list})
 
     async def _enter(self) -> Self:
         parent_group = _CURRENT_MODEL_GROUP.get()
-        objs: list[GraphLike] = [self.node]
+        objs: list[GraphBase] = [self.node]
         if parent_group is not None:
             objs.append(
                 NodeLink(
@@ -143,7 +106,7 @@ class ModelGroup(AnySynContextManager["ModelGroup"]):
         return self
 
     async def _exit(self, *_: Any) -> None:
-        objs_to_create: list[GraphLike] = []
+        objs_to_create: list[GraphBase] = []
         for label, model in self._models.items():
             objs_to_create.append(
                 NodeLink(

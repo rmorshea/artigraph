@@ -57,7 +57,7 @@ def anysynccontextmanager(
     make_ctx = asynccontextmanager(func)
 
     @wraps(make_ctx)
-    def wrapper(*args: Any, **kwargs: Any) -> _AnySyncGeneratorContextManager[R]:
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> _AnySyncGeneratorContextManager[R]:
         return _AnySyncGeneratorContextManager(make_ctx(*args, **kwargs))
 
     return wrapper
@@ -75,7 +75,7 @@ class AnySyncFunc(Protocol[P, R]):
 class AnySyncMethod(Generic[P, R]):
     """A method that can be called synchronously or asynchronously."""
 
-    def __init__(self, func: Callable[P, Coroutine[None, None, R]]):
+    def __init__(self, func: Callable[Concatenate[Any, P], Coroutine[None, None, R]]):
         self._func = func
 
     def __get__(self, obj: Any, objtype: Any = None) -> AnySyncFunc[P, R]:
@@ -98,13 +98,13 @@ class AnySynContextManager(Generic[R]):
     def __enter__(self) -> R:
         return self._anyenter.s()
 
-    def __exit__(self, *args: Any) -> None:
+    def __exit__(self, *args: Any) -> bool | None:
         self._anyexit.s(*args)
 
     async def __aenter__(self) -> R:
         return await self._anyenter.a()
 
-    async def __aexit__(self, *args: Any) -> None:
+    async def __aexit__(self, *args: Any) -> bool | None:
         return await self._anyexit.a(*args)
 
     @anysyncmethod
@@ -123,7 +123,7 @@ class _AnySyncGeneratorContextManager(AnySynContextManager[R]):
     async def _enter(self) -> R:
         return await self._ctx.__aenter__()
 
-    async def _exit(self, *args) -> None:
+    async def _exit(self, *args) -> bool | None:
         return await self._ctx.__aexit__(*args)
 
 

@@ -112,11 +112,7 @@ class TaskBatch(Generic[R]):
                 for t in pending:
                     t.cancel()
                 await asyncio.wait(pending)
-
-            for e in errors:
-                if not isinstance(e, Exception):
-                    raise e
-
+            errors = _raise_if_non_exception(errors)
             msg = "One or more tasks failed"
             raise ExceptionGroup(msg, errors) if len(errors) > 1 else errors[0]
 
@@ -158,3 +154,10 @@ class FrozenDataclass(metaclass=_FrozenDataclassMeta):
     """All subclasses are treated as frozen keyword-only dataclasses"""
 
     _: KW_ONLY
+
+
+def _raise_if_non_exception(errors: Sequence[BaseException]) -> Sequence[Exception]:
+    for e in errors:
+        if not isinstance(e, Exception):
+            raise e
+    return cast(Sequence[Exception], errors)

@@ -30,7 +30,7 @@ from artigraph.core.orm.node import OrmNode
 from artigraph.core.utils.misc import get_subclasses
 
 if TYPE_CHECKING:
-    from artigraph.core.model import GraphModel
+    from artigraph.core.model.base import GraphModel
 
 P = ParamSpec("P")
 T = TypeVar("T")
@@ -75,19 +75,17 @@ class ModelTypeFilter(Generic[M], Filter):
     """If True, include subclasses of the given model type."""
 
     def compose(self, expr: Expression) -> Expression:
+        version = to_value_filter(self.version)
+
         if self.subclasses:
             expr &= OrmModelArtifact.model_artifact_type_name.in_(
-                [m.model_name for m in get_subclasses(self.type)]
+                [m.graph_model_name for m in get_subclasses(self.type)]
             )
         else:
-            expr &= OrmModelArtifact.model_artifact_type_name == self.type.model_name
+            expr &= OrmModelArtifact.model_artifact_type_name == self.type.graph_model_name
 
-        if self.version is not None:
-            expr &= (
-                to_value_filter(self.version)
-                .against(OrmModelArtifact.model_artifact_version)
-                .create()
-            )
+        if version:
+            expr &= version.against(OrmModelArtifact.model_artifact_version).create()
 
         return expr
 
@@ -96,5 +94,5 @@ def _to_model_type_filter(model_type: type[GraphModel] | ModelTypeFilter) -> Mod
     return (
         model_type
         if isinstance(model_type, ModelTypeFilter)
-        else ModelTypeFilter(type=model_type, version=model_type.model_version)
+        else ModelTypeFilter(type=model_type, version=model_type.graph_model_version)
     )

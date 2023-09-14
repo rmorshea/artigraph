@@ -11,14 +11,12 @@ from typing_extensions import Self, TypeAlias
 
 from artigraph import __version__ as artigraph_version
 from artigraph.core.api.artifact import Artifact, load_deserialized_artifact_value
-from artigraph.core.api.filter import NodeFilter, NodeLinkFilter
-from artigraph.core.api.funcs import GraphLike, dump_one, dump_one_flat
+from artigraph.core.api.filter import Filter, NodeFilter, NodeLinkFilter
+from artigraph.core.api.funcs import GraphBase, dump_one, dump_one_flat
 from artigraph.core.api.link import NodeLink
 from artigraph.core.orm.artifact import (
     OrmArtifact,
-    OrmDatabaseArtifact,
     OrmModelArtifact,
-    OrmRemoteArtifact,
 )
 from artigraph.core.orm.base import OrmBase
 from artigraph.core.orm.link import OrmNodeLink
@@ -31,9 +29,7 @@ from artigraph.core.utils.misc import TaskBatch
 M = TypeVar("M", bound="GraphModel")
 
 ModelData: TypeAlias = "dict[str, tuple[Any, FieldConfig]]"
-LabeledArtifactsByParentId: TypeAlias = (
-    "Mapping[UUID, dict[str, OrmDatabaseArtifact | OrmRemoteArtifact]]"
-)
+LabeledArtifactsByParentId: TypeAlias = Mapping[UUID, dict[str, OrmArtifact]]
 
 MODEL_TYPE_BY_NAME: dict[str, type[GraphModel]] = {}
 MODELED_TYPES: dict[type[Any], type[GraphModel]] = {}
@@ -71,7 +67,7 @@ class FieldConfig(TypedDict, total=False):
     """The storage for the artifact model field."""
 
 
-class GraphModel:
+class GraphModel(GraphBase[OrmModelArtifact, OrmBase, NodeFilter[Any]]):
     """A base for all modeled artifacts."""
 
     graph_orm_type: ClassVar[type[OrmModelArtifact]] = OrmModelArtifact
@@ -116,7 +112,7 @@ class GraphModel:
         return NodeFilter(node_id=self.graph_node_id)
 
     @classmethod
-    def graph_filter_related(cls, where: NodeFilter[Any]) -> dict[type[OrmBase], NodeLinkFilter]:
+    def graph_filter_related(cls, where: NodeFilter[Any]) -> dict[type[OrmBase], Filter]:
         return {
             OrmArtifact: NodeFilter(descendant_of=where),
             OrmNodeLink: NodeLinkFilter(ancestor=where),
@@ -130,7 +126,7 @@ class GraphModel:
         dump_related: TaskBatch[Sequence[OrmBase]] = TaskBatch()
         for label, (value, config) in self.graph_model_data().items():
             maybe_model = _try_convert_value_to_modeled_type(value)
-            if not config and isinstance(maybe_model, GraphLike):
+            if not config and isinstance(maybe_model, GraphBase):
                 dump_related.add(_dump_and_link, maybe_model, self.graph_node_id, label)
             else:
                 art = _make_artifact(value, config)
@@ -164,7 +160,7 @@ class GraphModel:
             ModelInfo(
                 node_id=model_metadata_artifact.node_id,
                 version=model_metadata_artifact.model_artifact_version,
-                metadata=load_deserialized_artifact_value(model_metadata_artifact),
+                metadata=await load_deserialized_artifact_value(model_metadata_artifact),
             ),
             await cls._graph_load_kwargs_from_labeled_artifacts_by_parent_id(
                 model_metadata_artifact,
@@ -253,18 +249,16 @@ def _pick_serializer(value: Any, serializers: Sequence[Serializer]) -> Serialize
 
 def _get_labeled_artifacts_by_parent_id(
     records: Sequence[OrmModelArtifact],
-    related_records: dict[
-        type[OrmNodeLink] | type[OrmArtifact],
-        Sequence[OrmNodeLink] | Sequence[OrmArtifact],
-    ],
-) -> dict[UUID, dict[str, OrmArtifact]]:
+    related_records: dict[type[OrmBase], Sequence[OrmBase]],
+) -> LabeledArtifactsByParentId:
     links = cast(Sequence[OrmNodeLink], related_records[OrmNodeLink])
     artifacts = cast(Sequence[OrmArtifact], [*related_records[OrmArtifact], *records])
 
     artifacts_by_id = {art.node_id: art for art in artifacts}
     artifacts_by_parent_id: defaultdict[UUID, dict[str, OrmArtifact]] = defaultdict(dict)
     for link in links:
-        artifacts_by_parent_id[link.parent_id][link.label] = artifacts_by_id[link.child_id]
+        if link.label is not None:
+            artifacts_by_parent_id[link.parent_id][link.label] = artifacts_by_id[link.child_id]
 
     return artifacts_by_parent_id
 
@@ -277,7 +271,7 @@ def _try_convert_value_to_modeled_type(value: Any) -> GraphModel | Any:
     return value
 
 
-async def _dump_and_link(graph_obj: GraphLike, parent_id: UUID, label: str) -> Sequence[OrmBase]:
+async def _dump_and_link(graph_obj: GraphBase, parent_id: UUID, label: str) -> Sequence[OrmBase]:
     node, related = await dump_one(graph_obj)
     if not isinstance(node, OrmNode):  # nocov
         msg = f"Expected {graph_obj} to dump an OrmNode, got {node}"

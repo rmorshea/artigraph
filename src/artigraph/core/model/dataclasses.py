@@ -4,17 +4,16 @@ from dataclasses import dataclass as _dataclass
 from dataclasses import field, fields
 from functools import lru_cache
 from typing import (
+    TYPE_CHECKING,
     Annotated,
     Any,
     Callable,
-    Literal,
     Sequence,
     TypeVar,
-    dataclass_transform,
+    cast,
     get_args,
     get_origin,
     get_type_hints,
-    overload,
 )
 from uuid import UUID, uuid1
 
@@ -33,79 +32,22 @@ from artigraph.core.storage.base import Storage
 T = TypeVar("T", bound=type[GraphModel])
 
 
-@overload
-@dataclass_transform(field_specifiers=(field,))
-def dataclass(
-    *,
-    init: Literal[False] = False,
-    repr: bool = True,  # noqa: A002
-    eq: bool = True,
-    order: bool = False,
-    unsafe_hash: bool = False,
-    frozen: bool = False,
-    kw_only: bool = False,
-    slots: bool = False,
-) -> Callable[[T], T]:
-    ...
-
-
-@overload
-@dataclass_transform(field_specifiers=(field,))
-def dataclass(
-    cls: T,
-    /,
-    *,
-    init: Literal[False] = False,
-    repr: bool = True,  # noqa: A002
-    eq: bool = True,
-    order: bool = False,
-    unsafe_hash: bool = False,
-    frozen: bool = False,
-    kw_only: bool = False,
-    slots: bool = False,
-) -> type[T]:
-    ...
-
-
-@dataclass_transform(field_specifiers=(field,))
-def dataclass(
-    cls: type[Any] | None = None,
-    /,
-    *,
-    init: Literal[False] = False,
-    repr: bool = True,  # noqa: A002
-    eq: bool = True,
-    order: bool = False,
-    unsafe_hash: bool = False,
-    frozen: bool = False,
-    kw_only: bool = False,
-    slots: bool = False,
-) -> type[GraphModel]:
+def dataclass(cls: type[T] | None = None, **kwargs: Any) -> type[T] | Callable[[type[T]], type[T]]:
     """A decorator that makes a class into a dataclass GraphModel.
 
     See: [dataclass](https://docs.python.org/3/library/dataclasses.html#dataclasses.dataclass)
     """
 
-    def decorator(cls: type[T]) -> type[GraphModel]:
+    def decorator(cls: type[T]) -> type[T]:
         if not issubclass(cls, GraphModel):
             msg = f"{cls} does not inherit from GraphModel"
             raise TypeError(msg)
 
-        cls = _dataclass(
-            cls,
-            init=init,
-            repr=repr,
-            eq=eq,
-            order=order,
-            unsafe_hash=unsafe_hash,
-            frozen=frozen,
-            kw_only=kw_only,
-            slots=slots,
-        )
+        cls = _dataclass(cls, **kwargs)
 
         with allow_model_type_overwrites():
 
-            @_dataclass(frozen=frozen)
+            @_dataclass(**kwargs)
             class _DataclassModel(cls, version=cls.graph_model_version):
                 graph_node_id: UUID = field(default_factory=uuid1, kw_only=True)
                 graph_model_name = getattr(cls, "graph_model_name", cls.__name__)
@@ -129,9 +71,14 @@ def dataclass(
         _DataclassModel.__name__ = cls.__name__
         _DataclassModel.__qualname__ = cls.__qualname__
 
-        return _DataclassModel
+        return cast(type[T], _DataclassModel)
 
     return decorator if cls is None else decorator(cls)
+
+
+if TYPE_CHECKING:
+    # we should have the exact same interface
+    dataclass = _dataclass  # type: ignore  # noqa: F811
 
 
 def get_annotated_model_data(obj: Any, field_names: Sequence[str]) -> ModelData:

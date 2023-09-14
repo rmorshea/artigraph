@@ -1,16 +1,16 @@
 import asyncio
 from typing import Sequence
 
+from artigraph.core.api.base import GraphBase
 from artigraph.core.api.filter import Filter
 from artigraph.core.api.funcs import delete_one, exists, read_one, write_one
-from artigraph.core.api.proto import GraphLike
 
 
 async def check_can_read_write_delete_one(
-    value: GraphLike,
+    value: GraphBase,
     *,
     self_filter: Filter,
-    related_filters: Sequence[tuple[type[GraphLike], Filter]] = (),
+    related_filters: Sequence[tuple[type[GraphBase], Filter]] = (),
 ):
     await write_one(value)
 
@@ -24,9 +24,9 @@ async def check_can_read_write_delete_one(
     await check_not_exists((type(value), self_filter), *related_filters)
 
 
-async def check_not_exists(*filters: tuple[type[GraphLike], Filter]) -> None:
+async def check_not_exists(*filters: tuple[type[GraphBase], Filter]) -> None:
     assert not any(await asyncio.gather(*[exists(t, f) for t, f in filters]))
 
 
-async def check_exists(*filters: tuple[type[GraphLike], Filter]) -> None:
+async def check_exists(*filters: tuple[type[GraphBase], Filter]) -> None:
     assert all(await asyncio.gather(*[exists(t, f) for t, f in filters]))

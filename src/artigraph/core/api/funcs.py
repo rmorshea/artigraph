@@ -73,9 +73,6 @@ async def delete_one(obj: GraphLike) -> None:
 @anysync
 async def delete_many(objs: Sequence[GraphLike]) -> None:
     """Delete records."""
-    if not objs:
-        return
-
     filters_by_type: defaultdict[type[GraphLike], list[Filter]] = defaultdict(list)
     for o in objs:
         filters_by_type[type(o)].append(o.graph_filter_self())

@@ -1,3 +1,5 @@
+import pytest
+
 from artigraph.core.api.filter import ValueFilter
 from artigraph.core.api.funcs import (
     delete_many,
@@ -5,6 +7,7 @@ from artigraph.core.api.funcs import (
     exists,
     read,
     read_one,
+    read_one_or_none,
     write,
     write_one,
 )
@@ -61,3 +64,28 @@ async def test_write_read_delete_polymorphic():
 
     await delete_many([fake1, fake2, fake3])
     assert not await exists(FakePoly, filter_by_fake_ids)
+
+
+async def test_read_one_or_none():
+    fake = Fake(fake_data="test1")
+    filter_by_fake_ids = ValueFilter(eq=fake.fake_id).against(OrmFake.fake_id)
+
+    await write_one(fake)
+    db_fake = await read_one_or_none(Fake, filter_by_fake_ids)
+    assert db_fake == fake
+
+    await delete_one(fake)
+    assert await read_one_or_none(Fake, filter_by_fake_ids) is None
+
+
+async def test_read_one():
+    fake = Fake(fake_data="test1")
+    filter_by_fake_ids = ValueFilter(eq=fake.fake_id).against(OrmFake.fake_id)
+
+    await write_one(fake)
+    db_fake = await read_one(Fake, filter_by_fake_ids)
+    assert db_fake == fake
+
+    await delete_one(fake)
+    with pytest.raises(ValueError):
+        await read_one(Fake, filter_by_fake_ids)

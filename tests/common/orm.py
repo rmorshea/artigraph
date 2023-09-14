@@ -1,12 +1,13 @@
 from dataclasses import field
 from typing import Any, ClassVar, Iterator, Sequence
+from uuid import UUID, uuid1
 
 from sqlalchemy.orm import Mapped, mapped_column
 from typing_extensions import Self
 
 from artigraph.core.api.filter import ValueFilter
 from artigraph.core.api.node import Node
-from artigraph.core.orm.base import OrmBase, make_uuid
+from artigraph.core.orm.base import OrmBase
 from artigraph.core.utils.misc import FrozenDataclass
 
 
@@ -17,7 +18,7 @@ def sorted_nodes(nodes: Sequence[Node]) -> Sequence[Node]:
 class OrmFake(OrmBase):
     __tablename__ = "fake_table"
 
-    fake_id: Mapped[str] = mapped_column(primary_key=True)
+    fake_id: Mapped[UUID] = mapped_column(primary_key=True)
     fake_data: Mapped[str] = mapped_column(nullable=False)
 
 
@@ -28,7 +29,7 @@ class OrmFakePoly(OrmBase):
         "polymorphic_on": "fake_poly_id",
     }
 
-    fake_id: Mapped[str] = mapped_column(primary_key=True)
+    fake_id: Mapped[UUID] = mapped_column(primary_key=True)
     fake_poly_id: Mapped[str] = mapped_column(nullable=False)
 
 
@@ -46,7 +47,7 @@ class Fake(FrozenDataclass):
     graph_orm_type: ClassVar[OrmFake] = OrmFake
 
     fake_data: str = ""
-    fake_id: str = field(default_factory=make_uuid)
+    fake_id: UUID = field(default_factory=uuid1)
 
     def graph_filter_self(self) -> ValueFilter:
         return ValueFilter(eq=self.fake_id).against(OrmFake.fake_id)
@@ -70,7 +71,7 @@ class FakePoly(FrozenDataclass):
     graph_orm_type: ClassVar[OrmFakePoly] = OrmFakePoly
 
     fake_data: str
-    fake_id: str = field(default_factory=make_uuid)
+    fake_id: UUID = field(default_factory=uuid1)
     fake_poly_id: str = "poly"
 
     def graph_filter_self(self) -> ValueFilter:

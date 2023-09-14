@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from abc import ABC
 from collections import defaultdict
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -47,7 +46,7 @@ def get_model_type_by_name(name: str) -> type[GraphModel]:
     """Get a model type by name."""
     try:
         return MODEL_TYPE_BY_NAME[name]
-    except KeyError:
+    except KeyError:  # nocov
         msg = f"Model type {name!r} does not exist"
         raise ValueError(msg) from None
 
@@ -72,7 +71,7 @@ class FieldConfig(TypedDict, total=False):
     """The storage for the artifact model field."""
 
 
-class GraphModel(ABC):
+class GraphModel:
     """A base for all modeled artifacts."""
 
     graph_orm_type: ClassVar[type[OrmModelArtifact]] = OrmModelArtifact
@@ -92,7 +91,7 @@ class GraphModel(ABC):
         raise NotImplementedError()
 
     @classmethod
-    def graph_model_init(cls, info: ModelInfo, kwargs: dict[str, Any], /) -> Self:
+    def graph_model_init(cls, info: ModelInfo, kwargs: dict[str, Any], /) -> Self:  # nocov
         """Initialize the artifact model, migrating it if necessary."""
         return cls(**kwargs)
 
@@ -229,7 +228,7 @@ def _make_artifact(value: Any, config: FieldConfig) -> Artifact[Any]:
     config = FieldConfig() if config is None else config
     return Artifact(
         value=value,
-        serializer=_pick_serializer(value, config.get("serializers", [json_serializer])),
+        serializer=_pick_serializer(value, config.get("serializers", [])) or json_serializer,
         storage=config.get("storage"),
     )
 
@@ -245,8 +244,8 @@ def _pick_serializer(value: Any, serializers: Sequence[Serializer]) -> Serialize
         if s.serializable(value):
             return s
 
-    msg = f"Could not find a serializer for {value} among {serializers}"
-    raise ValueError(msg)
+    msg = f"Could not find a serializer for {value} among {serializers}"  # nocov
+    raise ValueError(msg)  # nocov
 
 
 def _get_labeled_artifacts_by_parent_id(
@@ -277,7 +276,7 @@ def _try_convert_value_to_modeled_type(value: Any) -> GraphModel | Any:
 
 async def _dump_and_link(graph_obj: GraphLike, parent_id: UUID, label: str) -> Sequence[OrmBase]:
     node, related = await dump_one(graph_obj)
-    if not isinstance(node, OrmNode):
+    if not isinstance(node, OrmNode):  # nocov
         msg = f"Expected {graph_obj} to dump an OrmNode, got {node}"
         raise ValueError(msg)
     link = NodeLink(parent_id=parent_id, child_id=node.node_id, label=label)

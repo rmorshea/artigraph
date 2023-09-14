@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from artigraph.core.model.base import MODELED_TYPES, _try_convert_value_to_modeled_type
+from artigraph.core.model.base import MODELED_TYPES, GraphModel, _try_convert_value_to_modeled_type
 
 
 @pytest.mark.parametrize(
@@ -21,3 +21,13 @@ def test_try_convert_value_to_and_from_modeled_type(value):
     }
     model_type = MODELED_TYPES[type(value)]
     assert value == model_type.graph_model_init(model_type.graph_model_version, kwargs)
+
+
+def test_cannot_define_model_with_same_name():
+    class SomeModelName(GraphModel, version=1):
+        pass
+
+    with pytest.raises(RuntimeError):
+
+        class SomeModelName(GraphModel, version=1):
+            pass

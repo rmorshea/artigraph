@@ -3,16 +3,10 @@ from __future__ import annotations
 from dataclasses import KW_ONLY
 from datetime import datetime
 from typing import Any, ClassVar
-from uuid import uuid1
 
 from sqlalchemy import func
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import DeclarativeBase, Mapped, MappedAsDataclass, mapped_column
-
-
-def make_uuid() -> str:
-    """Generate a UUID."""
-    return uuid1().hex
 
 
 def get_poly_graph_orm_type(table: str, poly_id: str) -> type[OrmBase]:
@@ -37,6 +31,12 @@ class OrmBase(MappedAsDataclass, DeclarativeBase):
     _: KW_ONLY
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+
+        tablename = getattr(cls, "__tablename__", None)
+        if not tablename:  # nocov
+            return
+
         if not cls.__mapper_args__.get("polymorphic_abstract"):
             poly_id = cls.__mapper_args__.get("polymorphic_identity")
             if poly_id is not None:
@@ -46,15 +46,14 @@ class OrmBase(MappedAsDataclass, DeclarativeBase):
                     msg = f"Polymorphic ID {poly_id} exists as {maybe_conflict_cls}"
                     raise ValueError(msg)
 
-        super().__init_subclass__(**kwargs)
-
         inspector = inspect(cls)
         rank = 0
         for c in inspector.columns:
             for fk in c.foreign_keys:
-                if fk.column.table.name != cls.__tablename__:
-                    rank = max(rank, _FK_DEPENDENCY_RANK_BY_TABLE_NAME[fk.column.table.name] + 1)
-        _FK_DEPENDENCY_RANK_BY_TABLE_NAME[cls.__tablename__] = rank
+                if fk.column.table.name != tablename:
+                    other_rank = _FK_DEPENDENCY_RANK_BY_TABLE_NAME[fk.column.table.name] + 1
+                    rank = max(rank, other_rank)
+        _FK_DEPENDENCY_RANK_BY_TABLE_NAME[tablename] = rank
 
     created_at: Mapped[datetime] = mapped_column(
         nullable=False,

@@ -7,17 +7,17 @@ arbitrary data types in your artifacts. You can use the
 
 ## Built-in Serializers
 
-| Serializer                                                                                                 | Description                                                              |
-| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| [core.serializer.datetime.datetime_serializer][artigraph.datetime_serializer]                              | Date Times                                                               |
-| [core.serializer.json.json_serializer][artigraph.json_serializer]                                          | JSON                                                                     |
-| [core.serializer.json.json_sorted_serializer][artigraph.json_sorted_serializer]                            | JSON with sorted keys                                                    |
-| [extra.serializer.numpy.array_serializer][artigraph.extra.serializer.numpy.array_serializer]               | 1d and 2d [Numpy](https://numpy.org/) Arrays                             |
-| [extra.serializer.pandas.dataframe_serializer][artigraph.extra.serializer.pandas.dataframe_serializer]     | [Pandas](https://pandas.pydata.org/) DataFrames                          |
-| [extra.serializer.plotly.figure_json_serializer][artigraph.extra.serializer.plotly.figure_json_serializer] | [Plotly](https://plotly.com/python/) Figures                             |
-| [extra.serializer.polars.dataframe_serializer][artigraph.extra.serializer.polars.dataframe_serializer]     | [Polars](https://pola-rs.github.io/) DataFrames                          |
-| [extra.serializer.pyarrow.feather_serializer][artigraph.extra.serializer.pyarrow.feather_serializer]       | [PyArrow](https://arrow.apache.org/docs/python/index.html) Feather Files |
-| [extra.serializer.pyarrow.parquet_serializer][artigraph.extra.serializer.pyarrow.parquet_serializer]       | [PyArrow](https://arrow.apache.org/docs/python/index.html) Parquet Files |
+| Serializer                                                                           | Description                                                              |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| [core.serializer.datetime.datetime_serializer][artigraph.datetime_serializer]        | Date Times                                                               |
+| [core.serializer.json.json_serializer][artigraph.json_serializer]                    | JSON                                                                     |
+| [core.serializer.json.json_sorted_serializer][artigraph.json_sorted_serializer]      | JSON with sorted keys                                                    |
+| [extra.numpy.array_serializer][artigraph.extra.numpy.array_serializer]               | 1d and 2d [Numpy](https://numpy.org/) Arrays                             |
+| [extra.pandas.dataframe_serializer][artigraph.extra.pandas.dataframe_serializer]     | [Pandas](https://pandas.pydata.org/) DataFrames                          |
+| [extra.plotly.figure_json_serializer][artigraph.extra.plotly.figure_json_serializer] | [Plotly](https://plotly.com/python/) Figures                             |
+| [extra.polars.dataframe_serializer][artigraph.extra.polars.dataframe_serializer]     | [Polars](https://pola-rs.github.io/) DataFrames                          |
+| [extra.pyarrow.feather_serializer][artigraph.extra.pyarrow.feather_serializer]       | [PyArrow](https://arrow.apache.org/docs/python/index.html) Feather Files |
+| [extra.pyarrow.parquet_serializer][artigraph.extra.pyarrow.parquet_serializer]       | [PyArrow](https://arrow.apache.org/docs/python/index.html) Parquet Files |
 
 ## Custom Serializers
 

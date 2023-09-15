@@ -8,10 +8,10 @@ You can use one of the [built-in models](#built-in-models) or you can
 
 ## Built-in Models
 
-| Model                                                                              | Description                                                                                                      |
-| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| [core.model.dataclasses.dataclass][artigraph.dataclass]                            | A model that uses the standard library [dataclasses](https://docs.python.org/3/library/dataclasses.html) module. |
-| [extra.model.pydantic.PydanticModel][artigraph.extra.model.pydantic.PydanticModel] | A model that uses the [Pydantic](#pydantic/) library.                                                            |
+| Model                                                                  | Description                                                                                                      |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| [core.model.dataclasses.dataclass][artigraph.dataclass]                | A model that uses the standard library [dataclasses](https://docs.python.org/3/library/dataclasses.html) module. |
+| [extra.pydantic.PydanticModel][artigraph.extra.pydantic.PydanticModel] | A model that uses the [Pydantic](#pydantic/) library.                                                            |
 
 ## Pydantic
 

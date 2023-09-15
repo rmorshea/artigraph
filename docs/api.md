@@ -2,16 +2,16 @@
 
 ::: artigraph
 
-::: artigraph.extra.model.pydantic
+::: artigraph.extra.pydantic
 
-::: artigraph.extra.serializer.numpy
+::: artigraph.extra.numpy
 
-::: artigraph.extra.serializer.pandas
+::: artigraph.extra.pandas
 
-::: artigraph.extra.serializer.plotly
+::: artigraph.extra.plotly
 
-::: artigraph.extra.serializer.polars
+::: artigraph.extra.polars
 
-::: artigraph.extra.serializer.pyarrow
+::: artigraph.extra.pyarrow
 
-::: artigraph.extra.storage.aws
+::: artigraph.extra.aws

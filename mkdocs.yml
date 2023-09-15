@@ -11,7 +11,7 @@ nav:
           - Initial Setup: setup.md
           - Building Blocks: building-blocks.md
           - Standard Operations: standard-operations.md
-          - Beyond the Basics: beyond-the-basics.md
+          - Function Graphs: function-graphs.md
     - Learn:
           - Filtering: filtering.md
           - Models: models.md

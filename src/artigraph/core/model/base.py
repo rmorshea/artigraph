@@ -131,7 +131,7 @@ class GraphModel(GraphBase[OrmModelArtifact, OrmBase, NodeFilter[Any]]):
         dump_related: TaskBatch[Sequence[OrmBase]] = TaskBatch()
         for label, (value, config) in self.graph_model_data().items():
             maybe_model = _try_convert_value_to_modeled_type(value)
-            if not config and isinstance(maybe_model, GraphBase):
+            if not any(v for v in config.values()) and isinstance(maybe_model, GraphBase):
                 dump_related.add(_dump_and_link, maybe_model, self.graph_node_id, label)
             else:
                 art = _make_artifact(value, config)

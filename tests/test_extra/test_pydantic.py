@@ -5,7 +5,7 @@ from artigraph.core.api.funcs import delete_one, exists, read_one, write_one
 from artigraph.core.api.link import NodeLink
 from artigraph.core.api.node import Node
 from artigraph.core.model.filter import ModelFilter
-from artigraph.extra.model.pydantic import PydanticModel
+from artigraph.extra.pydantic import PydanticModel
 
 
 class PydanticSimpleModel(PydanticModel, version=1):
@@ -34,7 +34,9 @@ async def test_write_read_delete_non_nested_dataclass_model():
 
 async def test_write_read_delete_nested_dataclass_model():
     model = PydanticSimpleModel(
-        x=1, y="2", z=PydanticSimpleModel(x=3, y="4", z=PydanticSimpleModel(x=5, y="6"))
+        x=1,
+        y="2",
+        z=PydanticSimpleModel(x=3, y="4", z=PydanticSimpleModel(x=5, y="6")),
     )
     model_filter = ModelFilter(node_id=model.graph_node_id, model_type=PydanticSimpleModel)
 

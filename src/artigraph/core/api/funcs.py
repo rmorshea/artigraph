@@ -231,10 +231,8 @@ def _make_non_poly_obj(
 
 def _order_records_by_dependency_rank(records: Collection[OrmBase]) -> Sequence[Sequence[OrmBase]]:
     """Order records by dependency rank in O(N)"""
-    if not records:
-        return []
     rank_by_graph_orm_type = {r.__tablename__: get_fk_dependency_rank(type(r)) for r in records}
-    max_rank = max(rank_by_graph_orm_type.values())
+    max_rank = max(rank_by_graph_orm_type.values() or [0])
     records_by_rank: list[list[OrmBase]] = [[] for _ in range(max_rank + 1)]
     for r in records:
         records_by_rank[rank_by_graph_orm_type[r.__tablename__]].append(r)

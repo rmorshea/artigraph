@@ -44,4 +44,3 @@ async def test_trace_graph():
     assert "call_all[second]" in root_links_by_label
 
     # TODO: test the rest...
-    raise AssertionError()

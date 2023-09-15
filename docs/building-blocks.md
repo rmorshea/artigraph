@@ -1,33 +1,12 @@
-# Usage
+# Building Blocks
 
-This section will go over basic Artigraph usage patterns.
+At the core of Artigraph are [nodes](#nodes) and [links](#links). Nodes are the vertices
+of the graph and links are the edges that connect them. Edges in Artigraph are always
+directed and have a parent and a child.
 
-## Setup
-
-First, you need to set up an
-[async SQLAlchemy engine](https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html#sqlalchemy.ext.asyncio.create_async_engine)
-and create the Artigraph tables. The quickest way to do this is to use the
-[set_engine()][artigraph.set_engine] function, pass it a conntection string or any
-engine object, and set `create_tables=True`. You won't need `create_tables=True` if
-you're using a database that already has the tables created.
-
-```python
-import artigraph as ag
-
-ag.set_engine("sqlite+aiosqlite:///example.db", create_tables=True)
-```
-
-You can also use [current_engine()][artigraph.current_engine] to establish an engine for
-use within a particular block of code:
-
-```python
-with ag.current_engine("sqlite+aiosqlite:///example.db", create_tables=True):
-    # Do stuff with Artigraph
-```
-
-!!! note
-
-    You'll need to install `aiosqlite` for the above code to work.
+Nodes which have data associated with them are called [artifacts](#artifacts). Artifacts
+are the primary way you'll store information in Artigraph. You can organize artifacts
+into [models](#models) which give structure to the data they contain.
 
 ## Nodes
 
@@ -120,7 +99,10 @@ artifact = ag.Artifact(value=b"Hello, world!")
 To store other types of data, you'll need to declare a [serializer](./serializers.md):
 
 ```python
-json_artifact = ag.Artifact(value={"hello": "world"}, serializer=ag.json_serializer)
+json_artifact = ag.Artifact(
+    value={"hello": "world"},
+    serializer=ag.json_serializer,
+)
 ```
 
 You can then write the artifact to the database:
@@ -140,7 +122,7 @@ ag.write([node, artifact, link])
 ```
 
 Some data is too large to store directly in the database. For that, you can specify a
-separate [storage](./storage.md) location:
+[storage](./storage.md) location:
 
 ```python
 file_storage = ag.FileSystemStorage("path/to/storage/dir")
@@ -156,7 +138,7 @@ large_artifact = ag.Artifact(
 
 A [GraphModel][artigraph.GraphModel] gives structure to the data in your artifacts. The
 easiest way to create one is using the built-in [@dataclass][artigraph.dataclass]
-decorator, though [other implementations](./models.md#built-in-models) exist. The only
+decorator, though [other model types](./models.md#built-in-models) exist. The only
 difference between this decorator and the standard library version is that it must be
 used on a subclass of `GraphModel` which requires a version (which will be discussed
 later). With that in mind, you can define a model like so:
@@ -213,70 +195,3 @@ person = Person(
 
 ag.write_one(person)
 ```
-
-## Async
-
-Artigraph is designed to be used in both a synchronous or asynchronous context. Many
-functions and methods are dual-use and can be called either way. One such function is
-[artigraph.write()][artigraph.write]. Synchronous use looks like this:
-
-```python
-ag.write(...)
-```
-
-While asynchronous use looks like this:
-
-```python
-import asyncio
-
-
-async def main():
-    await ag.write(...)
-
-
-asyncio.run(main())
-```
-
-This is similarly true for many context managers. For example, the
-[current_session()][artigraph.current_session] context manager can be used
-synchronously:
-
-```python
-with ag.current_session() as session:
-    ...
-```
-
-Or asynchronously:
-
-```python
-import asyncio
-
-
-async def main():
-    async with ag.current_session() as session:
-        ...
-
-
-asyncio.run(main())
-```
-
-To force Artigraph to use version you need only access the `.a` or `.s` attributes of
-the function you're calling to get the async or sync version respectively. In the
-examples above `write.s` is the sync version and `write.a` is the async version.
-
-Being able to be explicit about whether you're using a sync or async version of a
-function can also be useful when working with type checkers since the return type of the
-dual-use function (without the `.a` or `.s`) will be the union `Awaitable[T] | T` where
-`T` is the return type of the function.
-
-A non-exhaustive list of dual-use functions, methods and context managers is below:
-
--   [exists()][artigraph.exists]
--   [read()][artigraph.read]
--   [read_one()][artigraph.read_one]
--   [write()][artigraph.write]
--   [write_one()][artigraph.write_one]
--   [delete()][artigraph.delete]
--   [delete_one()][artigraph.delete_one]
--   [delete_many()][artigraph.delete_one]
--   [current_session()][artigraph.current_session]

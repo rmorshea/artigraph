@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from artigraph.core.api.filter import NodeFilter, NodeLinkFilter
-from artigraph.core.api.funcs import delete_one, exists, read_one, write
+from artigraph.core.api.funcs import delete_one, exists, read_one, write_many
 from artigraph.core.api.link import NodeLink
 from artigraph.core.api.node import Node
 
@@ -102,7 +102,7 @@ async def create_graph() -> dict[str, Node]:
         label="grandparent_to_parent3",
     )
 
-    await write.a(
+    await write_many.a(
         [
             grandparent,
             parent1,

@@ -1,4 +1,4 @@
-# Queries
+# Filtering
 
 Artigraph allows you to inspect and operate on the graph of nodes defined by the
 underlying [database schema](schema.md) using [Filter][artigraph.Filter]s. Filters can

@@ -12,12 +12,13 @@ from artigraph.core.api.filter import (
 )
 from artigraph.core.api.funcs import (
     delete,
+    delete_many,
     delete_one,
     exists,
     read,
     read_one,
     read_one_or_none,
-    write,
+    write_many,
     write_one,
 )
 from artigraph.core.api.link import NodeLink
@@ -34,7 +35,11 @@ from artigraph.core.orm.artifact import (
 )
 from artigraph.core.orm.base import OrmBase
 from artigraph.core.orm.node import OrmNode, get_polymorphic_identities
-from artigraph.core.serializer.base import Serializer, get_serializer_by_name
+from artigraph.core.serializer.base import (
+    Serializer,
+    get_serializer_by_name,
+    get_serializer_by_type,
+)
 from artigraph.core.serializer.datetime import DatetimeSerializer, datetime_serializer
 from artigraph.core.serializer.json import JsonSerializer, json_serializer, json_sorted_serializer
 from artigraph.core.storage.base import (
@@ -46,20 +51,23 @@ from artigraph.core.storage.file import FileSystemStorage, temp_file_storage
 __all__ = (
     "Artifact",
     "ArtifactFilter",
+    "current_engine",
     "current_session",
     "dataclass",
     "datetime_serializer",
     "DatetimeSerializer",
+    "delete_many",
     "delete_one",
     "delete_one",
     "delete",
-    "current_engine",
     "exists",
     "FieldConfig",
     "FileSystemStorage",
     "Filter",
     "get_polymorphic_identities",
     "get_serializer_by_name",
+    "get_serializer_by_name",
+    "get_serializer_by_type",
     "get_storage_by_name",
     "GraphBase",
     "GraphModel",
@@ -90,6 +98,6 @@ __all__ = (
     "Storage",
     "temp_file_storage",
     "ValueFilter",
+    "write_many",
     "write_one",
-    "write",
 )

@@ -8,7 +8,7 @@ class FigureJsonSerializer(Serializer[Figure | FigureWidget]):
     """Serialize a plotly figure"""
 
     name = "artigraph-plotly-figure-json"
-    types = (Figure | FigureWidget,)
+    types = (Figure, FigureWidget)
 
     def serialize(self, figure: Figure | FigureWidget) -> bytes:
         result = plotly_io.to_json(figure)

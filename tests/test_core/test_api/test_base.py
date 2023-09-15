@@ -5,7 +5,7 @@ from artigraph.core.api.funcs import (
     exists,
     read,
     read_one,
-    write,
+    write_many,
     write_one,
 )
 from tests.common import Fake, FakePoly, OrmFake, OrmFakePoly
@@ -33,7 +33,7 @@ async def test_write_read_delete_many():
     fake_ids = (fake1.fake_id, fake2.fake_id, fake3.fake_id)
     filter_by_fake_ids = ValueFilter(in_=fake_ids).against(OrmFake.fake_id)
 
-    await write.a([fake1, fake2, fake3])
+    await write_many.a([fake1, fake2, fake3])
     assert await exists.a(Fake, filter_by_fake_ids)
 
     fakes = await read.a(Fake, filter_by_fake_ids)
@@ -52,7 +52,7 @@ async def test_write_read_delete_polymorphic():
     fake_ids = (fake1.fake_id, fake2.fake_id, fake3.fake_id)
     filter_by_fake_ids = ValueFilter(in_=fake_ids).against(OrmFakePoly.fake_id)
 
-    await write.a([fake1, fake2, fake3])
+    await write_many.a([fake1, fake2, fake3])
     assert await exists.a(FakePoly, filter_by_fake_ids)
 
     fakes = await read.a(FakePoly, filter_by_fake_ids)

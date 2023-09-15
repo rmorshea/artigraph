@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, Sequence, TypeVar
 
 from typing_extensions import Self
 
@@ -11,6 +11,7 @@ S = TypeVar("S", bound="Serializer[Any]")
 
 WRAPPER_VERSION = 1
 SERIALIZERS_BY_NAME: dict[str, Serializer[Any]] = {}
+SERIALIZERS_BY_TYPE: dict[type[T], Sequence[Serializer[T]]] = {}
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,15 @@ def get_serializer_by_name(name: str) -> Serializer[Any]:
         msg = f"No serializer named {name!r}"
         raise ValueError(msg)
     return SERIALIZERS_BY_NAME[name]
+
+
+def get_serializer_by_type(cls: type[T]) -> Sequence[Serializer[T]]:
+    """Get a serializer by type."""
+    for c in cls.mro():
+        if c in SERIALIZERS_BY_TYPE:
+            return SERIALIZERS_BY_TYPE[c]
+    msg = f"No serializer for type {cls!r}"
+    raise ValueError(msg)
 
 
 class Serializer(ABC, Generic[T]):
@@ -62,6 +72,9 @@ class Serializer(ABC, Generic[T]):
             msg = f"Serializer named {self.name!r} already registered."
             raise ValueError(msg)
         SERIALIZERS_BY_NAME[self.name] = self
+
+        for t in self.types:
+            SERIALIZERS_BY_TYPE[t] = (*SERIALIZERS_BY_TYPE.get(t, ()), self)
 
         return self
 

@@ -98,11 +98,11 @@ async def delete(cls: type[GraphBase], where: Filter) -> None:
 @anysync
 async def write_one(obj: GraphBase) -> None:
     """Create a record."""
-    return await write.a([obj])
+    return await write_many.a([obj])
 
 
 @anysync
-async def write(objs: Collection[GraphBase]) -> None:
+async def write_many(objs: Collection[GraphBase]) -> None:
     """Create records and, if given, refresh their attributes."""
     await orm_write(await dump(objs))
 

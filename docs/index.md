@@ -8,21 +8,6 @@ databases including PostgreSQL, MySQL, and SQLite. It also supports popular tool
 [Pydantic](https://docs.pydantic.dev/), [Numpy](https://numpy.org/), and
 [Pandas](https://pandas.pydata.org/).
 
-## Installation
-
-```
-pip install "artigraph[all]"
-```
-
-To install only a select set of dependencies replace `all` with any of:
-
--   `aws`
--   `pandas`
--   `numpy`
--   `polars`
--   `pyarrow`
--   `plotly`
-
 ## At a Glance
 
 Below is a script that creates a data model, saves it in a local SQLite database, and

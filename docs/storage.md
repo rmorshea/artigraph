@@ -1,12 +1,12 @@
 # Storage
 
-Artifacts can be stored in a variety of locations. By default, artifacts are stored in
-the database itself. However, you can also store artifacts in a local filesystem or in
-AWS S3.
+The data from [artifacts](./building-blocks.md#artifacts) can be stored in a variety of
+locations. By default, artifact data is stored in the database itself. However, you can
+specify a storage backend to save it elsewhere. You can use one of the
+[built-in storage backends](#built-in-storage-backends) or you can
+[create your own](#custom-storage-backends).
 
 ## Built-in Storage Backends
-
-All built-in serializers can be found under `artigraph.storage`:
 
 | Storage                                                                              | Description                          |
 | ------------------------------------------------------------------------------------ | ------------------------------------ |

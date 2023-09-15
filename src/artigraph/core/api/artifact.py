@@ -4,7 +4,11 @@ from typing import Any, ClassVar, Generic, TypeVar
 
 from artigraph.core.api.node import Node
 from artigraph.core.orm.artifact import OrmArtifact, OrmDatabaseArtifact, OrmRemoteArtifact
-from artigraph.core.serializer.base import Serializer, get_serializer_by_name
+from artigraph.core.serializer.base import (
+    Serializer,
+    get_serializer_by_name,
+    get_serializer_by_type,
+)
 from artigraph.core.storage.base import Storage, get_storage_by_name
 
 T = TypeVar("T")
@@ -49,9 +53,10 @@ class Artifact(Node[OrmArtifact], Generic[T]):
         elif isinstance(self.value, bytes):
             serializer_name = None
             data = self.value
-        else:  # nocov
-            msg = f"Must specify a serializer for non-bytes artifact: {self.value}"
-            raise ValueError(msg)
+        else:
+            serializer = get_serializer_by_type(type(self.value))[0]
+            data = serializer.serialize(self.value)
+            serializer_name = serializer.name
 
         if data is not None and self.storage is not None:
             location = await self.storage.create(data)

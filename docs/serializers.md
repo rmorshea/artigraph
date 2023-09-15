@@ -1,9 +1,9 @@
 # Serializers
 
 Artifacts are serialized before being stored in the database. This allows you to store
-arbitrary data types in your artifacts. By default, `artigraph` will do its best to
-infer how to serialize a value based on its type. However, you can also specify a
-serializer explicitly.
+arbitrary data types in your artifacts. You can use the
+[built-in serializers](#built-in-serializers) or you can
+[create your own](#custom-serializers).
 
 ## Built-in Serializers
 

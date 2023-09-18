@@ -35,13 +35,13 @@ figure_json_serializer = FigureJsonSerializer().register()
 """Serialize a plotly figure"""
 
 
-def display_networkx_graph(graph: nx.Graph, hover_text_line_limit: int = 25) -> None:
-    """Display a NetworkX graph in the notebook. Requires the `plotly` package."""
+def figure_from_networkx_graph(graph: nx.Graph, hover_text_line_limit: int = 25) -> go.Figure:
+    """Create a figure from a NetworkX graph"""
     import networkx as nx
 
     try:
         import pandas as pd
-    except ImportError:
+    except ImportError:  # nocov
         pass
     else:
         pd.set_option("display.max_rows", 20)
@@ -100,7 +100,7 @@ def display_networkx_graph(graph: nx.Graph, hover_text_line_limit: int = 25) -> 
     ]
     node_trace.marker.color = node_colors
 
-    fig = go.Figure(
+    return go.Figure(
         data=[edge_trace, node_trace],
         layout=go.Layout(
             titlefont_size=16,
@@ -111,8 +111,6 @@ def display_networkx_graph(graph: nx.Graph, hover_text_line_limit: int = 25) -> 
             hoverlabel={"font": {"family": "monospace", "size": 10}},
         ),
     )
-
-    fig.show()
 
 
 def _create_node_hover_text(label: str | None, node: Node | Artifact) -> str:

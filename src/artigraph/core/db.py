@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from typing import AsyncIterator, Callable, Iterator, TypeVar
 
@@ -13,7 +13,6 @@ from sqlalchemy.ext.asyncio import (
 from typing_extensions import ParamSpec
 
 from artigraph.core.orm.base import OrmBase
-from artigraph.core.utils.anysync import anysynccontextmanager
 
 E = TypeVar("E", bound=AsyncEngine)
 P = ParamSpec("P")
@@ -39,7 +38,7 @@ def current_engine(
         reset()
 
 
-@anysynccontextmanager
+@asynccontextmanager
 async def current_session(
     make_session: async_sessionmaker[AsyncSession] | None = None,
 ) -> AsyncIterator[AsyncSession]:

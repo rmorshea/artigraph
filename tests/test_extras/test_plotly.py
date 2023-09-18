@@ -1,6 +1,6 @@
 import plotly.express as px
 
-from artigraph.extra.plotly import figure_json_serializer
+from artigraph.extras.plotly import figure_json_serializer
 
 
 def test_figure_serializer():

@@ -1,56 +1,43 @@
-import networkx as nx
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+import plotly.graph_objects as go
+from plotly import io as plotly_io
+from plotly.graph_objs import Figure, FigureWidget
 
 from artigraph.core.api.artifact import Artifact
-from artigraph.core.api.filter import ArtifactFilter, NodeFilter, NodeLinkFilter, NodeTypeFilter
-from artigraph.core.api.funcs import read
-from artigraph.core.api.link import NodeLink
 from artigraph.core.api.node import Node
-from artigraph.core.orm.artifact import OrmArtifact
-from artigraph.core.utils.anysync import anysync
+from artigraph.core.serializer.base import Serializer
+
+if TYPE_CHECKING:
+    import networkx as nx
 
 
-@anysync
-async def create_graph(root: Node) -> nx.DiGraph:
-    """Create a NetworkX graph from an Artigraph node."""
-    links = await read.a(NodeLink, NodeLinkFilter(ancestor=root.node_id))
-    nodes = await read.a(
-        Node,
-        NodeFilter(
-            node_id=[l.child_id for l in links],
-            node_type=NodeTypeFilter(subclasses=True, not_type=OrmArtifact),
-        ),
-    )
-    artifacts = await read.a(
-        Artifact,
-        ArtifactFilter(node_id=[l.child_id for l in links]),
-    )
-    node_labels = {l.child_id: l.label for l in links}
+class FigureJsonSerializer(Serializer[Figure | FigureWidget]):
+    """Serialize a plotly figure"""
 
-    graph = nx.DiGraph()
-    for n in [root, *nodes, *artifacts]:
-        graph.add_node(n.node_id, obj=n, label=node_labels.get(n.node_id))
-    graph.add_edges_from([(l.parent_id, l.child_id, {"label": l.label}) for l in links])
+    name = "artigraph-plotly-figure-json"
+    types = (Figure, FigureWidget)
 
-    return graph
+    def serialize(self, figure: Figure | FigureWidget) -> bytes:
+        result = plotly_io.to_json(figure)
+        if result is None:  # no cov
+            msg = "Plotly failed to serialize the figure - this is likely an issue with Plotly"
+            raise RuntimeError(msg)
+        return result.encode()
+
+    def deserialize(self, data: bytes) -> Figure | FigureWidget:
+        return plotly_io.from_json(data.decode())
 
 
-def display_graph(graph: nx.Graph) -> None:
-    errors: list[ImportError] = []
-    try:
-        _display_plotly_graph(graph)
-    except ImportError as e:
-        errors.append(e)
-    else:
-        return
-
-    msg = "Could not display graph. Please install one of the following packages:"
-    for e in errors:
-        msg += f"\n- {e.name}"
-    raise ImportError(msg)
+figure_json_serializer = FigureJsonSerializer().register()
+"""Serialize a plotly figure"""
 
 
-def _display_plotly_graph(graph: nx.Graph, hover_text_line_limit: int = 25) -> None:
-    import plotly.graph_objects as go
+def display_networkx_graph(graph: nx.Graph, hover_text_line_limit: int = 25) -> None:
+    """Display a NetworkX graph in the notebook. Requires the `plotly` package."""
+    import networkx as nx
 
     try:
         import pandas as pd
@@ -59,13 +46,7 @@ def _display_plotly_graph(graph: nx.Graph, hover_text_line_limit: int = 25) -> N
     else:
         pd.set_option("display.max_rows", 20)
 
-    for layer, nodes in enumerate(nx.topological_generations(graph)):
-        # `multipartite_layout` expects the layer as a node attribute, so add the
-        # numeric layer value as a node attribute
-        for node in nodes:
-            graph.nodes[node]["subset"] = layer
-
-    pos = nx.multipartite_layout(graph)
+    pos = nx.multipartite_layout(graph, align="horizontal")
 
     node_x = []
     node_y = []
@@ -111,6 +92,13 @@ def _display_plotly_graph(graph: nx.Graph, hover_text_line_limit: int = 25) -> N
             text = "<br>".join(text.split("<br>")[:25] + ["<br>..."])
         node_text.append(text)
     node_trace.text = node_text
+
+    # color Artifact green and Node blue
+    node_colors = [
+        "green" if isinstance(graph.nodes[node]["obj"], Artifact) else "blue"
+        for node in graph.nodes()
+    ]
+    node_trace.marker.color = node_colors
 
     fig = go.Figure(
         data=[edge_trace, node_trace],

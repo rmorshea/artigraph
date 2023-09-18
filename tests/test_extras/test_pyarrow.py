@@ -1,7 +1,7 @@
 import pyarrow as pa
 import pytest
 
-from artigraph.extra.pyarrow import feather_serializer, parquet_serializer
+from artigraph.extras.pyarrow import feather_serializer, parquet_serializer
 
 
 def test_feather_serializer():

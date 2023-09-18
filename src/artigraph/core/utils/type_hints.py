@@ -15,10 +15,12 @@ from artigraph.core.serializer.base import Serializer
 from artigraph.core.storage.base import Storage
 
 
-def get_annotation_info(obj: Any, *, use_cache: bool = False) -> dict[str, AnnotationInfo]:
+def get_artigraph_type_hint_metadata(
+    obj: Any, *, use_cache: bool = False
+) -> dict[str, TypeHintMetadata]:
     """Get the model data for a dataclass-like instance."""
     hints = (_cached_get_type_hints if use_cache else get_type_hints)(obj)
-    info: dict[str, AnnotationInfo] = {}
+    info: dict[str, TypeHintMetadata] = {}
     for name, anno in hints.items():
         serializers: list[Serializer] = []
         storage: Storage | None = None
@@ -31,12 +33,12 @@ def get_annotation_info(obj: Any, *, use_cache: bool = False) -> dict[str, Annot
                         msg = f"Multiple storage types specified for {name!r} - {arg} and {storage}"
                         raise ValueError(msg)
                     storage = arg
-        info[name] = AnnotationInfo(serializers, storage)
+        info[name] = TypeHintMetadata(serializers, storage)
     return info
 
 
 @dataclass(frozen=True)
-class AnnotationInfo:
+class TypeHintMetadata:
     serializers: Sequence[Serializer] = ()
     storage: Storage | None = None
 

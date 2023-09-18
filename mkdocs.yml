@@ -10,8 +10,8 @@ nav:
     - Usage:
           - Initial Setup: setup.md
           - Building Blocks: building-blocks.md
-          - Standard Operations: standard-operations.md
-          - Function Graphs: function-graphs.md
+          - Common Operations: common-operations.md
+          - Making Call Graphs: call-graphs.md
     - Learn:
           - Filtering: filtering.md
           - Models: models.md

@@ -5,27 +5,27 @@ from artigraph.core.api.filter import NodeLinkFilter
 from artigraph.core.api.funcs import read
 from artigraph.core.api.link import NodeLink
 from artigraph.core.api.node import Node
-from artigraph.core.graph.trace import graph_tracer, trace_graph
+from artigraph.core.graph.trace import current_node, start_trace, trace_function
 from artigraph.core.serializer.json import json_sorted_serializer
 from tests.common.model import SimpleDataclassModel
 
 
-@graph_tracer()
+@trace_function()
 async def simple_function(x: int, y: int) -> int:
     return x + y
 
 
-@graph_tracer()
+@trace_function()
 async def function_with_graph_objs(obj: SimpleDataclassModel) -> SimpleDataclassModel:
     return replace(obj, x=obj.x + 1)
 
 
-@graph_tracer()
+@trace_function()
 async def function_with_annotated_serializer(data: Annotated[Any, json_sorted_serializer]) -> None:
     return {**data, "a": 1}
 
 
-@graph_tracer()
+@trace_function()
 async def call_all() -> None:
     await simple_function(1, 2)
     await function_with_graph_objs(SimpleDataclassModel(x=1, y=2))
@@ -33,7 +33,7 @@ async def call_all() -> None:
 
 
 async def test_trace_graph():
-    async with trace_graph(Node()) as root:
+    async with start_trace(Node()) as root:
         await call_all()
         await call_all.labeled("second")
 
@@ -44,3 +44,24 @@ async def test_trace_graph():
     assert "call_all[second]" in root_links_by_label
 
     # TODO: test the rest...
+
+
+def test_trace_sync_graph():
+    @trace_function()
+    def add(x: int, y: int) -> int:
+        return x + y
+
+    @trace_function()
+    def mul(x: int, y: int) -> int:
+        return x * y
+
+    @trace_function()
+    def do_math():
+        return add(1, mul(2, 3))
+
+    with start_trace(Node()) as root:
+        assert current_node() is not None
+        do_math()
+
+    root_links = read.s(NodeLink, NodeLinkFilter(parent=root.node_id))
+    assert len(root_links) == 1

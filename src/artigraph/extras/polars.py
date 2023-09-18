@@ -3,7 +3,7 @@ from __future__ import annotations
 import polars as pl
 
 from artigraph.core.serializer.base import Serializer
-from artigraph.extra.pyarrow import ArrowSerializer, parquet_serializer
+from artigraph.extras.pyarrow import ArrowSerializer, parquet_serializer
 
 
 class DataFrameSerializer(Serializer[pl.DataFrame]):

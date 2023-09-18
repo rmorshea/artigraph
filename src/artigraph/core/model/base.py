@@ -3,10 +3,10 @@ from __future__ import annotations
 from collections import defaultdict
 from contextlib import contextmanager
 from contextvars import ContextVar
+from dataclasses import dataclass
 from typing import Any, ClassVar, Iterator, Mapping, Sequence, TypedDict, TypeVar, cast
 from uuid import UUID
 
-from attr import dataclass
 from typing_extensions import Self, TypeAlias
 
 from artigraph import __version__ as artigraph_version
@@ -245,7 +245,7 @@ def _pick_serializer(value: Any, serializers: Sequence[Serializer]) -> Serialize
         return serializers[0]
 
     for s in serializers:
-        if s.serializable(value):
+        if isinstance(value, s.types):
             return s
 
     msg = f"Could not find a serializer for {value} among {serializers}"  # nocov

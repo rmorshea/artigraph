@@ -5,7 +5,7 @@ from artigraph.core.api.funcs import delete_one, exists, read_one, write_one
 from artigraph.core.api.link import NodeLink
 from artigraph.core.api.node import Node
 from artigraph.core.model.filter import ModelFilter
-from artigraph.extra.pydantic import PydanticModel
+from artigraph.extras.pydantic import PydanticModel
 
 
 class PydanticSimpleModel(PydanticModel, version=1):

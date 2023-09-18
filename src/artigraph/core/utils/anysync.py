@@ -2,13 +2,11 @@ from __future__ import annotations
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import asynccontextmanager
+from contextvars import Context, copy_context
 from functools import wraps
 from types import TracebackType
 from typing import (
     Any,
-    AsyncContextManager,
-    AsyncIterator,
     Callable,
     Concatenate,
     Coroutine,
@@ -49,18 +47,6 @@ def anysyncmethod(
     See [anysync][artigraph.utils.anysync.anysync] for more information.
     """
     return AnySyncMethod(method)
-
-
-def anysynccontextmanager(
-    func: Callable[P, AsyncIterator[R]]
-) -> Callable[P, _AnySyncGeneratorContextManager[R]]:
-    make_ctx = asynccontextmanager(func)
-
-    @wraps(make_ctx)
-    def wrapper(*args: P.args, **kwargs: P.kwargs) -> _AnySyncGeneratorContextManager[R]:
-        return _AnySyncGeneratorContextManager(make_ctx(*args, **kwargs))
-
-    return wrapper
 
 
 class AnySyncFunc(Protocol[P, R]):
@@ -116,17 +102,6 @@ class AnySynContextManager(Generic[R]):
         return await self._exit(*args)
 
 
-class _AnySyncGeneratorContextManager(AnySynContextManager[R]):
-    def __init__(self, ctx: AsyncContextManager) -> None:
-        self._ctx = ctx
-
-    async def _enter(self) -> R:
-        return await self._ctx.__aenter__()
-
-    async def _exit(self, *args) -> bool | None:
-        return await self._ctx.__aexit__(*args)
-
-
 def _create_anysync_function(func: Callable[..., Any]) -> Callable[..., Any]:
     @wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -143,14 +118,35 @@ def _create_anysync_function(func: Callable[..., Any]) -> Callable[..., Any]:
 def _create_sync_function(func: Callable[..., Any]) -> Callable[..., Any]:
     @wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
+        parent_ctx = copy_context()
+
+        def wrapper() -> tuple[Context, Any]:
+            return parent_ctx.run(asyncio.run, _capture_ctx(func, *args, **kwargs))
+
         try:
             asyncio.get_running_loop()
         except RuntimeError:
-            return asyncio.run(func(*args, **kwargs))
+            pass
         else:
-            return _THREAD_POOL.submit(lambda: asyncio.run(func(*args, **kwargs))).result()
+            old_wrapper = wrapper
+
+            def wrapper():
+                return _THREAD_POOL.submit(old_wrapper).result()
+
+        child_ctx, result = wrapper()
+
+        for var, value in child_ctx.items():
+            var.set(value)
+
+        return result
 
     return wrapper
+
+
+async def _capture_ctx(func: Callable[..., Any:Any], *args, **kwargs: Any) -> tuple[Context, Any]:
+    result = await func(*args, **kwargs)
+    ctx = copy_context()
+    return ctx, result
 
 
 _THREAD_POOL = ThreadPoolExecutor(max_workers=1)

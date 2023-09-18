@@ -1,6 +1,6 @@
 import polars as pl
 
-from artigraph.extra.polars import dataframe_serializer
+from artigraph.extras.polars import dataframe_serializer
 
 
 def test_serialize_deserialize_polars_dataframe():

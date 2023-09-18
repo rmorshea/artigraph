@@ -24,7 +24,7 @@ from artigraph.core.api.funcs import (
 from artigraph.core.api.link import NodeLink
 from artigraph.core.api.node import Node
 from artigraph.core.db import current_engine, current_session, set_engine
-from artigraph.core.graph.trace import graph_tracer, trace_graph
+from artigraph.core.graph.trace import current_node, start_trace, trace_function
 from artigraph.core.model.base import FieldConfig, GraphModel, ModelInfo, ModelMetadata
 from artigraph.core.model.dataclasses import dataclass
 from artigraph.core.model.filter import ModelFilter, ModelTypeFilter
@@ -53,6 +53,7 @@ __all__ = (
     "Artifact",
     "ArtifactFilter",
     "current_engine",
+    "current_node",
     "current_session",
     "dataclass",
     "datetime_serializer",
@@ -70,7 +71,6 @@ __all__ = (
     "get_serializer_by_name",
     "get_serializer_by_type",
     "get_storage_by_name",
-    "graph_tracer",
     "GraphBase",
     "GraphModel",
     "json_serializer",
@@ -99,8 +99,9 @@ __all__ = (
     "set_engine",
     "Storage",
     "temp_file_storage",
-    "trace_graph",
     "ValueFilter",
     "write_many",
+    "start_trace",
+    "trace_function",
     "write_one",
 )

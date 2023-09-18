@@ -7,7 +7,7 @@ from boto3 import client
 
 from artigraph.core.storage.base import Storage
 from artigraph.core.storage.file import FileSystemStorage, temp_file_storage
-from artigraph.extra.aws import S3Storage
+from artigraph.extras.aws import S3Storage
 
 
 def _make_s3_storage():

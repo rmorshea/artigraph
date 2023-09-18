@@ -21,7 +21,7 @@ from artigraph.core.model.base import (
     ModelInfo,
     allow_model_type_overwrites,
 )
-from artigraph.core.utils.type_hints import get_annotation_info
+from artigraph.core.utils.type_hints import get_artigraph_type_hint_metadata
 
 F = TypeVar("F", bound=Callable[..., Any])
 T = TypeVar("T", bound=type[GraphModel])
@@ -85,7 +85,7 @@ def get_annotated_model_data(obj: Any, field_names: Sequence[str]) -> ModelData:
     """Get the model data for a dataclass-like instance."""
     model_field_configs = {}
 
-    cls_hints = get_annotation_info(type(obj), use_cache=True)
+    cls_hints = get_artigraph_type_hint_metadata(type(obj), use_cache=True)
     for f_name in field_names:  # type: ignore
         f_config = FieldConfig()
         if f_name in cls_hints:

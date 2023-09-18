@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from artigraph.extra.numpy import array_serializer
+from artigraph.extras.numpy import array_serializer
 
 
 def test_serialize_deserialize_1d_array():

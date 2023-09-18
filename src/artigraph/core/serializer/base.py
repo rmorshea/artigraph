@@ -87,7 +87,3 @@ class Serializer(ABC, Generic[T]):
     def deserialize(self, value: bytes, /) -> T:
         """Deserialize a string or bytes to a value."""
         raise NotImplementedError()  # nocov
-
-    def serializable(self, value: Any) -> bool:
-        """Check if a value can be serialized."""
-        return isinstance(value, self.types)

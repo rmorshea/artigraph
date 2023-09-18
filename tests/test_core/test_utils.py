@@ -3,11 +3,7 @@ from typing import Awaitable, cast
 
 import pytest
 
-from artigraph.core.utils.anysync import (
-    anysync,
-    anysynccontextmanager,
-    anysyncmethod,
-)
+from artigraph.core.utils.anysync import anysync, anysyncmethod
 from artigraph.core.utils.misc import UNDEFINED, ExceptionGroup, TaskBatch, slugify
 
 
@@ -81,18 +77,6 @@ def test_anysyncmethod():
     assert SomeClass().some_method.s() == 1
     assert asyncio.run(SomeClass().some_method.a()) == 1
     assert SomeClass().some_method() == 1
-
-
-async def test_anysynccontextmanager():
-    @anysynccontextmanager
-    async def some_ctx():
-        yield 1
-
-    async with some_ctx() as x:
-        assert x == 1
-
-    with some_ctx() as x:
-        assert x == 1
 
 
 async def test_empty_task_batch():

@@ -2,11 +2,11 @@
 
 Artigraph is a library for creating and working with interrelated graphs of data
 artifacts. It's best used in conjunction with data pipeline tools like
-[Prefect](https://www.prefect.io/) or [Dask](https://dask.org/). Artigraph uses
-[SQLAlchemy](https://www.sqlalchemy.org/) and is compatible with most major relational
-databases including PostgreSQL, MySQL, and SQLite. It also supports popular tools like
-[Pydantic](https://docs.pydantic.dev/), [Numpy](https://numpy.org/), and
-[Pandas](https://pandas.pydata.org/).
+[Prefect](https://www.prefect.io/) or [Dask](https://dask.org/). Under the hood,
+Artigraph uses [SQLAlchemy](https://www.sqlalchemy.org/) and is compatible with most
+major relational databases including PostgreSQL, MySQL, and SQLite. It also supports
+popular tools like [Pydantic](https://docs.pydantic.dev/), [Numpy](https://numpy.org/),
+and [Pandas](https://pandas.pydata.org/).
 
 ## At a Glance
 

@@ -1,6 +1,6 @@
 import pandas as pd
 
-from artigraph.extra.pandas import dataframe_serializer
+from artigraph.extras.pandas import dataframe_serializer
 
 
 def test_serialize_deserialize_pandas_dataframe():

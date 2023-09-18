@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 from artigraph.core.serializer.base import Serializer
-from artigraph.extra.pandas import dataframe_serializer
+from artigraph.extras.pandas import dataframe_serializer
 
 NP_1D_SHAPE_LEN = 1
 NP_2D_SHAPE_LEN = 2

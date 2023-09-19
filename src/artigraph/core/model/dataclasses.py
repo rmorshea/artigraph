@@ -8,11 +8,10 @@ from typing import (
     Sequence,
     TypeVar,
     cast,
-    dataclass_transform,
 )
 from uuid import UUID, uuid1
 
-from typing_extensions import Self
+from typing_extensions import Self, dataclass_transform
 
 from artigraph.core.model.base import (
     FieldConfig,

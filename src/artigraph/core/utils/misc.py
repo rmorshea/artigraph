@@ -17,11 +17,10 @@ from typing import (
     Sequence,
     TypeVar,
     cast,
-    dataclass_transform,
 )
 
 from anyio import to_thread
-from typing_extensions import ParamSpec, Self
+from typing_extensions import ParamSpec, Self, dataclass_transform
 
 F = TypeVar("F", bound=Callable[..., Any])
 P = ParamSpec("P")

@@ -11,7 +11,7 @@ specify a storage backend to save it elsewhere. You can use one of the
 | Storage                                                                              | Description                          |
 | ------------------------------------------------------------------------------------ | ------------------------------------ |
 | [core.storage.file.FileSystemStorage][artigraph.core.storage.file.FileSystemStorage] | Local filesystem                     |
-| [extra.storage.aws.S3Storage][artigraph.extra.storage.aws.S3Storage]                 | AWS [S3](https://aws.amazon.com/s3/) |
+| [extra.storage.aws.S3Storage][artigraph.extras.storage.aws.S3Storage]                | AWS [S3](https://aws.amazon.com/s3/) |
 
 ## Custom Storage Backends
 

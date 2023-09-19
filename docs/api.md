@@ -2,16 +2,16 @@
 
 ::: artigraph
 
-::: artigraph.extra.pydantic
+::: artigraph.extras.pydantic
 
-::: artigraph.extra.numpy
+::: artigraph.extras.numpy
 
-::: artigraph.extra.pandas
+::: artigraph.extras.pandas
 
-::: artigraph.extra.plotly
+::: artigraph.extras.plotly
 
-::: artigraph.extra.polars
+::: artigraph.extras.polars
 
-::: artigraph.extra.pyarrow
+::: artigraph.extras.pyarrow
 
-::: artigraph.extra.aws
+::: artigraph.extras.aws

@@ -2,7 +2,9 @@ from datetime import datetime, timezone
 from uuid import uuid1, uuid4
 
 from artigraph.core.api.filter import MultiFilter, NodeFilter, ValueFilter
-from artigraph.core.api.funcs import orm_read_one_or_none, orm_write
+from artigraph.core.api.funcs import orm_read_one_or_none, orm_write, read_one, write_many
+from artigraph.core.api.link import NodeLink
+from artigraph.core.api.node import Node
 from artigraph.core.orm.node import OrmNode
 
 
@@ -87,3 +89,16 @@ def test_multi_filter_flattens_if_two_with_same_op():
         multi_filter.create().compile().string
         == (vf1.create() & vf2.create() & vf3.create() & vf4.create()).compile().string
     )
+
+
+async def test_node_filter_by_label():
+    parent = Node()
+    child1 = Node()
+    child2 = Node()
+
+    parent_c1 = NodeLink(parent_id=parent.node_id, child_id=child1.node_id, label="c1")
+    parent_c2 = NodeLink(parent_id=parent.node_id, child_id=child2.node_id, label="c2")
+
+    await write_many.a([parent, child1, child2, parent_c1, parent_c2])
+
+    assert await read_one.a(Node, NodeFilter(label="c1")) == child1

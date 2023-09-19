@@ -58,7 +58,8 @@ class ModelFilter(ArtifactFilter[OrmModelArtifact], Generic[M]):
 
         if model_type is not None:
             expr &= MultiFilter(
-                op="or", filters=[_to_model_type_filter(mt) for mt in model_type]
+                op="or",
+                filters=[_to_model_type_filter(mt) for mt in model_type],
             ).create()
 
         return expr

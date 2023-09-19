@@ -59,7 +59,7 @@ class Filter(FrozenDataclass):
 
     def compose(self, expr: Expression, /) -> Expression:
         """Apply the where clause to the given query."""
-        return expr
+        raise NotImplementedError()
 
     def __and__(self, other: Filter) -> MultiFilter:
         """Combine this filter with another."""
@@ -128,7 +128,7 @@ class NodeFilter(Filter, Generic[N]):
     """Nodes must be the descendant of one of these nodes."""
     ancestor_of: NodeFilter | Sequence[UUID] | UUID | None = None
     """Nodes must be the ancestor of one of these nodes."""
-    labels: ValueFilter[str] | Sequence[str] | str | None = None
+    label: ValueFilter[str] | Sequence[str] | str | None = None
     """Nodes must have a link with one of these labels."""
 
     def compose(self, expr: Expression) -> Expression:
@@ -166,9 +166,9 @@ class NodeFilter(Filter, Generic[N]):
                 )
             )
 
-        if self.labels:
+        if self.label:
             expr &= OrmNode.node_id.in_(
-                select(OrmNodeLink.child_id).where(NodeLinkFilter(label=self.labels).create())
+                select(OrmNodeLink.child_id).where(NodeLinkFilter(label=self.label).create())
             )
 
         return expr
@@ -338,9 +338,10 @@ class ValueFilter(Filter, Generic[T]):
         # self.column is of type T, not InstrumentedAttribute[T]
         column = cast(InstrumentedAttribute[T] | None, self.column)
 
-        if column is None:
+        if column is None:  # nocov
             msg = "No column to filter against - did you forget to call `against`?"
             raise ValueError(msg)
+
         for f in fields(self):
             if "op" in f.metadata:
                 op_value = getattr(self, f.name, None)

@@ -1,10 +1,13 @@
 import asyncio
-from typing import Awaitable, cast
+from datetime import datetime
+from typing import Annotated, Any, Awaitable, cast
 
 import pytest
 
+from artigraph import datetime_serializer, json_serializer
 from artigraph.core.utils.anysync import anysync, anysyncmethod
 from artigraph.core.utils.misc import UNDEFINED, ExceptionGroup, TaskBatch, slugify
+from artigraph.core.utils.type_hints import TypeHintMetadata, get_artigraph_type_hint_metadata
 
 
 @pytest.mark.parametrize(
@@ -118,3 +121,19 @@ async def test_task_batch_raise_exception_group():
 
     with pytest.raises(ExceptionGroup):
         await batch.gather()
+
+
+def test_get_artigraph_type_hint_no_cache():
+    def some_func(dt: Annotated[datetime | Any, datetime_serializer, json_serializer]) -> datetime:
+        pass
+
+    assert get_artigraph_type_hint_metadata(some_func) == {
+        "dt": TypeHintMetadata(
+            serializers=[datetime_serializer, json_serializer],
+            storage=None,
+        ),
+        "return": TypeHintMetadata(
+            serializers=[],
+            storage=None,
+        ),
+    }

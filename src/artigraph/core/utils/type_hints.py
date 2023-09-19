@@ -19,7 +19,7 @@ def get_artigraph_type_hint_metadata(
     obj: Any, *, use_cache: bool = False
 ) -> dict[str, TypeHintMetadata]:
     """Get the model data for a dataclass-like instance."""
-    hints = (_cached_get_type_hints if use_cache else get_type_hints)(obj)
+    hints = (_cached_get_type_hints if use_cache else _nocache_get_type_hints)(obj)
     info: dict[str, TypeHintMetadata] = {}
     for name, anno in hints.items():
         serializers: list[Serializer] = []
@@ -54,4 +54,8 @@ def _find_all_annotated_metadata(hint: Any) -> Sequence[Annotated]:
 def _cached_get_type_hints(cls: type[Any]) -> dict[str, Any]:
     # This can be pretty slow and there should be a finite number of classes so we cache it.
     # We need to be careful about this though because we don't have a max cache size.
+    return get_type_hints(cls, include_extras=True)
+
+
+def _nocache_get_type_hints(cls: type[Any]) -> dict[str, Any]:
     return get_type_hints(cls, include_extras=True)

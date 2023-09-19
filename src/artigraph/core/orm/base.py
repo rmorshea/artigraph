@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from collections import defaultdict
 from dataclasses import KW_ONLY
 from datetime import datetime
 from typing import Any, ClassVar
 
 from sqlalchemy import func
+from sqlalchemy.exc import NoReferencedTableError
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import DeclarativeBase, Mapped, MappedAsDataclass, mapped_column
 
@@ -46,22 +46,17 @@ class OrmBase(MappedAsDataclass, DeclarativeBase):
                 if cls is not maybe_conflict_cls:  # nocov
                     msg = f"Polymorphic ID {poly_id} exists as {maybe_conflict_cls}"
                     raise ValueError(msg)
-
         rank = 0
         for c in inspect(cls).columns:
             for fk in c.foreign_keys:
-                if fk.column.table.name != tablename:
-                    if fk.column.table.name not in _FK_DEPENDENCY_RANK_BY_TABLE_NAME:
-                        _FK_LAZY_DEPS_BY_FOREIGN_TABLE_NAME[fk.column.table.name].add(tablename)
-                    else:
-                        other_rank = _FK_DEPENDENCY_RANK_BY_TABLE_NAME[fk.column.table.name] + 1
-                        rank = max(rank, other_rank)
-
-        for dep in _FK_LAZY_DEPS_BY_FOREIGN_TABLE_NAME[tablename]:
-            if dep in _FK_DEPENDENCY_RANK_BY_TABLE_NAME:
-                rank = max(rank, _FK_DEPENDENCY_RANK_BY_TABLE_NAME[dep] + 1)
-                _FK_DEPENDENCY_RANK_BY_TABLE_NAME[dep] = rank
-
+                try:
+                    col = fk.column
+                except NoReferencedTableError as e:  # nocov
+                    msg = "Artigraph does not support deferred foreign keys at this time."
+                    raise RuntimeError(msg) from e
+                if col.table.name != tablename:
+                    other_rank = _FK_DEPENDENCY_RANK_BY_TABLE_NAME[fk.column.table.name] + 1
+                    rank = max(rank, other_rank)
         _FK_DEPENDENCY_RANK_BY_TABLE_NAME[tablename] = rank
 
     created_at: Mapped[datetime] = mapped_column(
@@ -85,6 +80,3 @@ _ORM_TYPE_BY_TABLE_AND_POLY_ID: dict[tuple[str, str], type[OrmBase]] = {}
 
 _FK_DEPENDENCY_RANK_BY_TABLE_NAME: dict[str, int] = {}
 """A mapping from table name to FK dependency rank."""
-
-_FK_LAZY_DEPS_BY_FOREIGN_TABLE_NAME: defaultdict[str, set[str]] = defaultdict(set)
-"""A mapping from table name to a set of tables that depend on it."""

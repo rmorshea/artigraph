@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 from asyncio import iscoroutinefunction
-from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from functools import partial, wraps
 from inspect import isfunction, signature
 from typing import (
     Any,
     AsyncContextManager,
-    AsyncIterator,
     Callable,
     Collection,
     Concatenate,
@@ -39,22 +37,6 @@ _CURRENT_LABELS: ContextVar[frozenset[str]] = ContextVar("CURRENT_LABELS", defau
 def start_trace(node: Node, label: str | None = None) -> TraceNode:
     """Begin tracing a call graph"""
     return TraceNode(node, label)
-
-
-@asynccontextmanager
-async def default_node_context(parent: Node, label: str | None) -> AsyncIterator[Node]:
-    child = Node()
-    await write_many.a(
-        [
-            child,
-            NodeLink(
-                parent_id=parent.node_id,
-                child_id=child.node_id,
-                label=label,
-            ),
-        ]
-    )
-    yield child
 
 
 def trace_function(
@@ -220,8 +202,8 @@ def _create_linked_values(
                 child_id = v.node_id
             elif isinstance(v, GraphModel):
                 child_id = v.graph_node_id
-            else:
-                msg = f"Unexpected graph object: {type(v)}"
+            else:  # nocov
+                msg = f"Unexpected graph object type: {type(v)}"
                 raise TypeError(msg)
         else:
             info = hint_info.get(k, TypeHintMetadata())

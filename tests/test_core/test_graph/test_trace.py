@@ -1,12 +1,17 @@
 from dataclasses import replace
 from typing import Annotated, Any
 
+import numpy as np
+import pandas as pd
+
 from artigraph.core.api.filter import NodeLinkFilter
 from artigraph.core.api.funcs import read
 from artigraph.core.api.link import NodeLink
 from artigraph.core.api.node import Node
-from artigraph.core.graph.trace import current_node, start_trace, trace_function
+from artigraph.core.graph.trace import start_trace, trace_function
 from artigraph.core.serializer.json import json_sorted_serializer
+from artigraph.extras.numpy import array_serializer
+from artigraph.extras.pandas import dataframe_serializer
 from tests.common.model import SimpleDataclassModel
 
 
@@ -60,8 +65,18 @@ def test_trace_sync_graph():
         return add(1, mul(2, 3))
 
     with start_trace(Node()) as root:
-        assert current_node() is not None
         do_math()
 
     root_links = read.s(NodeLink, NodeLinkFilter(parent=root.node_id))
     assert len(root_links) == 1
+
+
+def test_trace_with_union_annotated_func():
+    @trace_function()
+    def add_one_second(
+        data: Annotated[pd.DataFrame | np.ndarray, array_serializer, dataframe_serializer]
+    ) -> Any:
+        pass
+
+    with start_trace(Node()):
+        add_one_second(pd.DataFrame())

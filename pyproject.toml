@@ -22,14 +22,14 @@ classifiers = [
 dependencies = ["typing_extensions", "sqlalchemy>=2,<3", "anyio>=3,<4"]
 
 [project.optional-dependencies]
-all = ["artigraph[aws,pandas,networkx,numpy,polars,pyarrow,plotly,pydantic]"]
+all = ["artigraph[aws,networkx,numpy,pandas,polars,pyarrow,plotly,pydantic]"]
 aws = ["boto3>=1,<2"]
-pandas = ["pandas>=2,<3", "artigraph[pyarrow]"]
 networkx = ["networkx>=3,<4"]
 numpy = ["numpy>=1,<2", "pandas>=2,<3", "artigraph[pyarrow]"]
+pandas = ["pandas>=2,<3", "artigraph[pyarrow]"]
+plotly = ["plotly>=5,<6"]
 polars = ["polars<1", "artigraph[pyarrow]"]
 pyarrow = ["pyarrow>=12,<13"]
-plotly = ["plotly>=5,<6"]
 pydantic = ["pydantic>=2,<3"]
 
 [project.urls]

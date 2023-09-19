@@ -29,8 +29,8 @@ def get_serializer_by_type(cls: type[T]) -> Sequence[Serializer[T]]:
     for c in cls.mro():
         if c in SERIALIZERS_BY_TYPE:
             return SERIALIZERS_BY_TYPE[c]
-    msg = f"No serializer for type {cls!r}"
-    raise ValueError(msg)
+    msg = f"No serializer for type {cls!r}"  # nocov
+    raise ValueError(msg)  # nocov
 
 
 class Serializer(ABC, Generic[T]):

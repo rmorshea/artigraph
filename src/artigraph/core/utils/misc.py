@@ -158,6 +158,6 @@ class FrozenDataclass(metaclass=_FrozenDataclassMeta):
 
 def _raise_if_non_exception(errors: Sequence[BaseException]) -> Sequence[Exception]:
     for e in errors:
-        if not isinstance(e, Exception):
+        if not isinstance(e, Exception):  # nocov
             raise e
     return cast(Sequence[Exception], errors)

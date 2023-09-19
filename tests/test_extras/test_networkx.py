@@ -18,7 +18,7 @@ def do_math():
     return add(1, mul(2, 3))
 
 
-async def test_create_networkx_graph():
+async def test_create_graph():
     async with start_trace(Node()) as root:
         assert do_math() == 7
 

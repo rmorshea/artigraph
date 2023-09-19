@@ -1,4 +1,6 @@
+from collections import defaultdict
 from typing import Iterator
+from uuid import UUID
 
 import networkx as nx
 
@@ -43,17 +45,26 @@ async def create_graph(root: Node) -> nx.DiGraph:
 
 
 def _dfs_iter_nodes(
-    root: Node, nodes: list[Node | Artifact], links: list[NodeLink]
+    root: Node,
+    nodes: list[Node | Artifact],
+    links: list[NodeLink],
 ) -> Iterator[Node | Artifact]:
     """Yield nodes in depth-first order."""
+    nodes_by_id: dict[UUID, Node] = {n.node_id: n for n in nodes}
+
+    child_ids_by_parent_id: defaultdict[UUID, list[UUID]] = defaultdict(list)
+    for l in links:
+        child_ids_by_parent_id[l.parent_id].append(l.child_id)
+
     seen = set()
     stack = [root]
     while stack:
         node = stack.pop()
-        if node.node_id in seen:
-            continue
         seen.add(node.node_id)
         yield node
-        for link in links:
-            if link.parent_id == node.node_id:
-                stack.append(next(n for n in nodes if n.node_id == link.child_id))
+        for child_id in child_ids_by_parent_id[node.node_id]:
+            if child_id not in seen:
+                stack.append(nodes_by_id[child_id])
+            else:  # nocov
+                # recursive query in create_graph prevents us from ever seeing circular graphs
+                pass

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import AsyncIterator, Callable, Iterator, TypeVar
+from types import TracebackType
+from typing import Any, AsyncContextManager, Callable, Coroutine, Iterator, TypeVar
 
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -13,6 +14,7 @@ from sqlalchemy.ext.asyncio import (
 from typing_extensions import ParamSpec
 
 from artigraph.core.orm.base import OrmBase
+from artigraph.core.utils.anysync import AnySyncContextManager
 
 E = TypeVar("E", bound=AsyncEngine)
 P = ParamSpec("P")
@@ -38,30 +40,11 @@ def current_engine(
         reset()
 
 
-@asynccontextmanager
-async def current_session(
-    make_session: async_sessionmaker[AsyncSession] | None = None,
-) -> AsyncIterator[AsyncSession]:
+def current_session(
+    session_maker: async_sessionmaker[AsyncSession] | None = None,
+) -> AsyncContextManager[AsyncSession]:
     """A context manager for an asynchronous database session."""
-    session = get_session()
-
-    if session is not None:
-        yield session
-        return
-
-    make_session = make_session or async_sessionmaker(await get_engine(), expire_on_commit=False)
-
-    async with make_session() as session:
-        reset = set_session(session)
-        try:
-            yield session
-        except Exception:
-            await session.rollback()
-            raise
-        else:
-            await session.commit()
-        finally:
-            reset()
+    return _CurrentSession(session_maker)
 
 
 def set_engine(engine: AsyncEngine | str, *, create_tables: bool = False) -> Callable[[], None]:
@@ -104,3 +87,42 @@ def set_session(session: AsyncSession | None) -> Callable[[], None]:
 def get_session() -> AsyncSession | None:
     """Get the current session."""
     return _CURRENT_SESSION.get()
+
+
+class _CurrentSession(AnySyncContextManager[AsyncSession]):
+    def __init__(self, session_maker: async_sessionmaker[AsyncSession] | None) -> None:
+        self._session_maker = session_maker
+
+    async def _aenter(self) -> AsyncSession:
+        self._prior_session = get_session()
+        if self._prior_session is not None:
+            return self._prior_session
+
+        engine = await get_engine()
+        make_session = self._session_maker or async_sessionmaker(engine, expire_on_commit=False)
+        self._own_session = make_session()
+        return await self._own_session.__aenter__()
+
+    def _enter(self) -> None:
+        if self._prior_session is None:
+            self._reset_session = set_session(self._own_session)
+        else:
+            self._reset_session = lambda: None
+
+    def _exit(self) -> None:
+        self._reset_session()
+
+    async def _aexit(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> Coroutine[Any, Any, bool | None]:
+        if self._prior_session is None:
+            if exc_type is not None:
+                await self._own_session.rollback()
+            else:
+                await self._own_session.commit()
+            await self._own_session.__aexit__(exc_type, exc_value, exc_tb)
+        else:
+            return None

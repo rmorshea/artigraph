@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from contextvars import Context, copy_context
+from contextvars import copy_context
 from functools import wraps
 from types import TracebackType
 from typing import (
@@ -18,8 +18,6 @@ from typing import (
 )
 
 P = ParamSpec("P")
-Y = TypeVar("Y")
-S = TypeVar("S")
 R = TypeVar("R")
 
 
@@ -69,37 +67,53 @@ class AnySyncMethod(Generic[P, R]):
         return anysync(bound_func)
 
 
-class AnySynContextManager(Generic[R]):
-    async def _enter(self) -> R:
-        raise NotImplementedError()
+class AnySyncContextManager(Generic[R]):
+    """A context manager that can be used synchronously or asynchronously."""
 
-    async def _exit(
+    def _enter(self) -> None:  # nocov
+        # these methods exist primarilly to control contextvars is a reliable manner
+        pass
+
+    def _exit(self) -> None:  # nocov
+        # these methods exist primarilly to control contextvars is a reliable manner
+        pass
+
+    async def _aenter(self) -> R:  # nocov
+        pass
+
+    async def _aexit(
         self,
-        exc_type: type[BaseException],
-        exc_value: BaseException,
-        exc_tb: TracebackType,
-    ) -> None | bool:
-        raise NotImplementedError()
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None | bool:  # nocov
+        pass
 
     def __enter__(self) -> R:
-        return self._anyenter.s()
+        result = self._anyenter.s()
+        self._enter()
+        return result
 
     def __exit__(self, *args: Any) -> bool | None:
+        self._exit()
         self._anyexit.s(*args)
 
     async def __aenter__(self) -> R:
-        return await self._anyenter.a()
+        result = await self._anyenter.a()
+        self._enter()
+        return result
 
     async def __aexit__(self, *args: Any) -> bool | None:
+        self._exit()
         return await self._anyexit.a(*args)
 
     @anysyncmethod
     async def _anyenter(self) -> R:
-        return await self._enter()
+        return await self._aenter()
 
     @anysyncmethod
     async def _anyexit(self, *args: Any) -> bool | None:
-        return await self._exit(*args)
+        return await self._aexit(*args)
 
 
 def _create_anysync_function(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -118,35 +132,22 @@ def _create_anysync_function(func: Callable[..., Any]) -> Callable[..., Any]:
 def _create_sync_function(func: Callable[..., Any]) -> Callable[..., Any]:
     @wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
-        parent_ctx = copy_context()
-
-        def wrapper() -> tuple[Context, Any]:
-            return parent_ctx.run(asyncio.run, _capture_ctx(func, *args, **kwargs))
+        # We pass the current context to the task, but make no attempt to get the
+        # changes that were made there. That doesn't seem to be reliable (not sure why).
+        context = copy_context()
 
         try:
             asyncio.get_running_loop()
         except RuntimeError:
             pass
         else:
-            old_wrapper = wrapper
+            return _THREAD_POOL.submit(
+                lambda: context.run(asyncio.run, func(*args, **kwargs))
+            ).result()
 
-            def wrapper():
-                return _THREAD_POOL.submit(old_wrapper).result()
-
-        child_ctx, result = wrapper()
-
-        for var, value in child_ctx.items():
-            var.set(value)
-
-        return result
+        return context.run(asyncio.run, func(*args, **kwargs))
 
     return wrapper
-
-
-async def _capture_ctx(func: Callable[..., Any:Any], *args, **kwargs: Any) -> tuple[Context, Any]:
-    result = await func(*args, **kwargs)
-    ctx = copy_context()
-    return ctx, result
 
 
 _THREAD_POOL = ThreadPoolExecutor(max_workers=1)

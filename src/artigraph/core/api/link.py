@@ -20,15 +20,12 @@ class NodeLink(FrozenDataclass, GraphBase[L, OrmNodeLink, NodeLinkFilter]):
     graph_orm_type: ClassVar[type[OrmNodeLink]] = OrmNodeLink
     """The ORM type for this node."""
 
-    child_id: UUID
-    """The ID of the child node."""
-
     parent_id: UUID
     """The ID of the parent node."""
-
+    child_id: UUID
+    """The ID of the child node."""
     label: str | None = None
     """A label for the link."""
-
     link_id: UUID = field(default_factory=uuid1)
     """The unique ID of this link"""
 

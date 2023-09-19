@@ -23,7 +23,7 @@ from artigraph.core.api.funcs import write_many
 from artigraph.core.api.link import NodeLink
 from artigraph.core.api.node import Node
 from artigraph.core.model.base import GraphModel
-from artigraph.core.utils.anysync import AnySynContextManager
+from artigraph.core.utils.anysync import AnySyncContextManager
 from artigraph.core.utils.type_hints import TypeHintMetadata, get_artigraph_type_hint_metadata
 
 P = ParamSpec("P")
@@ -35,63 +35,9 @@ _CURRENT_NODE: ContextVar[Node | None] = ContextVar("CURRENT_NODE", default=None
 _CURRENT_LABELS: ContextVar[frozenset[str]] = ContextVar("CURRENT_LABELS", default=frozenset())
 
 
-def start_trace(node: Node, label: str | None = None) -> Trace:
+def start_trace(node: Node, label: str | None = None) -> TraceNode:
     """Begin tracing a call graph"""
-    return Trace(node, label)
-
-
-class Trace(AnySynContextManager[N]):
-    def __init__(self, node: N, label: str | None = None) -> None:
-        self.node = node
-        self.label = label
-        self.last_node = _CURRENT_NODE.get()
-        self.last_labels = _CURRENT_LABELS.get()
-
-    async def __aenter__(self) -> N:
-        result = await super().__aenter__()
-        self._set_current()
-        return result
-
-    def __enter__(self) -> N:
-        result = super().__enter__()
-        self._set_current()
-        return result
-
-    async def __aexit__(self, *args: Any) -> bool | None:
-        self._unset_current()
-        return await super().__aexit__(*args)
-
-    def __exit__(self, *args: Any) -> bool | None:
-        self._unset_current()
-        return super().__exit__(*args)
-
-    async def _enter(self) -> N:
-        to_write: list[GraphBase] = [self.node]
-        if self.last_node is not None:
-            to_write.append(
-                NodeLink(
-                    parent_id=self.last_node.node_id,
-                    child_id=self.node.node_id,
-                    label=self.label,
-                )
-            )
-        await write_many.a(to_write)
-        return self.node
-
-    async def _exit(self, *args: Any) -> None:
-        pass
-
-    def _set_current(self) -> None:
-        self._node_token = _CURRENT_NODE.set(self.node)
-        if self.label is not None:
-            self._label_token = _CURRENT_LABELS.set(self.last_labels.union({self.label}))
-        else:
-            self._label_token = None
-
-    def _unset_current(self) -> None:
-        _CURRENT_NODE.reset(self._node_token)
-        if self._label_token is not None:
-            _CURRENT_LABELS.reset(self._label_token)
+    return TraceNode(node, label)
 
 
 @asynccontextmanager
@@ -207,6 +153,11 @@ def trace_function(
     return decorator
 
 
+def current_node() -> Node | None:
+    """Get the current node"""
+    return _CURRENT_NODE.get()
+
+
 class GraphTracer(Protocol[P, R]):
     """A function that traces its inputs and outputs"""
 
@@ -214,9 +165,37 @@ class GraphTracer(Protocol[P, R]):
     labeled: Callable[Concatenate[str | None, P], R]
 
 
-def current_node() -> Node | None:
-    """Get the current node"""
-    return _CURRENT_NODE.get()
+class TraceNode(AnySyncContextManager[N]):
+    def __init__(self, node: N, label: str | None = None) -> None:
+        self.node = node
+        self.label = label
+        self.last_node = _CURRENT_NODE.get()
+        self.last_labels = _CURRENT_LABELS.get()
+
+    async def _aenter(self) -> N:
+        to_write: list[GraphBase] = [self.node]
+        if self.last_node is not None:
+            to_write.append(
+                NodeLink(
+                    parent_id=self.last_node.node_id,
+                    child_id=self.node.node_id,
+                    label=self.label,
+                )
+            )
+        await write_many.a(to_write)
+        return self.node
+
+    def _enter(self) -> None:
+        self._node_token = _CURRENT_NODE.set(self.node)
+        if self.label is not None:
+            self._label_token = _CURRENT_LABELS.set(self.last_labels.union({self.label}))
+        else:
+            self._label_token = None
+
+    def _exit(self) -> None:
+        _CURRENT_NODE.reset(self._node_token)
+        if self._label_token is not None:
+            _CURRENT_LABELS.reset(self._label_token)
 
 
 def _create_linked_values(

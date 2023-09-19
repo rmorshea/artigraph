@@ -56,7 +56,7 @@ class ModelFilter(ArtifactFilter[OrmModelArtifact], Generic[M]):
 
         model_type = to_sequence_or_none(self.model_type)
 
-        if model_type is not None:
+        if model_type:
             expr &= MultiFilter(
                 op="or",
                 filters=[_to_model_type_filter(mt) for mt in model_type],

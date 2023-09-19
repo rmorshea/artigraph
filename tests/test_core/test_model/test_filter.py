@@ -1,4 +1,5 @@
 from artigraph.core.api.funcs import read, read_one, write_many
+from artigraph.core.api.node import Node
 from artigraph.core.model.base import GraphModel
 from artigraph.core.model.dataclasses import dataclass
 from artigraph.core.model.filter import ModelFilter, ModelTypeFilter
@@ -48,3 +49,11 @@ async def test_filter_by_module_type_no_subclasses():
     await write_many.a([first, first_sub])
     model_filter = ModelFilter(model_type=ModelTypeFilter(type=FirstModelType, subclasses=False))
     assert type(await read_one.a(GraphModel, model_filter)) == FirstModelType
+
+
+async def test_default_model_filter():
+    node = Node()
+    model = FirstModelType(x=1)
+    await write_many.a([node, model])
+
+    assert type(await read_one.a(GraphModel, ModelFilter())) == FirstModelType

@@ -124,7 +124,9 @@ async def test_task_batch_raise_exception_group():
 
 
 def test_get_artigraph_type_hint_no_cache():
-    def some_func(dt: Annotated[datetime | Any, datetime_serializer, json_serializer]) -> datetime:
+    def some_func(
+        dt: Annotated[datetime | Any, datetime_serializer, json_serializer],  # noqa: ARG001
+    ) -> None:
         pass
 
     assert get_artigraph_type_hint_metadata(some_func) == {

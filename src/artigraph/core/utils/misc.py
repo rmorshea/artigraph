@@ -51,7 +51,7 @@ if sys.version_info < (3, 11):  # nocov
             return f"{super().__str__()}\n\n{tracebacks}"
 
 else:
-    ExceptionGroup = ExceptionGroup  # noqa: A001
+    ExceptionGroup = ExceptionGroup  # noqa: A001,PLW0127
 
 
 def create_sentinel(name: str) -> Any:

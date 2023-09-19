@@ -74,7 +74,9 @@ def test_trace_sync_graph():
 def test_trace_with_union_annotated_func():
     @trace_function()
     def some_func(
-        data: Annotated[pd.DataFrame | np.ndarray, array_serializer, dataframe_serializer]
+        data: Annotated[  # noqa: ARG001
+            pd.DataFrame | np.ndarray, array_serializer, dataframe_serializer
+        ]
     ) -> Any:
         pass
 
@@ -84,7 +86,9 @@ def test_trace_with_union_annotated_func():
 
 async def test_traced_function_with_node_as_arg():
     @trace_function()
-    def some_func(data: Node) -> None:
+    def some_func(
+        data: Node,  # noqa: ARG001
+    ) -> None:
         pass
 
     async with start_trace(Node()) as root:
@@ -96,7 +100,9 @@ async def test_traced_function_with_node_as_arg():
 
 async def test_traced_function_do_not_save():
     @trace_function(do_not_save={"data"})
-    def some_func(data: Node) -> None:
+    def some_func(
+        data: Node,  # noqa: ARG001
+    ) -> None:
         pass
 
     async with start_trace(Node()):
@@ -110,7 +116,9 @@ async def test_current_node():
     some_func_current_node = None
 
     @trace_function()
-    def some_func(data: Node) -> None:
+    def some_func(
+        data: Node,  # noqa: ARG001
+    ) -> None:
         nonlocal some_func_current_node
         some_func_current_node = current_node()
 

@@ -34,7 +34,7 @@ _CURRENT_NODE: ContextVar[Node | None] = ContextVar("CURRENT_NODE", default=None
 _CURRENT_LABELS: ContextVar[frozenset[str]] = ContextVar("CURRENT_LABELS", default=frozenset())
 
 
-def start_trace(node: Node, label: str | None = None) -> TraceNode:
+def start_trace(node: N, label: str | None = None) -> TraceNode[N]:
     """Begin tracing a call graph"""
     return TraceNode(node, label)
 
@@ -128,7 +128,7 @@ def trace_function(
 
             wrapper = _swrapper
 
-        else:
+        else:  # nocov
             msg = f"Expected a function, got {type(func)}"
             raise TypeError(msg)
 

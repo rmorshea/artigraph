@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import KW_ONLY
 from datetime import datetime
 from typing import Any, ClassVar
@@ -46,13 +47,21 @@ class OrmBase(MappedAsDataclass, DeclarativeBase):
                     msg = f"Polymorphic ID {poly_id} exists as {maybe_conflict_cls}"
                     raise ValueError(msg)
 
-        inspector = inspect(cls)
         rank = 0
-        for c in inspector.columns:
+        for c in inspect(cls).columns:
             for fk in c.foreign_keys:
                 if fk.column.table.name != tablename:
-                    other_rank = _FK_DEPENDENCY_RANK_BY_TABLE_NAME[fk.column.table.name] + 1
-                    rank = max(rank, other_rank)
+                    if fk.column.table.name not in _FK_DEPENDENCY_RANK_BY_TABLE_NAME:
+                        _FK_LAZY_DEPS_BY_FOREIGN_TABLE_NAME[fk.column.table.name].add(tablename)
+                    else:
+                        other_rank = _FK_DEPENDENCY_RANK_BY_TABLE_NAME[fk.column.table.name] + 1
+                        rank = max(rank, other_rank)
+
+        for dep in _FK_LAZY_DEPS_BY_FOREIGN_TABLE_NAME[tablename]:
+            if dep in _FK_DEPENDENCY_RANK_BY_TABLE_NAME:
+                rank = max(rank, _FK_DEPENDENCY_RANK_BY_TABLE_NAME[dep] + 1)
+                _FK_DEPENDENCY_RANK_BY_TABLE_NAME[dep] = rank
+
         _FK_DEPENDENCY_RANK_BY_TABLE_NAME[tablename] = rank
 
     created_at: Mapped[datetime] = mapped_column(
@@ -76,3 +85,6 @@ _ORM_TYPE_BY_TABLE_AND_POLY_ID: dict[tuple[str, str], type[OrmBase]] = {}
 
 _FK_DEPENDENCY_RANK_BY_TABLE_NAME: dict[str, int] = {}
 """A mapping from table name to FK dependency rank."""
+
+_FK_LAZY_DEPS_BY_FOREIGN_TABLE_NAME: defaultdict[str, set[str]] = defaultdict(set)
+"""A mapping from table name to a set of tables that depend on it."""

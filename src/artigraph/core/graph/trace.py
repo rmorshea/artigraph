@@ -10,11 +10,12 @@ from typing import (
     AsyncContextManager,
     AsyncIterator,
     Callable,
+    Collection,
     Concatenate,
     ParamSpec,
     Protocol,
-    Sequence,
     TypeVar,
+    cast,
 )
 
 from artigraph.core.api.artifact import Artifact
@@ -60,7 +61,7 @@ def trace_function(
     *,
     node_type: Callable[[], Node] = Node,
     is_method: bool = False,
-    do_not_save: Sequence[str] = (),
+    do_not_save: Collection[str] = (),
 ) -> Callable[[Callable[P, R]], GraphTracer[P, R]]:
     """Capture the inputs and outputs of a function using Artigraph"""
 
@@ -86,7 +87,7 @@ def trace_function(
         if iscoroutinefunction(func):
 
             @wraps(func)
-            async def wrapper(label: str | None, *args: Any, **kwargs: Any) -> Any:
+            async def _awrapper(label: str | None, *args: P.args, **kwargs: P.kwargs) -> Any:
                 label, inputs = _create_label_and_inputs(label, args, kwargs)
                 async with start_trace(node_type(), label) as node:
                     to_write: list[GraphBase] = []
@@ -112,10 +113,12 @@ def trace_function(
                     finally:
                         await write_many.a(to_write)
 
+            wrapper = _awrapper
+
         elif isfunction(func):
 
             @wraps(func)
-            def wrapper(label: str | None, *args: Any, **kwargs: Any) -> Any:
+            def _swrapper(label: str | None, *args: P.args, **kwargs: P.kwargs) -> Any:
                 label, inputs = _create_label_and_inputs(label, args, kwargs)
                 with start_trace(node_type(), label) as node:
                     to_write: list[GraphBase] = []
@@ -141,6 +144,8 @@ def trace_function(
                     finally:
                         write_many.s(to_write)
 
+            wrapper = _swrapper
+
         else:
             msg = f"Expected a function, got {type(func)}"
             raise TypeError(msg)
@@ -148,7 +153,7 @@ def trace_function(
         tracer = partial(wrapper, None)
         tracer.labeled = wrapper  # type: ignore
 
-        return tracer
+        return cast(GraphTracer[P, R], tracer)
 
     return decorator
 

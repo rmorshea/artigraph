@@ -79,7 +79,7 @@ class AnySyncContextManager(Generic[R]):
         pass
 
     async def _aenter(self) -> R:  # nocov
-        pass
+        raise NotImplementedError()
 
     async def _aexit(
         self,

@@ -21,14 +21,14 @@ async def function_with_graph_objs(obj: SimpleDataclassModel) -> SimpleDataclass
 
 
 @trace_function()
-async def function_with_annotated_serializer(data: Annotated[Any, json_sorted_serializer]) -> None:
+async def function_with_annotated_serializer(data: Annotated[Any, json_sorted_serializer]) -> Any:
     return {**data, "a": 1}
 
 
 @trace_function()
 async def call_all() -> None:
     await simple_function(1, 2)
-    await function_with_graph_objs(SimpleDataclassModel(x=1, y=2))
+    await function_with_graph_objs(SimpleDataclassModel(x=1, y="2"))
     await function_with_annotated_serializer({"b": 2})
 
 

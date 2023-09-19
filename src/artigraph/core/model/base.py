@@ -262,7 +262,10 @@ def _get_labeled_artifacts_by_parent_id(
     artifacts_by_id = {art.node_id: art for art in artifacts}
     artifacts_by_parent_id: defaultdict[UUID, dict[str, OrmArtifact]] = defaultdict(dict)
     for link in links:
-        if link.label is not None:
+        if link.label is None:  # nocov
+            msg = f"Model link {link} has no label"
+            raise ValueError(msg)
+        else:
             artifacts_by_parent_id[link.parent_id][link.label] = artifacts_by_id[link.child_id]
 
     return artifacts_by_parent_id

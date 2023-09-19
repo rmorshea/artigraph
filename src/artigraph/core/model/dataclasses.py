@@ -27,13 +27,6 @@ F = TypeVar("F", bound=Callable[..., Any])
 T = TypeVar("T", bound=type[GraphModel])
 
 
-def _copy_signature(_: F) -> Callable[[Any], F]:
-    def wrapper(copy_to: Any) -> F:
-        return cast(F, copy_to)
-
-    return wrapper
-
-
 @dataclass_transform(field_specifiers=(field,))
 def dataclass(cls: type[T] | None = None, **kwargs: Any) -> type[T] | Callable[[type[T]], type[T]]:
     """A decorator that makes a class into a dataclass GraphModel.
@@ -87,10 +80,9 @@ def get_annotated_model_data(obj: Any, field_names: Sequence[str]) -> ModelData:
 
     cls_hints = get_artigraph_type_hint_metadata(type(obj), use_cache=True)
     for f_name in field_names:  # type: ignore
-        f_config = FieldConfig()
-        if f_name in cls_hints:
-            f_config["serializers"] = cls_hints[f_name].serializers
-            if cls_hints[f_name].storage is not None:
-                f_config["storage"] = cls_hints[f_name].storage
+        f_config = FieldConfig(serializers=cls_hints[f_name].serializers)
+        hint = cls_hints[f_name]
+        if hint.storage is not None:
+            f_config["storage"] = hint.storage
         model_field_configs[f_name] = f_config
     return {name: (getattr(obj, name), config) for name, config in model_field_configs.items()}

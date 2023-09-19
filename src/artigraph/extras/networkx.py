@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Iterator
+from typing import Iterator, Sequence
 from uuid import UUID
 
 import networkx as nx
@@ -46,8 +46,8 @@ async def create_graph(root: Node) -> nx.DiGraph:
 
 def _dfs_iter_nodes(
     root: Node,
-    nodes: list[Node | Artifact],
-    links: list[NodeLink],
+    nodes: Sequence[Node | Artifact],
+    links: Sequence[NodeLink],
 ) -> Iterator[Node | Artifact]:
     """Yield nodes in depth-first order."""
     nodes_by_id: dict[UUID, Node] = {n.node_id: n for n in nodes}

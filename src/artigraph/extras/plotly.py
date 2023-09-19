@@ -63,6 +63,12 @@ def figure_from_networkx_graph(graph: nx.Graph, hover_text_line_limit: int = 25)
         edge_x.extend([x0, x1, None])
         edge_y.extend([y0, y1, None])
 
+    # color Artifact green and Node blue
+    node_colors = [
+        "green" if isinstance(graph.nodes[node]["obj"], Artifact) else "blue"
+        for node in graph.nodes()
+    ]
+
     edge_trace = go.Scatter(
         x=edge_x,
         y=edge_y,
@@ -76,7 +82,7 @@ def figure_from_networkx_graph(graph: nx.Graph, hover_text_line_limit: int = 25)
         mode="markers",
         hoverinfo="text",
         marker={
-            "color": [],
+            "color": node_colors,
             "size": 12,
             "line_width": 2,
         },
@@ -92,13 +98,6 @@ def figure_from_networkx_graph(graph: nx.Graph, hover_text_line_limit: int = 25)
             text = "<br>".join(text.split("<br>")[:25] + ["<br>..."])
         node_text.append(text)
     node_trace.text = node_text
-
-    # color Artifact green and Node blue
-    node_colors = [
-        "green" if isinstance(graph.nodes[node]["obj"], Artifact) else "blue"
-        for node in graph.nodes()
-    ]
-    node_trace.marker.color = node_colors
 
     return go.Figure(
         data=[edge_trace, node_trace],

@@ -17,5 +17,5 @@ async def test_figure_from_networkx_graph():
     async with start_trace(Node()) as root:
         do_math()
 
-    graph = await create_graph(root)
+    graph = await create_graph.a(root)
     figure_from_networkx_graph(graph)  # just check that there are no errors

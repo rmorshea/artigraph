@@ -11,7 +11,7 @@ S = TypeVar("S", bound="Serializer[Any]")
 
 WRAPPER_VERSION = 1
 SERIALIZERS_BY_NAME: dict[str, Serializer[Any]] = {}
-SERIALIZERS_BY_TYPE: dict[type[T], Sequence[Serializer[T]]] = {}
+SERIALIZERS_BY_TYPE: dict[type[Any], Sequence[Serializer[Any]]] = {}
 
 logger = logging.getLogger(__name__)
 

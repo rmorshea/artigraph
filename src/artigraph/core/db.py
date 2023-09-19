@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from contextvars import ContextVar
 from types import TracebackType
-from typing import Any, AsyncContextManager, Callable, Coroutine, Iterator, TypeVar
+from typing import AsyncContextManager, Callable, Iterator, TypeVar
 
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -117,7 +117,7 @@ class _CurrentSession(AnySyncContextManager[AsyncSession]):
         exc_type: type[BaseException] | None,
         exc_value: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> Coroutine[Any, Any, bool | None]:
+    ) -> bool | None:
         if self._prior_session is None:
             if exc_type is not None:
                 await self._own_session.rollback()

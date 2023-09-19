@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Annotated, TypeVar
+from typing import Annotated, Any, TypeVar
 
 import pytest
 
@@ -11,9 +11,10 @@ from artigraph.core.api.filter import NodeFilter, NodeLinkFilter
 from artigraph.core.api.funcs import write_one
 from artigraph.core.api.link import NodeLink
 from artigraph.core.api.node import Node
-from artigraph.core.model.base import GraphModel
-from artigraph.core.model.dataclasses import dataclass
+from artigraph.core.model.base import FieldConfig, GraphModel
+from artigraph.core.model.dataclasses import dataclass, get_annotated_model_data
 from artigraph.core.model.filter import ModelFilter
+from artigraph.core.serializer.json import json_sorted_serializer
 from artigraph.core.storage.file import FileSystemStorage
 from tests.common.check import check_can_read_write_delete_one
 from tests.common.model import SimpleDataclassModel
@@ -67,3 +68,18 @@ async def test_write_read_delete_dataclass_model(model: GraphModel):
             (NodeLink, NodeLinkFilter(ancestor=model.graph_node_id)),
         ],
     )
+
+
+def test_get_annotated_model_data():
+    @dataclass
+    class SomeModelWithAnnotatedData(GraphModel, version=1):
+        x: Annotated[Any, store1]
+        y: Annotated[Any, json_sorted_serializer]
+
+    x = object()
+    y = object()
+
+    assert get_annotated_model_data(SomeModelWithAnnotatedData(x=x, y=y), ["x", "y"]) == {
+        "x": (x, FieldConfig(storage=store1, serializers=[])),
+        "y": (y, FieldConfig(serializers=[json_sorted_serializer])),
+    }

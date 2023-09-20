@@ -1,29 +1,107 @@
 # Filtering
 
-Artigraph allows you to inspect and operate on the graph of nodes defined by the
-underlying [database schema](schema.md) using [Filter][artigraph.Filter]s. Filters can
-be composed together to create complex queries. Due to the large number of possible
-combinations, this document does not attempt to describe all the ways in which filters
-can be used. Instead, it will describe the tools that are available along with a few
-examples that will give a sense for how they can be used.
-
-## Filter
-
-A [Filter][artigraph.Filter] is a base class for all filters. A filter is simply a class
-that implements a [compose()][artigraph.Filter.compose] method that takes and returns a
-SQLAlchemy expression object. Inside the [compose()][artigraph.Filter.compose] method
-you can modify the expression object to add conditions to the query. For example, the
-following filter will only select nodes that have a parent:
+Artigraph allows you to inspect graphs using filters. Filters can be composed together
+to create a wide variety of complex queries so the examples below will show just some of
+the ways they can be used. They'll assume the following code
+[graph structure](#example-graph) and highlight in
+<span style="color:green">green</span>, links or nodes that are selected by the
+described filters.
 
 ```python
-from artigraph import Filter, Node
+import time
 
-class MyFilter(Filter):
+import artigraph as ag
+from artigraph.extras.networkx import create_graph
+from artigraph.extras.plotly import figure_from_networkx_graph
+
+ag.set_engine("sqlite+aiosqlite:///:memory:", create_tables=True)
+
+
+@ag.trace_function()
+def add(x: int, y: int) -> int:
+    return x + y
+
+
+@ag.trace_function()
+def sub(x: int, y: int) -> int:
+    return x - y
+
+
+@ag.trace_function()
+def do_math() -> "DidMath":
+    start = time.time()
+    result = sub(4, add(1, 2))
+    elapsed_time = time.time() - start
+    return DidMath(result, elapsed_time)
+
+
+@ag.dataclass
+class DidMath(ag.GraphModel, version=1):
+    value: int
+    elapsed_time: float
+
+
+if __name__ == "__main__":
+    with ag.trace_node(ag.Node()) as root:
+        do_math()
+    graph = create_graph(root)
+    fig = figure_from_networkx_graph(graph)
+    fig.show()
+```
+
+<div id="example-graph"></div>
+
+```mermaid
+graph TD
+    r([ ])
+    d([ ])
+    a([ ])
+    s([ ])
+    d_return[DidMath]
+    d_return_value[1]
+    d_return_elapsed_time[0.001]
+    a_x[1]
+    a_y[2]
+    a_return[3]
+    s_x[4]
+    s_y[3]
+    s_return[1]
+
+    r --> |do_math| d
+    d --> |add| a
+    d --> |sub| s
+    d --> |return| d_return
+    a --> |x| a_x
+    a --> |y| a_y
+    a --> |return| a_return
+    s --> |x| s_x
+    s --> |y| s_y
+    s --> |return| s_return
+    d_return --> |value| d_return_value
+    d_return --> |elapsed_time| d_return_elapsed_time
+```
+
+## Base Filter
+
+[Filter][artigraph.Filter] is the base class for all filters. A filter is simply a
+dataclass-like object that implements a [compose()][artigraph.Filter.compose] method
+that takes and returns a SQLAlchemy expression object. Inside the
+[compose()][artigraph.Filter.compose] method you can modify the expression object to add
+conditions to the query. For example, the following filter will only select nodes that
+have a parent:
+
+```python
+import artigraph as ag
+
+from sqlalchemy import select
+
+
+class MyFilter(ag.Filter):
    must_have_parent: bool = False
 
    def compose(self, expr):
          if self.must_have_parent:
-              expr = expr.where(Node.node_parent_id != None)
+              expr &= ag.OrmNode.node_id.in_(select(ag.OrmNodeLink.parent_id))
          return expr
 ```
 
@@ -33,55 +111,7 @@ You can then compose multiple filters using the `&` and `|` operators:
 await read_node(NodeFilter(node_id=2) & MyFilter(must_have_parent=True))
 ```
 
-## Example Graph
-
-The examples below will assume the following code and graph structure where nodes
-highlighted <span style="color:green">green</span> are those used in the query and
-<span style="color:red">red</span> highlights show those that would be returned.
-
-```python
-from artigraph import ModelGroup, new_node
-
-
-@dataclass
-class MyDataModel(DataModel, version=1):
-    some_value: int
-    another_value: str
-
-
-async with ModelGroup(new_node(node_id=1)) as parent:
-    async with ModelGroup(new_node(node_id=2)) as group:
-        node.add_model("model1", MyDataModel(...))
-        async with ModelGroup(new_node(node_id=3)) as child1:
-            async with ModelGroup(new_node(node_id=4)) as grandchild:
-                grandchild.add_model("model2", MyDataModel(...))
-        async with ModelGroup(new_node(node_id=5)) as child2:
-            child2.add_model("model3", MyDataModel(...))
-```
-
-<div id="span-graph"></div>
-
-```mermaid
-graph LR
-    p([parent])
-    n([group])
-    c1([child1])
-    c2([child2])
-    g([grandchild])
-    m1[MyDataModel]
-    m2[MyDataModel]
-    m3[MyDataModel]
-
-    p --> n
-    n --> |model1| m1
-    n --> c1
-    n --> c2
-    c1 --> g
-    g --> |model2| m2
-    c2 --> |model3| m3
-```
-
-### Node Filter
+## Node Filter
 
 A [NodeFilter][artigraph.NodeFilter] is a higher-level filter that allows you to compose
 common node-related filter conditions together. It is also the base class for filters
@@ -90,283 +120,44 @@ that apply to node subclasses such as [ArtifactFilter][artigraph.ArtifactFilter]
 properties, relationships, or type. For example you can select by node id:
 
 ```python
-from artigraph import NodeFilter, read_node
+import artigraph as ag
 
-await read_node(NodeFilter(node_id=2))
+ag.read(ag.Node, ag.NodeFilter(label="do_math"))
 ```
 
 ```mermaid
-graph LR
-    p([parent])
-    n([group])
-    c1([child1])
-    c2([child2])
-    g([grandchild])
-    m1[MyDataModel]
-    m2[MyDataModel]
-    m3[MyDataModel]
+graph TD
+    r([ ])
+    d([ ])
+    a([ ])
+    s([ ])
+    d_return[DidMath]
+    d_return_value[1]
+    d_return_elapsed_time[0.001]
+    a_x[1]
+    a_y[2]
+    a_return[3]
+    s_x[4]
+    s_y[3]
+    s_return[1]
 
-    style n stroke:red,stroke-width:2px
+    style d stroke:green,stroke-width:2px
 
-    p --> n
-    n --> |model1| m1
-    n --> c1
-    n --> c2
-    c1 --> g
-    g --> |model2| m2
-    c2 --> |model3| m3
+    r --> |do_math| d
+    d --> |add| a
+    d --> |sub| s
+    d --> |return| d_return
+    a --> |x| a_x
+    a --> |y| a_y
+    a --> |return| a_return
+    s --> |x| s_x
+    s --> |y| s_y
+    s --> |return| s_return
+    d_return --> |value| d_return_value
+    d_return --> |elapsed_time| d_return_elapsed_time
 ```
 
-### Artifact Filter
-
-The [ArtifactFilter][artigraph.ArtifactFilter] allows you to select nodes which inherit
-from [BaseArtifact][artigraph.BaseArtifact]. It accomplished this by setting a default
-value for [NodeFilter.node_type][artigraph.NodeFilter.node_type]. For example, you can
-select artifacts by their label:
-
-```python
-from artigraph import ArtifactFilter, read_artifacts
-
-await read_artifacts(ArtifactFilter(artifact_label="model1"))
-```
-
-```mermaid
-graph LR
-    p([parent])
-    n([group])
-    c1([child1])
-    c2([child2])
-    g([grandchild])
-    m1[MyDataModel]
-    m2[MyDataModel]
-    m3[MyDataModel]
-
-    style m1 stroke:red,stroke-width:2px
-
-    p --> n
-    n --> |model1| m1
-    n --> c1
-    n --> c2
-    c1 --> g
-    g --> |model2| m2
-    c2 --> |model3| m3
-```
-
-### Model Filter
-
-The [ModelFilter][artigraph.ModelFilter] allows you to select nodes which inherit from
-[ModelArtifact][artigraph.ModelArtifact]. It accomplished this by setting a default
-value for [NodeFilter.node_type][artigraph.NodeFilter.node_type]. You can use this to
-select models by their type.
-
-```python
-from artigraph import ModelFilter, read_models
-
-await read_models(ModelFilter(model_type=MyDataModel))
-```
-
-```mermaid
-graph LR
-    p([parent])
-    n([group])
-    c1([child1])
-    c2([child2])
-    g([grandchild])
-    m1[MyDataModel]
-    m2[MyDataModel]
-    m3[MyDataModel]
-
-    style m1 stroke:red,stroke-width:2px
-    style m2 stroke:red,stroke-width:2px
-    style m3 stroke:red,stroke-width:2px
-
-    p --> n
-    n --> |model1| m1
-    n --> c1
-    n --> c2
-    c1 --> g
-    g --> m2
-    c2 --> m3
-```
-
-### Relationship Filter
-
-The [NodeRelationshipFilter][artigraph.NodeRelationshipFilter] allows you to select
-nodes based on their relationships to other nodes.
-
-#### Select Children
-
-```python
-from artigraph import NodeFilter, NodeRelationshipFilter, read_nodes
-
-await read_nodes(NodeRelationshipFilter(child_of=1))
-```
-
-```mermaid
-graph LR
-    p([parent])
-    n([group])
-    c1([child1])
-    c2([child2])
-    g([grandchild])
-    m1[MyDataModel]
-    m2[MyDataModel]
-    m3[MyDataModel]
-
-    style n stroke:green,stroke-width:2px
-    style c1 stroke:red,stroke-width:2px
-    style c2 stroke:red,stroke-width:2px
-    style m1 stroke:red,stroke-width:2px
-
-    p --> n
-    n --> |model1| m1
-    n --> c1
-    n --> c2
-    c1 --> g
-    g --> |model2| m2
-    c2 --> |model3| m3
-```
-
-#### Select Parents
-
-```python
-from artigraph import NodeFilter, NodeRelationshipFilter, read_nodes
-
-await read_nodes(NodeRelationshipFilter(parent_of=2))
-```
-
-```mermaid
-graph LR
-    p([parent])
-    n([group])
-    c1([child1])
-    c2([child2])
-    g([grandchild])
-    m1[MyDataModel]
-    m2[MyDataModel]
-    m3[MyDataModel]
-
-    style p stroke:red,stroke-width:2px
-    style n stroke:green,stroke-width:2px
-
-    p --> n
-    n --> |model1| m1
-    n --> c1
-    n --> c2
-    c1 --> g
-    g --> |model2| m2
-    c2 --> |model3| m3
-```
-
-#### Select Descendants
-
-```python
-from artigraph import NodeFilter, NodeRelationshipFilter, read_nodes
-
-await read_nodes(NodeRelationshipFilter(descendant_of=2))
-```
-
-```mermaid
-graph LR
-    p([parent])
-    n([group])
-    c1([child1])
-    c2([child2])
-    g([grandchild])
-    m1[MyDataModel]
-    m2[MyDataModel]
-    m3[MyDataModel]
-
-    style n stroke:green,stroke-width:2px
-    style c1 stroke:red,stroke-width:2px
-    style c2 stroke:red,stroke-width:2px
-    style g stroke:red,stroke-width:2px
-    style m1 stroke:red,stroke-width:2px
-    style m2 stroke:red,stroke-width:2px
-    style m3 stroke:red,stroke-width:2px
-
-    p --> n
-    n --> |model1| m1
-    n --> c1
-    n --> c2
-    c1 --> g
-    g --> |model2| m2
-    c2 --> |model3| m3
-```
-
-#### Select Ancestors
-
-```python
-from artigraph import NodeFilter, NodeRelationshipFilter, read_nodes
-
-await read_nodes(NodeRelationshipFilter(ancestor_of=4))
-```
-
-```mermaid
-graph LR
-    p([parent])
-    n([group])
-    c1([child1])
-    c2([child2])
-    g([grandchild])
-    m1[MyDataModel]
-    m2[MyDataModel]
-    m3[MyDataModel]
-
-    style p stroke:red,stroke-width:2px
-    style n stroke:red,stroke-width:2px
-    style c1 stroke:red,stroke-width:2px
-    style g stroke:green,stroke-width:2px
-
-    p --> n
-    n --> |model1| m1
-    n --> c1
-    n --> c2
-    c1 --> g
-    g --> |model2| m2
-    c2 --> |model3| m3
-```
-
-### Value Filter
-
-The [ValueFilter][artigraph.ValueFilter] allows you to select individual values by
-comparing them to one or more given values. It does not allow you filter nodes directly
-but might be useful to do so indirectly by comparing values of a node's properties. Many
-other filters support using [ValueFilter][artigraph.ValueFilter]s. For example
-[NodeFilter.node_id][artigraph.NodeFilter.node_id] can be a
-[ValueFilter][artigraph.ValueFilter] instead of an integer:
-
-```python
-from artigraph import NodeFilter, ValueFilter, read_nodes
-
-await read_nodes(NodeFilter(node_id=ValueFilter(lt=3)))
-```
-
-```mermaid
-graph LR
-    p([parent])
-    n([group])
-    c1([child1])
-    c2([child2])
-    g([grandchild])
-    m1[MyDataModel]
-    m2[MyDataModel]
-    m3[MyDataModel]
-
-    style p stroke:red,stroke-width:2px
-    style n stroke:red,stroke-width:2px
-    style c1 stroke:green,stroke-width:2px
-
-    p --> n
-    n --> |model1| m1
-    n --> c1
-    n --> c2
-    c1 --> g
-    g --> |model2| m2
-    c2 --> |model3| m3
-```
-
-### Node Type Filter
+## Node Type Filter
 
 The [NodeTypeFilter][artigraph.NodeTypeFilter] allows you to select nodes based on their
 type. By default, it will select all nodes that are instances of the given type or any
@@ -374,38 +165,145 @@ of its subclasses. You can change this behavior by setting `subclasses=False` to
 select nodes that are instances of the given type.
 
 ```python
-from artigraph import Node, NodeFilter, NodeTypeFilter, read_nodes
+import artigraph as ag
 
-await read_nodes(NodeTypeFilter(type=Node, subclasses=False))
+await read(Node, NodeTypeFilter(type=ag.OrmNode, subclasses=False))
 ```
 
 ```mermaid
-graph LR
-    p([parent])
-    n([group])
-    c1([child1])
-    c2([child2])
-    g([grandchild])
-    m1[MyDataModel]
-    m2[MyDataModel]
-    m3[MyDataModel]
+graph TD
+    r([ ])
+    d([ ])
+    a([ ])
+    s([ ])
+    d_return[DidMath]
+    d_return_value[1]
+    d_return_elapsed_time[0.001]
+    a_x[1]
+    a_y[2]
+    a_return[3]
+    s_x[4]
+    s_y[3]
+    s_return[1]
 
-    style p stroke:red,stroke-width:2px
-    style n stroke:red,stroke-width:2px
-    style c1 stroke:red,stroke-width:2px
-    style c2 stroke:red,stroke-width:2px
-    style g stroke:red,stroke-width:2px
+    style r stroke:green,stroke-width:2px
+    style d stroke:green,stroke-width:2px
+    style a stroke:green,stroke-width:2px
+    style s stroke:green,stroke-width:2px
 
-    p --> n
-    n --> |model1| m1
-    n --> c1
-    n --> c2
-    c1 --> g
-    g --> |model2| m2
-    c2 --> |model3| m3
+    r --> |do_math| d
+    d --> |add| a
+    d --> |sub| s
+    d --> |return| d_return
+    a --> |x| a_x
+    a --> |y| a_y
+    a --> |return| a_return
+    s --> |x| s_x
+    s --> |y| s_y
+    s --> |return| s_return
+    d_return --> |value| d_return_value
+    d_return --> |elapsed_time| d_return_elapsed_time
 ```
 
-### Model Type Filter
+## Artifact Filter
+
+The [ArtifactFilter][artigraph.ArtifactFilter] allows you to select nodes which inherit
+from [BaseArtifact][artigraph.BaseArtifact]. It accomplished this by setting a default
+value for [NodeFilter.node_type][artigraph.NodeFilter.node_type]. For example, you can
+select artifacts by their label:
+
+```python
+import artigraph as ag
+
+ag.read(ag.Artifact, ag.ArtifactFilter())
+```
+
+```mermaid
+graph TD
+    r([ ])
+    d([ ])
+    a([ ])
+    s([ ])
+    d_return[DidMath]
+    d_return_value[1]
+    d_return_elapsed_time[0.001]
+    a_x[1]
+    a_y[2]
+    a_return[3]
+    s_x[4]
+    s_y[3]
+    s_return[1]
+
+    style d_return stroke:green,stroke-width:2px
+    style d_return_value stroke:green,stroke-width:2px
+    style d_return_elapsed_time stroke:green,stroke-width:2px
+    style a_x stroke:green,stroke-width:2px
+    style a_y stroke:green,stroke-width:2px
+    style a_return stroke:green,stroke-width:2px
+    style s_x stroke:green,stroke-width:2px
+    style s_y stroke:green,stroke-width:2px
+    style s_return stroke:green,stroke-width:2px
+
+    r --> |do_math| d
+    d --> |add| a
+    d --> |sub| s
+    d --> |return| d_return
+    a --> |x| a_x
+    a --> |y| a_y
+    a --> |return| a_return
+    s --> |x| s_x
+    s --> |y| s_y
+    s --> |return| s_return
+    d_return --> |value| d_return_value
+    d_return --> |elapsed_time| d_return_elapsed_time
+```
+
+## Model Filter
+
+The [ModelFilter][artigraph.ModelFilter] allows you to select nodes which inherit from
+[ModelArtifact][artigraph.ModelArtifact]. It accomplished this by setting a default
+value for [NodeFilter.node_type][artigraph.NodeFilter.node_type]. You can use this to
+select models by their type.
+
+```python
+import artigraph as ag
+
+ag.read(ag.GraphModel, ag.ModelFilter())
+```
+
+```mermaid
+graph TD
+    r([ ])
+    d([ ])
+    a([ ])
+    s([ ])
+    d_return[DidMath]
+    d_return_value[1]
+    d_return_elapsed_time[0.001]
+    a_x[1]
+    a_y[2]
+    a_return[3]
+    s_x[4]
+    s_y[3]
+    s_return[1]
+
+    style d_return stroke:green,stroke-width:2px
+
+    r --> |do_math| d
+    d --> |add| a
+    d --> |sub| s
+    d --> |return| d_return
+    a --> |x| a_x
+    a --> |y| a_y
+    a --> |return| a_return
+    s --> |x| s_x
+    s --> |y| s_y
+    s --> |return| s_return
+    d_return --> |value| d_return_value
+    d_return --> |elapsed_time| d_return_elapsed_time
+```
+
+## Model Type Filter
 
 The [ModelTypeFilter][artigraph.ModelTypeFilter] allows you to select nodes based on
 their [BaseModel][artigraph.BaseModel] type. By default, it will select all nodes that
@@ -443,33 +341,53 @@ graph LR
     c2 --> |model3| m3
 ```
 
-## Query Functions
+## Value Filter
 
-Filters can then be passed to the following functions to work with the graph:
+The [ValueFilter][artigraph.ValueFilter] allows you to select individual values by
+comparing them to one or more given values. It does not allow you filter nodes directly
+but might be useful to do so indirectly by comparing values of a node's properties. Many
+other filters support using [ValueFilter][artigraph.ValueFilter]s. For example
+[NodeFilter.node_id][artigraph.NodeFilter.node_id] can be a
+[ValueFilter][artigraph.ValueFilter] instead of an integer:
 
-### Read Functions
+```python
+import artigraph as ag
 
--   [read_artifact_or_none][artigraph.read_artifact_or_none]
--   [read_artifact][artigraph.read_artifact]
--   [read_artifacts][artigraph.read_artifacts]
--   [read_model_or_none][artigraph.read_model_or_none]
--   [read_model][artigraph.read_model]
--   [read_models][artigraph.read_models]
--   [read_node_or_none][artigraph.read_node_or_none]
--   [read_node][artigraph.read_node]
--   [read_nodes][artigraph.read_nodes]
+ag.read(ag.Artifact, ag.ArtifactFilter(label=ValueFilter(not_in=["x", "y"])))
+```
 
-### Write Functions
+```mermaid
+graph TD
+    r([ ])
+    d([ ])
+    a([ ])
+    s([ ])
+    d_return[DidMath]
+    d_return_value[1]
+    d_return_elapsed_time[0.001]
+    a_x[1]
+    a_y[2]
+    a_return[3]
+    s_x[4]
+    s_y[3]
+    s_return[1]
 
--   [write_artifact][artigraph.write_artifact]
--   [write_artifacts][artigraph.write_artifacts]
--   [write_model][artigraph.write_model]
--   [write_models][artigraph.write_models]
--   [write_node][artigraph.write_node]
--   [write_nodes][artigraph.write_nodes]
+    style d_return stroke:green,stroke-width:2px
+    style d_return_value stroke:green,stroke-width:2px
+    style d_return_elapsed_time stroke:green,stroke-width:2px
+    style a_return stroke:green,stroke-width:2px
+    style s_return stroke:green,stroke-width:2px
 
-### Delete Functions
-
--   [delete_artifacts][artigraph.delete_artifacts]
--   [delete_models][artigraph.delete_models]
--   [delete_nodes][artigraph.delete_nodes]
+    r --> |do_math| d
+    d --> |add| a
+    d --> |sub| s
+    d --> |return| d_return
+    a --> |x| a_x
+    a --> |y| a_y
+    a --> |return| a_return
+    s --> |x| s_x
+    s --> |y| s_y
+    s --> |return| s_return
+    d_return --> |value| d_return_value
+    d_return --> |elapsed_time| d_return_elapsed_time
+```

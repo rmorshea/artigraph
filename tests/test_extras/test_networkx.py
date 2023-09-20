@@ -1,5 +1,5 @@
 from artigraph.core.api.node import Node
-from artigraph.core.graph.trace import start_trace, trace_function
+from artigraph.core.graph.trace import trace_function, trace_node
 from artigraph.extras.networkx import create_graph
 
 
@@ -19,7 +19,7 @@ def do_math():
 
 
 async def test_create_graph():
-    async with start_trace(Node()) as root:
+    async with trace_node(Node()) as root:
         assert do_math() == 7
 
     graph = create_graph.s(root)

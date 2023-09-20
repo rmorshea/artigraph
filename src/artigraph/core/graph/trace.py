@@ -34,7 +34,7 @@ _CURRENT_NODE: ContextVar[Node | None] = ContextVar("CURRENT_NODE", default=None
 _CURRENT_LABELS: ContextVar[frozenset[str]] = ContextVar("CURRENT_LABELS", default=frozenset())
 
 
-def start_trace(node: N, label: str | None = None) -> TraceNode[N]:
+def trace_node(node: N, label: str | None = None) -> TraceNode[N]:
     """Begin tracing a call graph"""
     return TraceNode(node, label)
 
@@ -71,7 +71,7 @@ def trace_function(
             @wraps(func)
             async def _awrapper(label: str | None, *args: P.args, **kwargs: P.kwargs) -> Any:
                 label, inputs = _create_label_and_inputs(label, args, kwargs)
-                async with start_trace(node_type(), label) as node:
+                async with trace_node(node_type(), label) as node:
                     to_write: list[GraphBase] = []
                     try:
                         to_write.extend(
@@ -102,7 +102,7 @@ def trace_function(
             @wraps(func)
             def _swrapper(label: str | None, *args: P.args, **kwargs: P.kwargs) -> Any:
                 label, inputs = _create_label_and_inputs(label, args, kwargs)
-                with start_trace(node_type(), label) as node:
+                with trace_node(node_type(), label) as node:
                     to_write: list[GraphBase] = []
                     try:
                         to_write.extend(

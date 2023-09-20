@@ -8,7 +8,7 @@ from artigraph.core.api.filter import NodeFilter, NodeLinkFilter
 from artigraph.core.api.funcs import exists, read, read_one
 from artigraph.core.api.link import NodeLink
 from artigraph.core.api.node import Node
-from artigraph.core.graph.trace import current_node, start_trace, trace_function
+from artigraph.core.graph.trace import current_node, trace_function, trace_node
 from artigraph.core.serializer.json import json_sorted_serializer
 from artigraph.extras.numpy import array_serializer
 from artigraph.extras.pandas import dataframe_serializer
@@ -38,7 +38,7 @@ async def call_all() -> None:
 
 
 async def test_trace_graph():
-    async with start_trace(Node()) as root:
+    async with trace_node(Node()) as root:
         await call_all()
         await call_all.labeled("second")
 
@@ -64,7 +64,7 @@ def test_trace_sync_graph():
     def do_math():
         return add(1, mul(2, 3))
 
-    with start_trace(Node()) as root:
+    with trace_node(Node()) as root:
         do_math()
 
     root_links = read.s(NodeLink, NodeLinkFilter(parent=root.node_id))
@@ -80,7 +80,7 @@ def test_trace_with_union_annotated_func():
     ) -> Any:
         pass
 
-    with start_trace(Node()):
+    with trace_node(Node()):
         some_func(pd.DataFrame())
 
 
@@ -91,7 +91,7 @@ async def test_traced_function_with_node_as_arg():
     ) -> None:
         pass
 
-    async with start_trace(Node()) as root:
+    async with trace_node(Node()) as root:
         inner = Node()
         some_func(inner)
 
@@ -105,7 +105,7 @@ async def test_traced_function_do_not_save():
     ) -> None:
         pass
 
-    async with start_trace(Node()):
+    async with trace_node(Node()):
         inner = Node()
         some_func(inner)
 
@@ -122,7 +122,7 @@ async def test_current_node():
         nonlocal some_func_current_node
         some_func_current_node = current_node()
 
-    async with start_trace(Node()) as root:
+    async with trace_node(Node()) as root:
         assert current_node() == root
         inner = Node()
         some_func(inner)

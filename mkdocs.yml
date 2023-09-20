@@ -11,7 +11,7 @@ nav:
           - Initial Setup: setup.md
           - Building Blocks: building-blocks.md
           - Common Operations: common-operations.md
-          - Making Call Graphs: call-graphs.md
+          - Tracing Call Graphs: tracing-call-graphs.md
     - Learn:
           - Filtering: filtering.md
           - Models: models.md

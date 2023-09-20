@@ -1,4 +1,4 @@
-__version__ = "0.0.8"
+__version__ = "0.1.0"
 
 from artigraph.core.api.artifact import Artifact, load_deserialized_artifact_value
 from artigraph.core.api.base import GraphBase
@@ -24,7 +24,7 @@ from artigraph.core.api.funcs import (
 from artigraph.core.api.link import NodeLink
 from artigraph.core.api.node import Node
 from artigraph.core.db import current_engine, current_session, set_engine
-from artigraph.core.graph.trace import current_node, start_trace, trace_function
+from artigraph.core.graph.trace import current_node, trace_function, trace_node
 from artigraph.core.model.base import FieldConfig, GraphModel, ModelInfo, ModelMetadata
 from artigraph.core.model.dataclasses import dataclass
 from artigraph.core.model.filter import ModelFilter, ModelTypeFilter
@@ -48,6 +48,7 @@ from artigraph.core.storage.base import (
     get_storage_by_name,
 )
 from artigraph.core.storage.file import FileSystemStorage, temp_file_storage
+from artigraph.extras import load_extras
 
 __all__ = (
     "Artifact",
@@ -101,7 +102,8 @@ __all__ = (
     "temp_file_storage",
     "ValueFilter",
     "write_many",
-    "start_trace",
+    "trace_node",
     "trace_function",
     "write_one",
+    "load_extras",
 )

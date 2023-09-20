@@ -8,6 +8,7 @@ from plotly.graph_objs import Figure, FigureWidget
 
 from artigraph.core.api.artifact import Artifact
 from artigraph.core.api.node import Node
+from artigraph.core.model.base import GraphModel
 from artigraph.core.serializer.base import Serializer
 
 if TYPE_CHECKING:
@@ -65,7 +66,11 @@ def figure_from_networkx_graph(graph: nx.Graph, hover_text_line_limit: int = 25)
 
     # color Artifact green and Node blue
     node_colors = [
-        "green" if isinstance(graph.nodes[node]["obj"], Artifact) else "blue"
+        "blue"  # Deep Blue
+        if isinstance(graph.nodes[node]["obj"], Artifact)
+        else "yellow"  # Bright Yellow
+        if isinstance(graph.nodes[node]["obj"], GraphModel)
+        else "green"  # Teal
         for node in graph.nodes()
     ]
 
@@ -112,12 +117,14 @@ def figure_from_networkx_graph(graph: nx.Graph, hover_text_line_limit: int = 25)
     )
 
 
-def _create_node_hover_text(label: str | None, node: Node | Artifact) -> str:
+def _create_node_hover_text(label: str | None, node: Node | Artifact | GraphModel) -> str:
     text = _html_title("LABEL")
     text += f"{label}<br>"
 
     if isinstance(node, Artifact):
         text += f"<br>{_html_title('VALUE')}{node.value!r}"
+    elif isinstance(node, GraphModel):
+        text += f"<br>{_html_title('MODEL')}{node.graph_model_name} v{node.graph_model_version}"
 
     return text.replace("\n", "<br>")
 

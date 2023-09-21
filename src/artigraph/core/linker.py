@@ -152,6 +152,8 @@ class Linker(AnySyncContextManager["Linker"]):
             msg = f"Label {label} already exists for {self.node}"
             raise ValueError(msg)
 
+        self._labels.add(label)
+
         if isinstance(value, GraphObject):
             graph_obj = value
             if storage is not None or serializer is not None:

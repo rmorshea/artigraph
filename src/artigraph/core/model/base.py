@@ -21,7 +21,6 @@ from artigraph.core.orm.artifact import (
 from artigraph.core.orm.base import OrmBase
 from artigraph.core.orm.link import OrmLink
 from artigraph.core.orm.node import OrmNode
-from artigraph.core.serializer.base import Serializer
 from artigraph.core.serializer.json import json_sorted_serializer
 from artigraph.core.utils.misc import TaskBatch
 
@@ -214,21 +213,6 @@ class ModelMetadata(TypedDict):
 
     artigraph_version: str
     """The version of Artigraph used to generate the model"""
-
-
-def _pick_serializer(value: Any, serializers: Sequence[Serializer]) -> Serializer | None:
-    if not serializers:
-        return None
-
-    if len(serializers) == 1:
-        return serializers[0]
-
-    for s in serializers:
-        if isinstance(value, s.types):
-            return s
-
-    msg = f"Could not find a serializer for {value} among {serializers}"  # nocov
-    raise ValueError(msg)  # nocov
 
 
 def _get_labeled_artifacts_by_source_id(

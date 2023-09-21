@@ -122,8 +122,8 @@ class SaveSpec:
                 msg = f"No serializers specified for {value!r}"
                 raise ValueError(msg)
             allowed_types = ", ".join([t.__name__ for s in self.serializers for t in s.types])
-            msg = f"Expected one of {allowed_types} - got {value!r}"
-            raise ValueError(msg)
+            msg = f"Expected {allowed_types} - got {value!r}"
+            raise TypeError(msg)
 
         serializer = get_serializer_by_type(type(value))[0]
         return Artifact(value=value, serializer=serializer, storage=self.storage)

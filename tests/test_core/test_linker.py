@@ -3,13 +3,15 @@ from typing import Annotated, Any
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from artigraph.core.api.filter import LinkFilter, NodeFilter
 from artigraph.core.api.funcs import exists, read, read_one
 from artigraph.core.api.link import Link
 from artigraph.core.api.node import Node
 from artigraph.core.linker import Linker, current_linker, linked
-from artigraph.core.serializer.json import json_sorted_serializer
+from artigraph.core.serializer.json import json_serializer, json_sorted_serializer
+from artigraph.core.storage.file import temp_file_storage
 from artigraph.extras.numpy import array_serializer
 from artigraph.extras.pandas import dataframe_serializer
 from tests.common.model import SimpleDataclassModel
@@ -130,3 +132,27 @@ async def test_current_node():
 
     actual_some_func_node = await read_one.a(Node, NodeFilter(parent_of=inner.graph_id))
     assert some_func_current_node == actual_some_func_node
+
+
+def test_link_graph_obj_cannot_have_serializer_or_storage():
+    with Linker(Node()) as linker:
+        with pytest.raises(ValueError):
+            linker.link(Node(), storage=temp_file_storage)
+        with pytest.raises(ValueError):
+            linker.link(Node(), serializer=json_serializer)
+
+
+def test_no_duplicate_linker_labels():
+    with Linker(Node()) as linker:
+        linker.link(Node(), label="test")
+        with pytest.raises(ValueError):
+            linker.link(Node(), label="test")
+
+
+def test_link_arbitrary_value():
+    with Linker(Node()) as linker:
+        linker.link(1)
+        linker.link("test")
+        linker.link({"test": "data"})
+        linker.link(pd.DataFrame())
+        linker.link(np.array([1, 2, 3]))

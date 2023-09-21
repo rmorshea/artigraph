@@ -8,29 +8,29 @@ from artigraph.core.api.filter import LinkFilter, NodeFilter
 from artigraph.core.api.funcs import exists, read, read_one
 from artigraph.core.api.link import Link
 from artigraph.core.api.node import Node
-from artigraph.core.graph.trace import current_node, trace_function, trace_node
+from artigraph.core.linker import Linker, get_linker, linked
 from artigraph.core.serializer.json import json_sorted_serializer
 from artigraph.extras.numpy import array_serializer
 from artigraph.extras.pandas import dataframe_serializer
 from tests.common.model import SimpleDataclassModel
 
 
-@trace_function()
+@linked()
 async def simple_function(x: int, y: int) -> int:
     return x + y
 
 
-@trace_function()
+@linked()
 async def function_with_graph_objs(obj: SimpleDataclassModel) -> SimpleDataclassModel:
     return replace(obj, x=obj.x + 1)
 
 
-@trace_function()
+@linked()
 async def function_with_annotated_serializer(data: Annotated[Any, json_sorted_serializer]) -> Any:
     return {**data, "a": 1}
 
 
-@trace_function()
+@linked()
 async def call_all() -> None:
     await simple_function(1, 2)
     await function_with_graph_objs(SimpleDataclassModel(x=1, y="2"))
@@ -38,11 +38,11 @@ async def call_all() -> None:
 
 
 async def test_trace_graph():
-    async with trace_node(Node()) as root:
+    async with Linker(Node()) as root:
         await call_all()
-        await call_all.labeled("second")
+        await call_all.label("second")
 
-    root_links = await read.a(Link, LinkFilter(parent=root.graph_id))
+    root_links = await read.a(Link, LinkFilter(parent=root.node.graph_id))
     assert len(root_links) == 2
     root_links_by_label = {link.label: link for link in root_links}
     assert "call_all" in root_links_by_label
@@ -52,27 +52,27 @@ async def test_trace_graph():
 
 
 def test_trace_sync_graph():
-    @trace_function()
+    @linked()
     def add(x: int, y: int) -> int:
         return x + y
 
-    @trace_function()
+    @linked()
     def mul(x: int, y: int) -> int:
         return x * y
 
-    @trace_function()
+    @linked()
     def do_math():
         return add(1, mul(2, 3))
 
-    with trace_node(Node()) as root:
+    with Linker(Node()) as root:
         do_math()
 
-    root_links = read.s(Link, LinkFilter(parent=root.graph_id))
+    root_links = read.s(Link, LinkFilter(parent=root.node.graph_id))
     assert len(root_links) == 1
 
 
 def test_trace_with_union_annotated_func():
-    @trace_function()
+    @linked()
     def some_func(
         data: Annotated[  # noqa: ARG001
             pd.DataFrame | np.ndarray, array_serializer, dataframe_serializer
@@ -80,32 +80,32 @@ def test_trace_with_union_annotated_func():
     ) -> Any:
         pass
 
-    with trace_node(Node()):
+    with Linker(Node()):
         some_func(pd.DataFrame())
 
 
 async def test_traced_function_with_node_as_arg():
-    @trace_function()
+    @linked()
     def some_func(
         data: Node,  # noqa: ARG001
     ) -> None:
         pass
 
-    async with trace_node(Node()) as root:
+    async with Linker(Node()) as root:
         inner = Node()
         some_func(inner)
 
-    assert exists.s(Node, NodeFilter(ancestor_of=inner.graph_id, id=root.graph_id))
+    assert exists.s(Node, NodeFilter(ancestor_of=inner.graph_id, id=root.node.graph_id))
 
 
 async def test_traced_function_do_not_save():
-    @trace_function(do_not_save={"data"})
+    @linked(do_not_save={"data"})
     def some_func(
         data: Node,  # noqa: ARG001
     ) -> None:
         pass
 
-    async with trace_node(Node()):
+    async with Linker(Node()):
         inner = Node()
         some_func(inner)
 
@@ -115,15 +115,16 @@ async def test_traced_function_do_not_save():
 async def test_current_node():
     some_func_current_node = None
 
-    @trace_function()
+    @linked()
     def some_func(
         data: Node,  # noqa: ARG001
     ) -> None:
         nonlocal some_func_current_node
-        some_func_current_node = current_node()
+        some_func_current_node = get_linker().node
 
-    async with trace_node(Node()) as root:
-        assert current_node() == root
+    root = Node()
+    async with Linker(root):
+        assert get_linker().node is root
         inner = Node()
         some_func(inner)
 

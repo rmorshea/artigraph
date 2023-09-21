@@ -90,22 +90,26 @@ class AnySyncContextManager(Generic[R]):
         pass
 
     def __enter__(self) -> R:
-        result = self._anyenter.s()
         self._enter()
-        return result
+        return self._anyenter.s()
 
     def __exit__(self, *args: Any) -> bool | None:
-        self._exit()
-        self._anyexit.s(*args)
+        try:
+            self._anyexit.s(*args)
+        finally:
+            self._exit()
 
     async def __aenter__(self) -> R:
-        result = await self._anyenter.a()
         self._enter()
+        result = await self._anyenter.a()
+
         return result
 
     async def __aexit__(self, *args: Any) -> bool | None:
-        self._exit()
-        return await self._anyexit.a(*args)
+        try:
+            return await self._anyexit.a(*args)
+        finally:
+            self._exit()
 
     @anysyncmethod
     async def _anyenter(self) -> R:

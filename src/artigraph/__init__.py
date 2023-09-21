@@ -24,7 +24,7 @@ from artigraph.core.api.funcs import (
 from artigraph.core.api.link import Link
 from artigraph.core.api.node import Node
 from artigraph.core.db import current_engine, current_session, set_engine
-from artigraph.core.graph.trace import current_node, trace_function, trace_node
+from artigraph.core.linker import Linker, get_linker, linked
 from artigraph.core.model.base import FieldConfig, GraphModel, ModelInfo, ModelMetadata
 from artigraph.core.model.dataclasses import dataclass
 from artigraph.core.model.filter import ModelFilter, ModelTypeFilter
@@ -67,6 +67,7 @@ __all__ = (
     "FieldConfig",
     "FileSystemStorage",
     "Filter",
+    "get_linker",
     "get_polymorphic_identities",
     "get_serializer_by_name",
     "get_serializer_by_name",
@@ -77,15 +78,18 @@ __all__ = (
     "json_serializer",
     "json_sorted_serializer",
     "JsonSerializer",
+    "Link",
+    "linked",
+    "Linker",
+    "LinkFilter",
     "load_deserialized_artifact_value",
+    "load_extras",
     "ModelFilter",
     "ModelInfo",
     "ModelMetadata",
     "ModelTypeFilter",
     "Node",
     "NodeFilter",
-    "Link",
-    "LinkFilter",
     "NodeTypeFilter",
     "OrmArtifact",
     "OrmBase",
@@ -102,8 +106,5 @@ __all__ = (
     "temp_file_storage",
     "ValueFilter",
     "write_many",
-    "trace_node",
-    "trace_function",
     "write_one",
-    "load_extras",
 )

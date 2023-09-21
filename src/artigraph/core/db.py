@@ -63,17 +63,13 @@ def set_engine(engine: AsyncEngine | str, *, create_tables: bool = False) -> Cal
     return reset
 
 
-async def get_engine() -> AsyncEngine:
+def get_engine() -> AsyncEngine:
     """Get the current engine."""
     try:
         engine = _CURRENT_ENGINE.get()
     except LookupError:  # nocov
         msg = "No current asynchronous engine"
         raise LookupError(msg) from None
-    if _CREATE_TABLES.get():
-        async with engine.begin() as conn:
-            await conn.run_sync(OrmBase.metadata.create_all)
-        _CREATE_TABLES.set(False)  # no need to create next time
     return engine
 
 
@@ -94,17 +90,21 @@ class _CurrentSession(AnySyncContextManager[AsyncSession]):
         self._session_maker = session_maker
 
     async def _aenter(self) -> AsyncSession:
-        self._prior_session = get_session()
-        if self._prior_session is not None:
+        if self._prior_session:
             return self._prior_session
 
-        engine = await get_engine()
-        make_session = self._session_maker or async_sessionmaker(engine, expire_on_commit=False)
-        self._own_session = make_session()
+        if _CREATE_TABLES.get():
+            async with get_engine().begin() as conn:
+                await conn.run_sync(OrmBase.metadata.create_all)
+            _CREATE_TABLES.set(False)  # no need to create next time
+
         return await self._own_session.__aenter__()
 
     def _enter(self) -> None:
-        if self._prior_session is None:
+        self._prior_session = get_session()
+        if not self._prior_session:
+            make = self._session_maker or async_sessionmaker(get_engine(), expire_on_commit=False)
+            self._own_session = make()
             self._reset_session = set_session(self._own_session)
         else:
             self._reset_session = lambda: None

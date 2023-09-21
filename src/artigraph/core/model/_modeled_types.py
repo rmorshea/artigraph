@@ -28,6 +28,9 @@ class DictModel(GraphModel, dict[str, T], version=1):
 class FrozenSetModel(GraphModel, frozenset[T], version=1):
     """A dictionary of artifacts"""
 
+    def __init__(self, *args: Any, __graph_id: UUID | None = None, **kwargs: Any) -> None:
+        self.graph_id = __graph_id or uuid1()
+
     @classmethod
     def graph_model_init(cls, info: ModelInfo, data: dict[str, Any]) -> Self:
         return cls(data.values(), _FrozenSetModel__graph_id=info.graph_id)
@@ -38,6 +41,10 @@ class FrozenSetModel(GraphModel, frozenset[T], version=1):
 
 class ListModel(list[T], GraphModel, version=1):
     """A list of artifacts"""
+
+    def __init__(self, *args: Any, __graph_id: UUID | None = None, **kwargs: Any) -> None:
+        self.graph_id = __graph_id or uuid1()
+        super().__init__(*args, **kwargs)
 
     @classmethod
     def graph_model_init(cls, info: ModelInfo, data: dict[str, Any]) -> Self:
@@ -70,7 +77,6 @@ class TupleModel(GraphModel, tuple[T], version=1):
 
     def __init__(self, *args: Any, __graph_id: UUID | None = None, **kwargs: Any) -> None:
         self.graph_id = __graph_id or uuid1()
-        super().__init__(*args, **kwargs)
 
     @classmethod
     def graph_model_init(cls, info: ModelInfo, data: dict[str, Any]) -> Self:

@@ -12,7 +12,7 @@ import time
 
 import artigraph as ag
 from artigraph.extras.networkx import create_graph
-from artigraph.extras.plotly import figure_from_networkx_graph
+from artigraph.extras.plotly import figure_from_networkx
 
 ag.set_engine("sqlite+aiosqlite:///:memory:", create_tables=True)
 
@@ -45,7 +45,7 @@ if __name__ == "__main__":
     with ag.trace_node(ag.Node()) as root:
         do_math()
     graph = create_graph(root)
-    fig = figure_from_networkx_graph(graph)
+    fig = figure_from_networkx(graph)
     fig.show()
 ```
 

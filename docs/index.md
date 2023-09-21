@@ -10,35 +10,35 @@ and [Pandas](https://pandas.pydata.org/).
 
 ## At a Glance
 
-Below is a script that creates a data model, saves it in a local SQLite database, and
-reads it back.
+The script below creates a graph of data artifacts and displays it using
+[NetworkX](https://networkx.org/) and [Plotly](https://plotly.com/).
 
 ```python
-import asyncio
+import artigraph as ag
+from artigraph.extras.networkx import create_graph
+from artigraph.extras.plotly import figure_from_networkx
 
-from artigraph import DataModel, ModelGroup, new_node, set_engine
-
-# configure what engine artigraph will use
-set_engine("sqlite+aiosqlite:///example.db", create_tables=True)
+# configure what engine artigraph will use (pip install aiosqlite)
+ag.set_engine("sqlite+aiosqlite:///example.db", create_tables=True)
 
 
 # define a model of your data
-class MyDataModel(DataModel, version=1):
+@ag.dataclass
+class MyModel(ag.GraphModel, version=1):
     some_value: int
     another_value: dict[str, str]
 
 
-async def main():
-    model = MyDataModel(some_value=42, another_value={"foo": "bar"})
+# create a node, a model, and a link between them
+node = ag.Node()
+model = MyModel(some_value=42, another_value={"foo": "bar"})
+link = ag.Link(source_id=node.graph_id, target_id=model.graph_id, label="my_model")
 
-    # create a model group and add a model to it
-    async with ModelGroup(new_node()) as group:
-        group.add_model("my-data", model)
+# write them to the database
+ag.write_many([node, model, link])
 
-    # read the model back
-    db_model = await group.get_model("my-data", fresh=True)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+# create and display the resulting graph
+graph = create_graph(node)
+fig = figure_from_networkx(graph)
+fig.show()
 ```

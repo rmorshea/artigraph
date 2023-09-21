@@ -36,7 +36,7 @@ figure_json_serializer = FigureJsonSerializer().register()
 """Serialize a plotly figure"""
 
 
-def figure_from_networkx_graph(graph: nx.Graph, hover_text_line_limit: int = 25) -> go.Figure:
+def figure_from_networkx(graph: nx.Graph, hover_text_line_limit: int = 25) -> go.Figure:
     """Create a figure from a NetworkX graph"""
     import networkx as nx
 

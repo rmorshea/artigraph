@@ -1,8 +1,8 @@
-# API
-
 ::: artigraph
 
-::: artigraph.extras.pydantic
+::: artigraph.extras.aws
+
+::: artigraph.extras.networkx
 
 ::: artigraph.extras.numpy
 
@@ -14,4 +14,4 @@
 
 ::: artigraph.extras.pyarrow
 
-::: artigraph.extras.aws
+::: artigraph.extras.pydantic

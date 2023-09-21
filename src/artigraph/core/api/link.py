@@ -6,7 +6,7 @@ from uuid import UUID, uuid1
 
 from typing_extensions import Self
 
-from artigraph.core.api.base import GraphBase
+from artigraph.core.api.base import GraphObject
 from artigraph.core.api.filter import LinkFilter
 from artigraph.core.orm.link import OrmLink
 from artigraph.core.utils.misc import FrozenDataclass
@@ -14,7 +14,7 @@ from artigraph.core.utils.misc import FrozenDataclass
 L = TypeVar("L", bound=OrmLink)
 
 
-class Link(FrozenDataclass, GraphBase[L, OrmLink, LinkFilter]):
+class Link(FrozenDataclass, GraphObject[L, OrmLink, LinkFilter]):
     """A wrapper around an ORM node link record."""
 
     graph_orm_type: ClassVar[type[OrmLink]] = OrmLink

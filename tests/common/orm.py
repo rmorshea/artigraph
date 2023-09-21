@@ -5,7 +5,7 @@ from uuid import UUID, uuid1
 from sqlalchemy.orm import Mapped, mapped_column
 from typing_extensions import Self
 
-from artigraph.core.api.base import GraphBase
+from artigraph.core.api.base import GraphObject
 from artigraph.core.api.filter import Filter, ValueFilter
 from artigraph.core.api.node import Node
 from artigraph.core.orm.base import OrmBase
@@ -44,7 +44,7 @@ class OrmFakePolyBeta(OrmFakePoly):
     fake_beta: Mapped[str] = mapped_column(nullable=True)
 
 
-class Fake(FrozenDataclass, GraphBase[OrmFake, Any, Filter]):
+class Fake(FrozenDataclass, GraphObject[OrmFake, Any, Filter]):
     graph_orm_type: ClassVar[type[OrmFake]] = OrmFake
 
     fake_data: str = ""
@@ -68,7 +68,7 @@ class Fake(FrozenDataclass, GraphBase[OrmFake, Any, Filter]):
         return [cls(fake_id=r.fake_id, fake_data=r.fake_data) for r in records]
 
 
-class FakePoly(FrozenDataclass, GraphBase[OrmFakePoly, Any, Filter]):
+class FakePoly(FrozenDataclass, GraphObject[OrmFakePoly, Any, Filter]):
     graph_orm_type: ClassVar[type[OrmFakePoly]] = OrmFakePoly
 
     fake_data: str

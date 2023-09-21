@@ -12,7 +12,7 @@ from typing_extensions import Self, TypeAlias
 from artigraph import __version__ as artigraph_version
 from artigraph.core.api.artifact import Artifact, load_deserialized_artifact_value
 from artigraph.core.api.filter import Filter, LinkFilter, NodeFilter
-from artigraph.core.api.funcs import GraphBase, dump_one, dump_one_flat
+from artigraph.core.api.funcs import GraphObject, dump_one, dump_one_flat
 from artigraph.core.api.link import Link
 from artigraph.core.orm.artifact import (
     OrmArtifact,
@@ -67,7 +67,7 @@ class FieldConfig(TypedDict, total=False):
     """The storage for the artifact model field."""
 
 
-class GraphModel(GraphBase[OrmModelArtifact, OrmBase, NodeFilter[Any]]):
+class GraphModel(GraphObject[OrmModelArtifact, OrmBase, NodeFilter[Any]]):
     """A base for all modeled artifacts."""
 
     graph_id: UUID
@@ -131,7 +131,7 @@ class GraphModel(GraphBase[OrmModelArtifact, OrmBase, NodeFilter[Any]]):
         dump_related: TaskBatch[Sequence[OrmBase]] = TaskBatch()
         for label, (value, config) in self.graph_model_data().items():
             maybe_model = _try_convert_value_to_modeled_type(value)
-            if not any(v for v in config.values()) and isinstance(maybe_model, GraphBase):
+            if not any(v for v in config.values()) and isinstance(maybe_model, GraphObject):
                 dump_related.add(_dump_and_link, maybe_model, self.graph_id, label)
             else:
                 art = _make_artifact(value, config)
@@ -279,7 +279,7 @@ def _try_convert_value_to_modeled_type(value: Any) -> GraphModel | Any:
     return value
 
 
-async def _dump_and_link(graph_obj: GraphBase, source_id: UUID, label: str) -> Sequence[OrmBase]:
+async def _dump_and_link(graph_obj: GraphObject, source_id: UUID, label: str) -> Sequence[OrmBase]:
     node, related = await dump_one(graph_obj)
     if not isinstance(node, OrmNode):  # nocov
         msg = f"Expected {graph_obj} to dump an OrmNode, got {node}"

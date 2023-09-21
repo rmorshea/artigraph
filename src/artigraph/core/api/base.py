@@ -14,8 +14,8 @@ R = TypeVar("R", bound=OrmBase)
 F = TypeVar("F", bound=Filter)
 
 
-class GraphBase(abc.ABC, Generic[S, R, F]):
-    """Protocol for objects that can be converted to and from Artigraph ORM records."""
+class GraphObject(abc.ABC, Generic[S, R, F]):
+    """Base for objects that can be converted to and from Artigraph ORM records."""
 
     graph_id: UUID
     """The ID of the object."""

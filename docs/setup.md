@@ -2,19 +2,15 @@
 
 ## Installation
 
+To install Artigraph and all its extra dependencies, run:
+
 ```
 pip install "artigraph[all]"
 ```
 
 To install only a select set of dependencies replace `all` with any of:
 
--   `aws`
--   `numpy`
--   `pandas`
--   `plotly`
--   `polars`
--   `pyarrow`
--   `pydantic`
+`aws` `networkx` `numpy` `pandas` `plotly` `polars` `pyarrow` `pydantic`
 
 ## Setting up the Database
 

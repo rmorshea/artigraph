@@ -101,9 +101,7 @@ class AnySyncContextManager(Generic[R]):
 
     async def __aenter__(self) -> R:
         self._enter()
-        result = await self._anyenter.a()
-
-        return result
+        return await self._anyenter.a()
 
     async def __aexit__(self, *args: Any) -> bool | None:
         try:

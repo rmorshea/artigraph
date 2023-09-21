@@ -8,7 +8,7 @@ from typing import Any, Sequence, TypeVar, cast
 from sqlalchemy import Row, RowMapping, select
 from sqlalchemy import delete as sql_delete
 
-from artigraph.core.api.base import GraphBase
+from artigraph.core.api.base import GraphObject
 from artigraph.core.api.filter import Filter, MultiFilter
 from artigraph.core.db import current_session
 from artigraph.core.orm.base import (
@@ -21,11 +21,11 @@ from artigraph.core.utils.misc import TaskBatch
 
 S = TypeVar("S", bound=OrmBase)
 R = TypeVar("R", bound=OrmBase)
-G = TypeVar("G", bound=GraphBase)
+G = TypeVar("G", bound=GraphObject)
 
 
 @anysync
-async def exists(cls: type[GraphBase], where: Filter) -> bool:
+async def exists(cls: type[GraphObject], where: Filter) -> bool:
     """Check if records exist."""
     return await orm_exists(cls.graph_orm_type, where)
 
@@ -65,15 +65,15 @@ async def read(cls: type[G], where: Filter) -> Sequence[G]:
 
 
 @anysync
-async def delete_one(obj: GraphBase) -> None:
+async def delete_one(obj: GraphObject) -> None:
     """Delete a record."""
     return await delete_many.a([obj])
 
 
 @anysync
-async def delete_many(objs: Sequence[GraphBase]) -> None:
+async def delete_many(objs: Sequence[GraphObject]) -> None:
     """Delete records."""
-    filters_by_type: defaultdict[type[GraphBase], list[Filter]] = defaultdict(list)
+    filters_by_type: defaultdict[type[GraphObject], list[Filter]] = defaultdict(list)
     for o in objs:
         filters_by_type[type(o)].append(o.graph_filter_self())
 
@@ -85,7 +85,7 @@ async def delete_many(objs: Sequence[GraphBase]) -> None:
 
 
 @anysync
-async def delete(cls: type[GraphBase], where: Filter) -> None:
+async def delete(cls: type[GraphObject], where: Filter) -> None:
     """Delete records matching the given filter."""
     related_filters = cls.graph_filter_related(where)
     async with current_session():
@@ -96,27 +96,27 @@ async def delete(cls: type[GraphBase], where: Filter) -> None:
 
 
 @anysync
-async def write_one(obj: GraphBase) -> None:
+async def write_one(obj: GraphObject) -> None:
     """Create a record."""
     return await write_many.a([obj])
 
 
 @anysync
-async def write_many(objs: Collection[GraphBase]) -> None:
+async def write_many(objs: Collection[GraphObject]) -> None:
     """Create records and, if given, refresh their attributes."""
     await orm_write(await dump(objs))
 
 
-async def dump_one(obj: GraphBase[S, R, Any]) -> tuple[S, Sequence[R]]:
+async def dump_one(obj: GraphObject[S, R, Any]) -> tuple[S, Sequence[R]]:
     first, *rest = await dump_one_flat(obj)
     return first, rest  # type: ignore
 
 
-async def dump_one_flat(obj: GraphBase[S, R, Any]) -> Sequence[S | R]:
+async def dump_one_flat(obj: GraphObject[S, R, Any]) -> Sequence[S | R]:
     return await dump([obj])
 
 
-async def dump(objs: Collection[GraphBase[S, R, Filter]]) -> Sequence[S | R]:
+async def dump(objs: Collection[GraphObject[S, R, Filter]]) -> Sequence[S | R]:
     """Dump objects into ORM records."""
     dump_self_records: TaskBatch[OrmBase] = TaskBatch()
     for o in objs:

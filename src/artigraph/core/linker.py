@@ -19,7 +19,7 @@ from typing import (
 from typing_extensions import Self
 
 from artigraph.core.api.artifact import Artifact
-from artigraph.core.api.base import GraphBase
+from artigraph.core.api.base import GraphObject
 from artigraph.core.api.funcs import write_many
 from artigraph.core.api.link import Link
 from artigraph.core.api.node import Node
@@ -119,8 +119,8 @@ class Linker(AnySyncContextManager["Linker"]):
         self.node = node
         self.label = label
         self._labels: set[str] = set()
-        self._write_on_enter: list[GraphBase] = [self.node]
-        self._write_on_exit: list[GraphBase] = []
+        self._write_on_enter: list[GraphObject] = [self.node]
+        self._write_on_exit: list[GraphObject] = []
 
     def link(
         self,
@@ -133,7 +133,7 @@ class Linker(AnySyncContextManager["Linker"]):
             msg = f"Label {label} already exists for {self.node}"
             raise ValueError(msg)
 
-        if isinstance(value, GraphBase):
+        if isinstance(value, GraphObject):
             graph_obj = value
         else:
             graph_obj = Artifact(value=value, storage=storage, serializer=serializer)
@@ -183,13 +183,13 @@ def _create_graph_objects(
     values: dict[str, Any],
     hint_info: dict[str, TypeHintMetadata],
     do_not_save: set[str],
-) -> dict[str, GraphBase]:
+) -> dict[str, GraphObject]:
     """Create a node link for each value in the given dict"""
-    records: dict[str, GraphBase] = {}
+    records: dict[str, GraphObject] = {}
     for k, v in values.items():
         if k in do_not_save:
             continue
-        if isinstance(v, GraphBase):
+        if isinstance(v, GraphObject):
             graph_obj = v
         else:
             if k in hint_info:

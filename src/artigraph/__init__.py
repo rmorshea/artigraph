@@ -1,7 +1,7 @@
 __version__ = "0.1.0"
 
 from artigraph.core.api.artifact import Artifact, load_deserialized_artifact_value
-from artigraph.core.api.base import GraphBase
+from artigraph.core.api.base import GraphObject
 from artigraph.core.api.filter import (
     ArtifactFilter,
     Filter,
@@ -35,6 +35,7 @@ from artigraph.core.orm.artifact import (
     OrmRemoteArtifact,
 )
 from artigraph.core.orm.base import OrmBase
+from artigraph.core.orm.link import OrmLink
 from artigraph.core.orm.node import OrmNode, get_polymorphic_identities
 from artigraph.core.serializer.base import (
     Serializer,
@@ -73,7 +74,7 @@ __all__ = (
     "get_serializer_by_name",
     "get_serializer_by_type",
     "get_storage_by_name",
-    "GraphBase",
+    "GraphObject",
     "GraphModel",
     "json_serializer",
     "json_sorted_serializer",
@@ -93,6 +94,7 @@ __all__ = (
     "NodeTypeFilter",
     "OrmArtifact",
     "OrmBase",
+    "OrmLink",
     "OrmDatabaseArtifact",
     "OrmModelArtifact",
     "OrmNode",

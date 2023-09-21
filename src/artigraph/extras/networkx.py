@@ -5,7 +5,7 @@ from uuid import UUID
 import networkx as nx
 
 from artigraph.core.api.artifact import Artifact
-from artigraph.core.api.base import GraphBase
+from artigraph.core.api.base import GraphObject
 from artigraph.core.api.filter import LinkFilter, NodeFilter, NodeTypeFilter
 from artigraph.core.api.funcs import read
 from artigraph.core.api.link import Link
@@ -20,7 +20,7 @@ _LabelsById = dict[UUID, str]
 
 
 @anysync
-async def create_graph(root: Node) -> nx.DiGraph:
+async def create_graph(root: GraphObject) -> nx.DiGraph:
     """Create a NetworkX graph from an Artigraph node."""
     nodes_by_id, relationship, labels = await _read_nodes_relationships_labels(root)
 
@@ -90,7 +90,7 @@ async def _read_nodes_relationships_labels(
     labels = {l.target_id: l.label for l in links}
 
     nodes_by_id: dict[UUID, Node | GraphModel] = {}
-    node_likes: Sequence[GraphBase] = [*nodes, *artifacts, *models]
+    node_likes: Sequence[GraphObject] = [*nodes, *artifacts, *models]
     for n in node_likes:
         nodes_by_id[n.graph_id] = n
 

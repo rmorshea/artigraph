@@ -13,12 +13,16 @@ and [Pandas](https://pandas.pydata.org/).
 The script below creates a graph of data artifacts and displays it using
 [NetworkX](https://networkx.org/) and [Plotly](https://plotly.com/).
 
+!!! note
+
+    Running this script will require you to `pip install "artigraph[networkx,plotly]" aiosqlite`
+
 ```python
 import artigraph as ag
 from artigraph.extras.networkx import create_graph
 from artigraph.extras.plotly import figure_from_networkx
 
-# configure what engine artigraph will use (pip install aiosqlite)
+# configure what engine artigraph will use
 ag.set_engine("sqlite+aiosqlite:///example.db", create_tables=True)
 
 

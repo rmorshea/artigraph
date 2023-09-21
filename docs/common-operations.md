@@ -69,7 +69,7 @@ Artigraph will run asynchronously, and if there's not, it will do so synchronous
 !!! note
 
     Jupyter Notebooks and IPython shells have a running event loop by default. If you're
-    using Artigraph in a Jupyter Notebook or IPython shell, you'll need to Artigraph
+    using Artigraph in a Jupyter Notebook or IPython shell, you'll need to call Artigraph
     functions asynchronously.
 
 For example, [write_one()][artigraph.write_many] can be used synchronously like this:

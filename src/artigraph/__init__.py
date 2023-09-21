@@ -24,7 +24,7 @@ from artigraph.core.api.funcs import (
 from artigraph.core.api.link import Link
 from artigraph.core.api.node import Node
 from artigraph.core.db import current_engine, current_session, set_engine
-from artigraph.core.linker import Linker, get_linker, linked
+from artigraph.core.linker import Linker, current_linker, linked
 from artigraph.core.model.base import FieldConfig, GraphModel, ModelInfo, ModelMetadata
 from artigraph.core.model.dataclasses import dataclass
 from artigraph.core.model.filter import ModelFilter, ModelTypeFilter
@@ -67,7 +67,7 @@ __all__ = (
     "FieldConfig",
     "FileSystemStorage",
     "Filter",
-    "get_linker",
+    "current_linker",
     "get_polymorphic_identities",
     "get_serializer_by_name",
     "get_serializer_by_name",

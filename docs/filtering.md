@@ -41,12 +41,11 @@ class DidMath(ag.GraphModel, version=1):
     elapsed_time: float
 
 
-if __name__ == "__main__":
-    with ag.trace_node(ag.Node()) as root:
-        do_math()
-    graph = create_graph(root)
-    fig = figure_from_networkx(graph)
-    fig.show()
+with ag.Linker(ag.Node()) as root:
+    do_math()
+graph = create_graph(root.node)
+fig = figure_from_networkx(graph)
+fig.show()
 ```
 
 <div id="example-graph"></div>
@@ -268,7 +267,7 @@ select models by their type.
 ```python
 import artigraph as ag
 
-ag.read(ag.GraphModel, ag.ModelFilter())
+ag.read(ag.GraphModel, ag.ModelFilter(model_type=DidMath))
 ```
 
 ```mermaid
@@ -301,44 +300,6 @@ graph TD
     s --> |return| s_return
     d_return --> |value| d_return_value
     d_return --> |elapsed_time| d_return_elapsed_time
-```
-
-## Model Type Filter
-
-The [ModelTypeFilter][artigraph.ModelTypeFilter] allows you to select nodes based on
-their [BaseModel][artigraph.BaseModel] type. By default, it will select all nodes that
-are instances of the given type or any of its subclasses as well as any version. You can
-change this behavior by setting `subclasses=False` and `version=...` a specific version
-or [`ValueFilter`](#value-filter).
-
-```python
-from artigraph import ModelFilter, ModelTypeFilter, read_models
-
-await read_models(ModelTypeFilter(type=MyDataModel, version=1))
-```
-
-```mermaid
-graph LR
-    p([parent])
-    n([group])
-    c1([child1])
-    c2([child2])
-    g([grandchild])
-    m1[MyDataModel]
-    m2[MyDataModel]
-    m3[MyDataModel]
-
-    style m1 stroke:red,stroke-width:2px
-    style m2 stroke:red,stroke-width:2px
-    style m3 stroke:red,stroke-width:2px
-
-    p --> n
-    n --> |model1| m1
-    n --> c1
-    n --> c2
-    c1 --> g
-    g --> |model2| m2
-    c2 --> |model3| m3
 ```
 
 ## Value Filter

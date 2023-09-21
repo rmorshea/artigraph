@@ -2,16 +2,13 @@ from __future__ import annotations
 
 from asyncio import iscoroutinefunction
 from contextvars import ContextVar
-from functools import partial, wraps
+from functools import wraps
 from inspect import isfunction, signature
 from typing import (
     Any,
     AsyncContextManager,
     Callable,
     Collection,
-    Concatenate,
-    ParamSpec,
-    Protocol,
     TypeVar,
     cast,
 )
@@ -28,15 +25,14 @@ from artigraph.core.storage.base import Storage
 from artigraph.core.utils.anysync import AnySyncContextManager
 from artigraph.core.utils.type_hints import TypeHintMetadata, get_artigraph_type_hint_metadata
 
-P = ParamSpec("P")
-R = TypeVar("R")
 N = TypeVar("N", bound=Node)
+F = TypeVar("F", bound=Callable[..., Any])
 NodeContext = Callable[[Node, str | None], AsyncContextManager[Node] | None]
 
 _CURRENT_LINKER: ContextVar[Linker | None] = ContextVar("CURRENT_LINKER", default=None)
 
 
-def get_linker() -> Linker:
+def current_linker() -> Linker:
     """Get the current linker"""
     linker = _CURRENT_LINKER.get()
     if linker is None:
@@ -49,17 +45,24 @@ def linked(
     *,
     node_type: Callable[[], Node] = Node,
     is_method: bool = False,
-    do_not_save: Collection[str] = (),
-) -> Callable[[Callable[P, R]], LinkedFunc[P, R]]:
+    include: str | Collection[str] = (),
+    exclude: str | Collection[str] = (),
+) -> Callable[[F], F]:
     """Capture the inputs and outputs of a function using Artigraph"""
 
-    do_not_save = set(do_not_save)
+    if include and exclude:  # nocov
+        msg = "Cannot specify both only_save and do_not_save"
+        raise ValueError(msg)
 
-    def decorator(func: Callable[P, R]) -> LinkedFunc[P, R]:
+    include = {include} if isinstance(include, str) else set(include)
+    exclude = {exclude} if isinstance(exclude, str) else set(exclude)
+    call_id = 0
+
+    def decorator(func: F) -> F:
         sig = signature(func)
         hint_info = get_artigraph_type_hint_metadata(func)
 
-        def _create_label_and_inputs(label, args, kwargs):
+        def _create_inputs(label, args, kwargs):
             if label is not None:
                 full_label = f"{func.__qualname__}[{label}]"
             else:
@@ -75,39 +78,58 @@ def linked(
         if iscoroutinefunction(func):
 
             @wraps(func)
-            async def _awrapper(label: str | None, *args: P.args, **kwargs: P.kwargs) -> Any:
-                label, inputs = _create_label_and_inputs(label, args, kwargs)
-                async with Linker(node_type(), label) as linker:
+            async def wrapper(*args: Any, **kwargs: Any) -> Any:
+                nonlocal call_id
+
+                # Check that there's an active linker. Without one, it's possible to
+                # produce orphaned nodes. It seems better to prevent that.
+                current_linker()
+
+                call_id += 1
+                inputs = _create_inputs(args, kwargs)
+                async with Linker(node_type(), str(call_id)) as linker:
                     output = await func(*args, **kwargs)
                     values = {"return": output, **inputs}
-                    for k, v in _create_graph_objects(values, hint_info, do_not_save).items():
+                    for k, v in _create_graph_objects(
+                        values,
+                        hint_info,
+                        include,
+                        exclude,
+                    ).items():
                         linker.link(v, k)
                     return output
 
-            wrapper = _awrapper
+            return cast(F, wrapper)
 
         elif isfunction(func):
 
             @wraps(func)
-            def _swrapper(label: str | None, *args: P.args, **kwargs: P.kwargs) -> Any:
-                label, inputs = _create_label_and_inputs(label, args, kwargs)
-                with Linker(node_type(), label) as linker:
+            def wrapper(*args: Any, **kwargs: Any) -> Any:
+                nonlocal call_id
+
+                # Check that there's an active linker. Without one, it's possible to
+                # produce orphaned nodes. It seems better to prevent that.
+                current_linker()
+
+                call_id += 1
+                inputs = _create_inputs(args, kwargs)
+                with Linker(node_type(), call_id) as linker:
                     output = func(*args, **kwargs)
                     values = {"return": output, **inputs}
-                    for k, v in _create_graph_objects(values, hint_info, do_not_save).items():
+                    for k, v in _create_graph_objects(
+                        values,
+                        hint_info,
+                        include,
+                        exclude,
+                    ).items():
                         linker.link(v, k)
                     return output
 
-            wrapper = _swrapper
+            return cast(F, wrapper)
 
         else:  # nocov
             msg = f"Expected a function, got {type(func)}"
             raise TypeError(msg)
-
-        tracer = partial(wrapper, None)
-        tracer.label = wrapper  # type: ignore
-
-        return cast(LinkedFunc[P, R], tracer)
 
     return decorator
 
@@ -129,12 +151,16 @@ class Linker(AnySyncContextManager["Linker"]):
         storage: Storage | None = None,
         serializer: Serializer | None = None,
     ) -> None:
+        """Link a graph object to the current node"""
         if label is not None and label in self._labels:
             msg = f"Label {label} already exists for {self.node}"
             raise ValueError(msg)
 
         if isinstance(value, GraphObject):
             graph_obj = value
+            if storage is not None or serializer is not None:
+                msg = "Cannot specify storage or serializer when linking a GraphObject"
+                raise ValueError(msg)
         else:
             graph_obj = Artifact(value=value, storage=storage, serializer=serializer)
 
@@ -172,22 +198,16 @@ class Linker(AnySyncContextManager["Linker"]):
         _CURRENT_LINKER.reset(self._reset_parent)
 
 
-class LinkedFunc(Protocol[P, R]):
-    """A function that traces its inputs and outputs"""
-
-    __call__: Callable[P, R]
-    label: Callable[Concatenate[str | None, P], R]
-
-
 def _create_graph_objects(
     values: dict[str, Any],
     hint_info: dict[str, TypeHintMetadata],
-    do_not_save: set[str],
+    include: set[str],
+    exclude: set[str],
 ) -> dict[str, GraphObject]:
     """Create a node link for each value in the given dict"""
     records: dict[str, GraphObject] = {}
     for k, v in values.items():
-        if k in do_not_save:
+        if k in exclude or (include and k not in include):
             continue
         if isinstance(v, GraphObject):
             graph_obj = v

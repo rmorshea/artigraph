@@ -2,8 +2,8 @@
 
 At the core of Artigraph are [nodes](#nodes) and [links](#links). Nodes are the vertices
 of the graph and links are the edges that connect them. Links, the graph edges in
-Artigraph, are directed (having a `source_id and a `target_id`) and may have an optional
-label that describes the relationship between the nodes they connect.
+Artigraph, are directed (having a `source_id` and a `target_id`) and may have an
+optional label that describes the relationship between the nodes they connect.
 
 Nodes which have data associated with them are called [artifacts](#artifacts). Artifacts
 are the primary way you'll store information in Artigraph. You can organize artifacts

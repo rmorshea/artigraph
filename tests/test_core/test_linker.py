@@ -8,7 +8,7 @@ from artigraph.core.api.filter import LinkFilter, NodeFilter
 from artigraph.core.api.funcs import exists, read, read_one
 from artigraph.core.api.link import Link
 from artigraph.core.api.node import Node
-from artigraph.core.linker import Linker, get_linker, linked
+from artigraph.core.linker import Linker, current_linker, linked
 from artigraph.core.serializer.json import json_sorted_serializer
 from artigraph.extras.numpy import array_serializer
 from artigraph.extras.pandas import dataframe_serializer
@@ -99,7 +99,7 @@ async def test_traced_function_with_node_as_arg():
 
 
 async def test_traced_function_do_not_save():
-    @linked(do_not_save={"data"})
+    @linked(exclude={"data"})
     def some_func(
         data: Node,  # noqa: ARG001
     ) -> None:
@@ -120,11 +120,11 @@ async def test_current_node():
         data: Node,  # noqa: ARG001
     ) -> None:
         nonlocal some_func_current_node
-        some_func_current_node = get_linker().node
+        some_func_current_node = current_linker().node
 
     root = Node()
     async with Linker(root):
-        assert get_linker().node is root
+        assert current_linker().node is root
         inner = Node()
         some_func(inner)
 

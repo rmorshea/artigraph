@@ -207,9 +207,9 @@ graph TD
 ## Artifact Filter
 
 The [ArtifactFilter][artigraph.ArtifactFilter] allows you to select nodes which inherit
-from [BaseArtifact][artigraph.BaseArtifact]. It accomplished this by setting a default
-value for [NodeFilter.node_type][artigraph.NodeFilter.node_type]. For example, you can
-select artifacts by their label:
+from [Artifact][artigraph.Artifact]. It accomplished this by setting a default value for
+[NodeFilter.node_type][artigraph.NodeFilter.node_type]. For example, you can select
+artifacts by their label:
 
 ```python
 import artigraph as ag
@@ -260,9 +260,9 @@ graph TD
 ## Model Filter
 
 The [ModelFilter][artigraph.ModelFilter] allows you to select nodes which inherit from
-[ModelArtifact][artigraph.ModelArtifact]. It accomplished this by setting a default
-value for [NodeFilter.node_type][artigraph.NodeFilter.node_type]. You can use this to
-select models by their type.
+[GraphModel][artigraph.GraphModel]. It accomplishes this by setting a default value for
+[NodeFilter.node_type][artigraph.NodeFilter.node_type]. You can use this to select
+models by their type.
 
 ```python
 import artigraph as ag

@@ -120,7 +120,7 @@ single column for that purpose:
 
 #### Model Artifact
 
-[OrmModelArtfact][artigraph.OrmModelArtfact] is a subclass of
+[OrmModelArtifact][artigraph.OrmModelArtifact] is a subclass of
 [`DatabaseArtifact`](#database-artifact) that stores the root node of a
 [model](./models.md).
 
@@ -145,8 +145,8 @@ The `remote_artifact_storage` column maps to a [storage backend](storage.md) by 
 
 ## Graph Models
 
-The [dataclass-like usage of `GraphModel`](usage.md#models) belies the fact that its
-underlying implementation builds atop [database](#database-artifact),
+The [dataclass-like usage of `GraphModel`](./building-blocks.md#models) belies the fact
+that its underlying implementation builds atop [database](#database-artifact),
 [remote](#remote-artifact) and [model](#model-artifact) artifacts. Under the hood, the
 hierarchy of a `GraphModel` and its fields are replicated in the database. So saving a
 `GraphModel` like the one below:

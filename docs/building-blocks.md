@@ -28,8 +28,8 @@ This won't immediately save the node to the database. To do that, you'll need to
 ag.write_one(node)
 ```
 
-Or, if you need to write more than one node, you can pass [write()][artigraph.write] a
-sequence of nodes.
+Or, if you need to write more than one node, you can pass
+[write_many()][artigraph.write_many] a sequence of nodes.
 
 ```python
 node1 = ag.Node()

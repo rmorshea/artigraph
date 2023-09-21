@@ -14,9 +14,9 @@ using the following functions.
 
 ### Object-based Functions
 
-The object-based functions take objects which inherit from
-[GraphBase][artigraph.GraphBase] as arguments and either write them to the database or
-delete them from the database. Usage tends to look like this:
+The object-based functions take [GraphObject][artigraph.GraphObject]s as arguments and
+either write them to the database or delete them from the database. Usage tends to look
+like this:
 
 ```python
 import artigraph as ag

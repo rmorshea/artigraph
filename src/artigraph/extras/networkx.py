@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Any, Iterator, Sequence
+from typing import Any, Iterator, Mapping, Sequence
 from uuid import UUID
 
 import networkx as nx
@@ -14,9 +14,9 @@ from artigraph.core.model.base import GraphModel
 from artigraph.core.orm.artifact import OrmArtifact, OrmModelArtifact
 from artigraph.core.utils.anysync import anysync
 
-_NodesById = dict[UUID, Node | GraphModel]
-_NodeRelationships = dict[UUID, Sequence[UUID]]
-_LabelsById = dict[UUID, str]
+_NodesById = Mapping[UUID, GraphObject]
+_NodeRelationships = Mapping[UUID, Sequence[UUID]]
+_LabelsById = Mapping[UUID, str | None]
 
 
 @anysync
@@ -25,7 +25,7 @@ async def create_graph(root: GraphObject) -> nx.DiGraph:
     nodes_by_id, relationship, labels = await _read_nodes_relationships_labels(root)
 
     graph = nx.DiGraph()
-    for i, n in _dfs_iter_nodes(root, nodes_by_id.values(), relationship):
+    for i, n in _dfs_iter_nodes(root, list(nodes_by_id.values()), relationship):
         graph.add_node(i, obj=n, label=labels.get(i))
     graph.add_edges_from(
         [
@@ -45,7 +45,7 @@ async def create_graph(root: GraphObject) -> nx.DiGraph:
 
 
 async def _read_nodes_relationships_labels(
-    root: Node,
+    root: GraphObject,
 ) -> tuple[_NodesById, _NodeRelationships, _LabelsById]:
     links = await read.a(
         Link,
@@ -89,7 +89,7 @@ async def _read_nodes_relationships_labels(
 
     labels = {l.target_id: l.label for l in links}
 
-    nodes_by_id: dict[UUID, Node | GraphModel] = {}
+    nodes_by_id: dict[UUID, GraphObject] = {}
     node_likes: Sequence[GraphObject] = [*nodes, *artifacts, *models]
     for n in node_likes:
         nodes_by_id[n.graph_id] = n
@@ -98,22 +98,22 @@ async def _read_nodes_relationships_labels(
 
 
 def _dfs_iter_nodes(
-    root: Node,
-    nodes: Sequence[Node | GraphModel],
+    root: GraphObject,
+    nodes: Sequence[GraphObject],
     relationships: _NodeRelationships,
-) -> Iterator[tuple[UUID, Node | GraphModel]]:
+) -> Iterator[tuple[UUID, GraphObject]]:
     """Yield nodes in depth-first order."""
-    nodes_by_id: dict[UUID, Node | GraphModel] = {}
+    nodes_by_id: dict[UUID, GraphObject] = {}
     for n in nodes:
         nodes_by_id[n.graph_id] = n
 
     seen = set()
     stack: list[tuple[UUID, Any]] = [(root.graph_id, root)]
     while stack:
-        node_id, node = stack.pop()
-        seen.add(node_id)
-        yield node_id, node
-        for target_id in relationships[node_id]:
+        obj_id, obj = stack.pop()
+        seen.add(obj_id)
+        yield obj_id, obj
+        for target_id in relationships[obj_id]:
             if target_id not in seen:
                 stack.append((target_id, nodes_by_id[target_id]))
             else:  # nocov

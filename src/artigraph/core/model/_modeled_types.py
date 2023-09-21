@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 from uuid import UUID, uuid1
 
 from typing_extensions import Self
@@ -12,6 +12,11 @@ T = TypeVar("T")
 
 class DictModel(GraphModel, dict[str, T], version=1):
     """A dictionary of artifacts"""
+
+    if TYPE_CHECKING:
+
+        def __new__(cls, *_a: Any, __graph_id: UUID | None = None, **_kw: Any) -> Self:
+            ...
 
     def __init__(self, *args: Any, __graph_id: UUID | None = None, **kwargs: Any) -> None:
         self.graph_id = __graph_id or uuid1()
@@ -28,7 +33,12 @@ class DictModel(GraphModel, dict[str, T], version=1):
 class FrozenSetModel(GraphModel, frozenset[T], version=1):
     """A dictionary of artifacts"""
 
-    def __init__(self, *args: Any, __graph_id: UUID | None = None, **kwargs: Any) -> None:
+    if TYPE_CHECKING:
+
+        def __new__(cls, *_a: Any, __graph_id: UUID | None = None, **_kw: Any) -> Self:
+            ...
+
+    def __init__(self, *_args: Any, __graph_id: UUID | None = None, **_kwargs: Any) -> None:
         self.graph_id = __graph_id or uuid1()
 
     @classmethod
@@ -41,6 +51,11 @@ class FrozenSetModel(GraphModel, frozenset[T], version=1):
 
 class ListModel(list[T], GraphModel, version=1):
     """A list of artifacts"""
+
+    if TYPE_CHECKING:
+
+        def __new__(cls, *_a: Any, __graph_id: UUID | None = None, **_kw: Any) -> Self:
+            ...
 
     def __init__(self, *args: Any, __graph_id: UUID | None = None, **kwargs: Any) -> None:
         self.graph_id = __graph_id or uuid1()
@@ -60,6 +75,11 @@ class ListModel(list[T], GraphModel, version=1):
 class SetModel(GraphModel, set[T], version=1):
     """A dictionary of artifacts"""
 
+    if TYPE_CHECKING:
+
+        def __new__(cls, *_a: Any, __graph_id: UUID | None = None, **_kw: Any) -> Self:
+            ...
+
     def __init__(self, *args: Any, __graph_id: UUID | None = None, **kwargs: Any) -> None:
         self.graph_id = __graph_id or uuid1()
         super().__init__(*args, **kwargs)
@@ -75,7 +95,12 @@ class SetModel(GraphModel, set[T], version=1):
 class TupleModel(GraphModel, tuple[T], version=1):
     """A tuple of artifacts"""
 
-    def __init__(self, *args: Any, __graph_id: UUID | None = None, **kwargs: Any) -> None:
+    if TYPE_CHECKING:
+
+        def __new__(cls, *_a: Any, __graph_id: UUID | None = None, **_kw: Any) -> Self:
+            ...
+
+    def __init__(self, *_args: Any, __graph_id: UUID | None = None, **_kwargs: Any) -> None:
         self.graph_id = __graph_id or uuid1()
 
     @classmethod

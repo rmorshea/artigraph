@@ -115,7 +115,7 @@ def linked(
 class Linker(AnySyncContextManager["Linker"]):
     """A context manager for linking graph objects together"""
 
-    def __init__(self, node: N, label: str | None = None) -> None:
+    def __init__(self, node: GraphObject, label: str | None = None) -> None:
         self.node = node
         self.label = label
         self._labels: set[str] = set()

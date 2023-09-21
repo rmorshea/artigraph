@@ -55,7 +55,6 @@ __all__ = (
     "Artifact",
     "ArtifactFilter",
     "current_engine",
-    "current_node",
     "current_session",
     "dataclass",
     "datetime_serializer",

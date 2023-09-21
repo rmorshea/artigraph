@@ -7,14 +7,13 @@ name = "artigraph"
 dynamic = ["version"]
 description = "A library for interrelated graphs of artifacts."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = "MIT"
 keywords = []
 authors = [{ name = "U.N. Owen", email = "void@some.where" }]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: Implementation :: CPython",
@@ -23,13 +22,15 @@ classifiers = [
 dependencies = ["typing_extensions", "sqlalchemy>=2,<3", "anyio>=3,<4"]
 
 [project.optional-dependencies]
-all = ["artigraph[aws,pandas,numpy,polars,pyarrow,plotly]"]
+all = ["artigraph[aws,networkx,numpy,pandas,polars,pyarrow,plotly,pydantic]"]
 aws = ["boto3>=1,<2"]
-pandas = ["pandas>=2,<3", "artigraph[pyarrow]"]
+networkx = ["networkx>=3,<4"]
 numpy = ["numpy>=1,<2", "pandas>=2,<3", "artigraph[pyarrow]"]
+pandas = ["pandas>=2,<3", "artigraph[pyarrow]"]
+plotly = ["plotly>=5,<6"]
 polars = ["polars<1", "artigraph[pyarrow]"]
 pyarrow = ["pyarrow>=12,<13"]
-plotly = ["plotly>=5,<6"]
+pydantic = ["pydantic>=2,<3"]
 
 [project.urls]
 Documentation = "https://github.com/rmorshea/artigraph#readme"
@@ -62,7 +63,7 @@ dependencies = [
 cov = ["cov-test", "cov-report"]
 cov-report = ["- coverage combine", "coverage report"]
 cov-test = "coverage run -m pytest {args:tests}"
-docs-build = "mkdocs build"
+docs-build = "mkdocs build --strict"
 docs-serve = "mkdocs serve"
 format = ["black {args:.}", "ruff --fix {args:.}", "style"]
 lint = ["lint-style", "lint-typing"]
@@ -75,6 +76,9 @@ publish-pypi = "hatch build && hatch publish"
 # --- Pytest ---------------------------------------------------------------------------------------
 
 [tool.pytest.ini_options]
+testpaths = "tests"
+xfail_strict = true
+python_files = "check*.py test_*.py"
 asyncio_mode = "auto"
 
 # --- Black ----------------------------------------------------------------------------------------
@@ -135,6 +139,10 @@ ignore = [
   "PLR0912",
   "PLR0913",
   "PLR0915",
+  # Ambiguous characters
+  "E741",
+  # Shadow Python Builtins
+  "A003",
 ]
 unfixable = [
   # Don't touch unused expressions

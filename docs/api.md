@@ -1,25 +1,17 @@
-# API
-
 ::: artigraph
 
-::: artigraph.serializer
+::: artigraph.extras.aws
 
-::: artigraph.serializer.datetime
+::: artigraph.extras.networkx
 
-::: artigraph.serializer.json
+::: artigraph.extras.numpy
 
-::: artigraph.serializer.numpy
+::: artigraph.extras.pandas
 
-::: artigraph.serializer.pandas
+::: artigraph.extras.plotly
 
-::: artigraph.serializer.plotly
+::: artigraph.extras.polars
 
-::: artigraph.serializer.polars
+::: artigraph.extras.pyarrow
 
-::: artigraph.serializer.pyarrow
-
-::: artigraph.storage
-
-::: artigraph.storage.aws
-
-::: artigraph.storage.file
+::: artigraph.extras.pydantic

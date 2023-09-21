@@ -7,12 +7,18 @@ extra_css:
 # Navigation menu
 nav:
     - Home: index.md
-    - Usage: usage.md
-    - Queries: queries.md
-    - Storage: storage.md
-    - Serializers: serializers.md
-    - Schema: schema.md
-    - API: api.md
+    - Usage:
+          - Initial Setup: setup.md
+          - Building Blocks: building-blocks.md
+          - Common Operations: common-operations.md
+          - Creating Graphs: creating-graphs.md
+    - Learn:
+          - Filtering: filtering.md
+          - Models: models.md
+          - Schema: database-schema.md
+          - Serializers: serializers.md
+          - Storage: storage.md
+    - Reference: api.md
 
 # Theme
 theme:
@@ -28,6 +34,10 @@ theme:
           toggle:
               icon: material/brightness-4
               name: Switch to light mode
+    features:
+        - navigation.instant
+        - navigation.tabs
+        - content.code.copy
 
 # Extensions
 markdown_extensions:

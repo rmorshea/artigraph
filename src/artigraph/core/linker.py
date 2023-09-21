@@ -35,7 +35,7 @@ _CURRENT_LINKER: ContextVar[Linker | None] = ContextVar("CURRENT_LINKER", defaul
 def current_linker() -> Linker:
     """Get the current linker"""
     linker = _CURRENT_LINKER.get()
-    if linker is None:
+    if linker is None:  # nocov
         msg = "No linker is currently active"
         raise RuntimeError(msg)
     return linker

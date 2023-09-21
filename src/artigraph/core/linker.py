@@ -148,11 +148,11 @@ class Linker(AnySyncContextManager["Linker"]):
         serializer: Serializer | None = None,
     ) -> None:
         """Link a graph object to the current node"""
-        if label is not None and label in self._labels:
-            msg = f"Label {label} already exists for {self.node}"
-            raise ValueError(msg)
-
-        self._labels.add(label)
+        if label is not None:
+            if label in self._labels:
+                msg = f"Label {label} already exists for {self.node}"
+                raise ValueError(msg)
+            self._labels.add(label)
 
         if isinstance(value, GraphObject):
             graph_obj = value

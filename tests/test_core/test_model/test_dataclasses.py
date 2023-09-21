@@ -7,11 +7,12 @@ from typing import Annotated, Any, TypeVar
 
 import pytest
 
+from artigraph.core.api.artifact import SaveSpec
 from artigraph.core.api.filter import LinkFilter, NodeFilter
 from artigraph.core.api.funcs import write_one
 from artigraph.core.api.link import Link
 from artigraph.core.api.node import Node
-from artigraph.core.model.base import FieldConfig, GraphModel
+from artigraph.core.model.base import GraphModel
 from artigraph.core.model.dataclasses import dataclass, get_annotated_model_data
 from artigraph.core.model.filter import ModelFilter
 from artigraph.core.serializer.json import json_sorted_serializer
@@ -80,6 +81,6 @@ def test_get_annotated_model_data():
     y = object()
 
     assert get_annotated_model_data(SomeModelWithAnnotatedData(x=x, y=y), ["x", "y"]) == {
-        "x": (x, FieldConfig(storage=store1, serializers=[])),
-        "y": (y, FieldConfig(serializers=[json_sorted_serializer])),
+        "x": (x, SaveSpec(storage=store1, serializers=[])),
+        "y": (y, SaveSpec(serializers=[json_sorted_serializer])),
     }

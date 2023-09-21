@@ -40,13 +40,13 @@ async def call_all() -> None:
 async def test_trace_graph():
     async with Linker(Node()) as root:
         await call_all()
-        await call_all.label("second")
+        await call_all()
 
     root_links = await read.a(Link, LinkFilter(parent=root.node.graph_id))
     assert len(root_links) == 2
     root_links_by_label = {link.label: link for link in root_links}
-    assert "call_all" in root_links_by_label
-    assert "call_all[second]" in root_links_by_label
+    assert "call_all[1]" in root_links_by_label
+    assert "call_all[2]" in root_links_by_label
 
     # TODO: test the rest...
 

@@ -5,7 +5,8 @@ from uuid import UUID, uuid1
 
 from typing_extensions import Self
 
-from artigraph.core.model.base import MODELED_TYPES, FieldConfig, GraphModel, ModelData, ModelInfo
+from artigraph.core.api.artifact import SaveSpec
+from artigraph.core.model.base import MODELED_TYPES, GraphModel, ModelData, ModelInfo
 
 T = TypeVar("T")
 
@@ -27,7 +28,7 @@ class DictModel(GraphModel, dict[str, T], version=1):
         return cls(data, _DictModel__graph_id=info.graph_id)
 
     def graph_model_data(self) -> ModelData:
-        return {k: (v, FieldConfig()) for k, v in self.items()}
+        return {k: (v, SaveSpec()) for k, v in self.items()}
 
 
 class FrozenSetModel(GraphModel, frozenset[T], version=1):
@@ -46,7 +47,7 @@ class FrozenSetModel(GraphModel, frozenset[T], version=1):
         return cls(data.values(), _FrozenSetModel__graph_id=info.graph_id)
 
     def graph_model_data(self) -> ModelData:
-        return {str(i): (v, FieldConfig()) for i, v in enumerate(self)}
+        return {str(i): (v, SaveSpec()) for i, v in enumerate(self)}
 
 
 class ListModel(list[T], GraphModel, version=1):
@@ -69,7 +70,7 @@ class ListModel(list[T], GraphModel, version=1):
         return cls(list_from_data, _ListModel__graph_id=info.graph_id)
 
     def graph_model_data(self) -> ModelData:
-        return {str(i): (v, FieldConfig()) for i, v in enumerate(self)}
+        return {str(i): (v, SaveSpec()) for i, v in enumerate(self)}
 
 
 class SetModel(GraphModel, set[T], version=1):
@@ -89,7 +90,7 @@ class SetModel(GraphModel, set[T], version=1):
         return cls(data.values(), _SetModel__graph_id=info.graph_id)
 
     def graph_model_data(self) -> ModelData:
-        return {str(i): (v, FieldConfig()) for i, v in enumerate(self)}
+        return {str(i): (v, SaveSpec()) for i, v in enumerate(self)}
 
 
 class TupleModel(GraphModel, tuple[T], version=1):
@@ -111,7 +112,7 @@ class TupleModel(GraphModel, tuple[T], version=1):
         return cls(data_from_kwargs, _TupleModel__graph_id=info.graph_id)
 
     def graph_model_data(self) -> ModelData:
-        return {str(i): (v, FieldConfig()) for i, v in enumerate(self)}
+        return {str(i): (v, SaveSpec()) for i, v in enumerate(self)}
 
 
 MODELED_TYPES[list] = ListModel

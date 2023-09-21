@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, ClassVar, Generic, TypeVar
+from dataclasses import dataclass
+from typing import Any, ClassVar, Generic, Sequence, TypeVar
 
 from artigraph.core.api.node import Node
 from artigraph.core.orm.artifact import OrmArtifact, OrmDatabaseArtifact, OrmRemoteArtifact
@@ -91,3 +92,38 @@ class Artifact(Node[OrmArtifact], Generic[T]):
                 else None
             ),
         }
+
+
+@dataclass(frozen=True)
+class SaveSpec:
+    """Information about how to save an artifact."""
+
+    serializers: Sequence[Serializer] = ()
+    """The serializers to try when saving the artifact."""
+
+    storage: Storage | None = None
+    """The storage to use when saving the artifact."""
+
+    def is_empty(self) -> bool:
+        """Return whether this save spec is empty."""
+        return not self.serializers and self.storage is None
+
+    def create_artifact(self, value: T, *, strict: bool = False) -> Artifact[T]:
+        """Create an artifact from a value."""
+        if isinstance(value, bytes):
+            return Artifact(value=value, serializer=None, storage=self.storage)
+
+        for s in self.serializers:
+            if isinstance(value, s.types):
+                return Artifact(value=value, serializer=s, storage=self.storage)
+
+        if strict:
+            if not self.serializers:
+                msg = f"No serializers specified for {value!r}"
+                raise ValueError(msg)
+            allowed_types = ", ".join([t.__name__ for s in self.serializers for t in s.types])
+            msg = f"Expected one of {allowed_types} - got {value!r}"
+            raise ValueError(msg)
+
+        serializer = get_serializer_by_type(type(value))[0]
+        return Artifact(value=value, serializer=serializer, storage=self.storage)

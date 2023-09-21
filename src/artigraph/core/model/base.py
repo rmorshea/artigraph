@@ -10,7 +10,7 @@ from uuid import UUID
 from typing_extensions import Self, TypeAlias
 
 from artigraph import __version__ as artigraph_version
-from artigraph.core.api.artifact import Artifact, load_deserialized_artifact_value
+from artigraph.core.api.artifact import SaveSpec, load_deserialized_artifact_value
 from artigraph.core.api.filter import Filter, LinkFilter, NodeFilter
 from artigraph.core.api.funcs import GraphObject, dump_one, dump_one_flat
 from artigraph.core.api.link import Link
@@ -22,13 +22,12 @@ from artigraph.core.orm.base import OrmBase
 from artigraph.core.orm.link import OrmLink
 from artigraph.core.orm.node import OrmNode
 from artigraph.core.serializer.base import Serializer
-from artigraph.core.serializer.json import json_serializer, json_sorted_serializer
-from artigraph.core.storage.base import Storage
+from artigraph.core.serializer.json import json_sorted_serializer
 from artigraph.core.utils.misc import TaskBatch
 
 M = TypeVar("M", bound="GraphModel")
 
-ModelData: TypeAlias = "dict[str, tuple[Any, FieldConfig]]"
+ModelData: TypeAlias = dict[str, tuple[Any, SaveSpec]]
 LabeledArtifactsByParentId: TypeAlias = Mapping[UUID, dict[str, OrmArtifact]]
 
 MODEL_TYPE_BY_NAME: dict[str, type[GraphModel]] = {}
@@ -57,16 +56,6 @@ def allow_model_type_overwrites() -> Iterator[None]:
         ALLOW_MODEL_TYPE_OVERWRITES.reset(reset_token)
 
 
-class FieldConfig(TypedDict, total=False):
-    """The metadata for an artifact model field."""
-
-    serializers: Sequence[Serializer]
-    """The serializer for the artifact model field."""
-
-    storage: Storage
-    """The storage for the artifact model field."""
-
-
 class GraphModel(GraphObject[OrmModelArtifact, OrmBase, NodeFilter[Any]]):
     """A base for all modeled artifacts."""
 
@@ -82,7 +71,7 @@ class GraphModel(GraphObject[OrmModelArtifact, OrmBase, NodeFilter[Any]]):
     graph_model_version: ClassVar[int] = 1
     """The version of the artifact model."""
 
-    def graph_model_data(self) -> dict[str, tuple[Any, FieldConfig]]:
+    def graph_model_data(self) -> ModelData:
         """The data for the artifact model."""
         raise NotImplementedError()
 
@@ -129,12 +118,12 @@ class GraphModel(GraphObject[OrmModelArtifact, OrmBase, NodeFilter[Any]]):
 
     async def graph_dump_related(self) -> Sequence[OrmBase]:
         dump_related: TaskBatch[Sequence[OrmBase]] = TaskBatch()
-        for label, (value, config) in self.graph_model_data().items():
+        for label, (value, spec) in self.graph_model_data().items():
             maybe_model = _try_convert_value_to_modeled_type(value)
-            if not any(v for v in config.values()) and isinstance(maybe_model, GraphObject):
+            if spec.is_empty() and isinstance(maybe_model, GraphObject):
                 dump_related.add(_dump_and_link, maybe_model, self.graph_id, label)
             else:
-                art = _make_artifact(value, config)
+                art = spec.create_artifact(value)
                 dump_related.add(_dump_and_link, art, self.graph_id, label)
         return [r for rs in await dump_related.gather() for r in rs]
 
@@ -225,16 +214,6 @@ class ModelMetadata(TypedDict):
 
     artigraph_version: str
     """The version of Artigraph used to generate the model"""
-
-
-def _make_artifact(value: Any, config: FieldConfig) -> Artifact[Any]:
-    """Make an artifact from a value and config."""
-    config = FieldConfig() if config is None else config
-    return Artifact(
-        value=value,
-        serializer=_pick_serializer(value, config.get("serializers", [])) or json_serializer,
-        storage=config.get("storage"),
-    )
 
 
 def _pick_serializer(value: Any, serializers: Sequence[Serializer]) -> Serializer | None:

@@ -14,13 +14,12 @@ from uuid import UUID, uuid1
 from typing_extensions import Self, dataclass_transform
 
 from artigraph.core.model.base import (
-    FieldConfig,
     GraphModel,
     ModelData,
     ModelInfo,
     allow_model_type_overwrites,
 )
-from artigraph.core.utils.type_hints import get_artigraph_type_hint_metadata
+from artigraph.core.utils.type_hints import get_save_specs_from_type_hints
 
 F = TypeVar("F", bound=Callable[..., Any])
 T = TypeVar("T", bound=type[GraphModel])
@@ -75,13 +74,5 @@ def dataclass(cls: type[T] | None = None, **kwargs: Any) -> type[T] | Callable[[
 
 def get_annotated_model_data(obj: Any, field_names: Sequence[str]) -> ModelData:
     """Get the model data for a dataclass-like instance."""
-    model_field_configs = {}
-
-    cls_hints = get_artigraph_type_hint_metadata(type(obj), use_cache=True)
-    for f_name in field_names:  # type: ignore
-        f_config = FieldConfig(serializers=cls_hints[f_name].serializers)
-        hint = cls_hints[f_name]
-        if hint.storage is not None:
-            f_config["storage"] = hint.storage
-        model_field_configs[f_name] = f_config
-    return {name: (getattr(obj, name), config) for name, config in model_field_configs.items()}
+    save_specs = get_save_specs_from_type_hints(type(obj), use_cache=True)
+    return {name: (getattr(obj, name), save_specs[name]) for name in field_names}

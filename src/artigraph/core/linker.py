@@ -15,7 +15,7 @@ from typing import (
 
 from typing_extensions import Self
 
-from artigraph.core.api.artifact import Artifact
+from artigraph.core.api.artifact import Artifact, SaveSpec
 from artigraph.core.api.base import GraphObject
 from artigraph.core.api.funcs import write_many
 from artigraph.core.api.link import Link
@@ -23,7 +23,7 @@ from artigraph.core.api.node import Node
 from artigraph.core.serializer.base import Serializer
 from artigraph.core.storage.base import Storage
 from artigraph.core.utils.anysync import AnySyncContextManager
-from artigraph.core.utils.type_hints import TypeHintMetadata, get_artigraph_type_hint_metadata
+from artigraph.core.utils.type_hints import get_save_specs_from_type_hints
 
 N = TypeVar("N", bound=Node)
 F = TypeVar("F", bound=Callable[..., Any])
@@ -60,13 +60,12 @@ def linked(
 
     def decorator(func: F) -> F:
         sig = signature(func)
-        hint_info = get_artigraph_type_hint_metadata(func)
+        hint_info = get_save_specs_from_type_hints(func)
 
-        def _create_inputs(label, args, kwargs):
-            if label is not None:
-                full_label = f"{func.__qualname__}[{label}]"
-            else:
-                full_label = func.__qualname__
+        def _create_label_and_inputs(args, kwargs):
+            nonlocal call_id
+            call_id += 1
+            full_label = f"{func.__qualname__}[{call_id}]"
             bound_args = sig.bind_partial(*args, **kwargs)
             inputs = {
                 k: v
@@ -79,15 +78,12 @@ def linked(
 
             @wraps(func)
             async def wrapper(*args: Any, **kwargs: Any) -> Any:
-                nonlocal call_id
-
                 # Check that there's an active linker. Without one, it's possible to
                 # produce orphaned nodes. It seems better to prevent that.
                 current_linker()
 
-                call_id += 1
-                inputs = _create_inputs(args, kwargs)
-                async with Linker(node_type(), str(call_id)) as linker:
+                label, inputs = _create_label_and_inputs(args, kwargs)
+                async with Linker(node_type(), label) as linker:
                     output = await func(*args, **kwargs)
                     values = {"return": output, **inputs}
                     for k, v in _create_graph_objects(
@@ -112,8 +108,8 @@ def linked(
                 current_linker()
 
                 call_id += 1
-                inputs = _create_inputs(args, kwargs)
-                with Linker(node_type(), call_id) as linker:
+                label, inputs = _create_label_and_inputs(args, kwargs)
+                with Linker(node_type(), label) as linker:
                     output = func(*args, **kwargs)
                     values = {"return": output, **inputs}
                     for k, v in _create_graph_objects(
@@ -200,7 +196,7 @@ class Linker(AnySyncContextManager["Linker"]):
 
 def _create_graph_objects(
     values: dict[str, Any],
-    hint_info: dict[str, TypeHintMetadata],
+    save_specs: dict[str, SaveSpec],
     include: set[str],
     exclude: set[str],
 ) -> dict[str, GraphObject]:
@@ -211,23 +207,10 @@ def _create_graph_objects(
             continue
         if isinstance(v, GraphObject):
             graph_obj = v
+        elif k in save_specs:
+            spec = save_specs[k]
+            graph_obj = spec.create_artifact(v, strict=not spec.is_empty())
         else:
-            if k in hint_info:
-                hinted_serializers = hint_info[k].serializers
-                if hinted_serializers:
-                    for serializer in hint_info[k].serializers:
-                        if isinstance(v, serializer.types):
-                            break
-                    else:
-                        allowed_types = [s.types for s in hint_info[k].serializers]
-                        msg = f"Expected {k} to be one of {allowed_types}, got {type(v)}"
-                        raise TypeError(msg)
-                else:
-                    serializer = None
-                storage = hint_info[k].storage
-            else:
-                serializer = None
-                storage = None
-            graph_obj = Artifact(value=v, serializer=serializer, storage=storage)
+            graph_obj = Artifact(value=v)
         records[k] = graph_obj
     return records

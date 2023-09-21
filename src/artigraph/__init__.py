@@ -1,6 +1,6 @@
 __version__ = "0.1.0"
 
-from artigraph.core.api.artifact import Artifact, load_deserialized_artifact_value
+from artigraph.core.api.artifact import Artifact, SaveSpec, load_deserialized_artifact_value
 from artigraph.core.api.base import GraphObject
 from artigraph.core.api.filter import (
     ArtifactFilter,
@@ -25,7 +25,7 @@ from artigraph.core.api.link import Link
 from artigraph.core.api.node import Node
 from artigraph.core.db import current_engine, current_session, set_engine
 from artigraph.core.linker import Linker, current_linker, linked
-from artigraph.core.model.base import FieldConfig, GraphModel, ModelInfo, ModelMetadata
+from artigraph.core.model.base import GraphModel, ModelInfo, ModelMetadata
 from artigraph.core.model.dataclasses import dataclass
 from artigraph.core.model.filter import ModelFilter, ModelTypeFilter
 from artigraph.core.orm.artifact import (
@@ -55,6 +55,7 @@ __all__ = (
     "Artifact",
     "ArtifactFilter",
     "current_engine",
+    "current_linker",
     "current_session",
     "dataclass",
     "datetime_serializer",
@@ -64,17 +65,15 @@ __all__ = (
     "delete_one",
     "delete",
     "exists",
-    "FieldConfig",
     "FileSystemStorage",
     "Filter",
-    "current_linker",
     "get_polymorphic_identities",
     "get_serializer_by_name",
     "get_serializer_by_name",
     "get_serializer_by_type",
     "get_storage_by_name",
-    "GraphObject",
     "GraphModel",
+    "GraphObject",
     "json_serializer",
     "json_sorted_serializer",
     "JsonSerializer",
@@ -93,14 +92,15 @@ __all__ = (
     "NodeTypeFilter",
     "OrmArtifact",
     "OrmBase",
-    "OrmLink",
     "OrmDatabaseArtifact",
+    "OrmLink",
     "OrmModelArtifact",
     "OrmNode",
     "OrmRemoteArtifact",
     "read_one_or_none",
     "read_one",
     "read",
+    "SaveSpec",
     "Serializer",
     "set_engine",
     "Storage",

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from functools import lru_cache
 from typing import (
     Annotated,
@@ -11,16 +10,15 @@ from typing import (
     get_type_hints,
 )
 
+from artigraph.core.api.artifact import SaveSpec
 from artigraph.core.serializer.base import Serializer
 from artigraph.core.storage.base import Storage
 
 
-def get_artigraph_type_hint_metadata(
-    obj: Any, *, use_cache: bool = False
-) -> dict[str, TypeHintMetadata]:
-    """Get the model data for a dataclass-like instance."""
+def get_save_specs_from_type_hints(obj: Any, *, use_cache: bool = False) -> dict[str, SaveSpec]:
+    """Get the save specs from the type hints of an object."""
     hints = (_cached_get_type_hints if use_cache else _nocache_get_type_hints)(obj)
-    info: dict[str, TypeHintMetadata] = {}
+    info: dict[str, SaveSpec] = {}
     for name, anno in hints.items():
         serializers: list[Serializer] = []
         storage: Storage | None = None
@@ -33,14 +31,8 @@ def get_artigraph_type_hint_metadata(
                         msg = f"Multiple storage types specified for {name!r} - {arg} and {storage}"
                         raise ValueError(msg)
                     storage = arg
-        info[name] = TypeHintMetadata(serializers, storage)
+        info[name] = SaveSpec(serializers, storage)
     return info
-
-
-@dataclass(frozen=True)
-class TypeHintMetadata:
-    serializers: Sequence[Serializer] = ()
-    storage: Storage | None = None
 
 
 def _find_all_annotated_metadata(hint: Any) -> Sequence[Annotated]:

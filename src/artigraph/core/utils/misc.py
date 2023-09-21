@@ -88,7 +88,7 @@ class TaskBatch(Generic[R]):
         self._funcs.append(lambda: func(*args, **kwargs))
         return self
 
-    def map(  # noqa: A003
+    def map(
         self,
         func: Callable[..., Coroutine[None, None, R]],
         *mapped_args: Sequence[Any],

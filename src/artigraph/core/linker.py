@@ -77,7 +77,7 @@ def linked(
         if iscoroutinefunction(func):
 
             @wraps(func)
-            async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 # Check that there's an active linker. Without one, it's possible to
                 # produce orphaned nodes. It seems better to prevent that.
                 current_linker()
@@ -95,12 +95,12 @@ def linked(
                         linker.link(v, k)
                     return output
 
-            return cast(F, wrapper)
+            return cast(F, async_wrapper)
 
         elif isfunction(func):
 
             @wraps(func)
-            def wrapper(*args: Any, **kwargs: Any) -> Any:
+            def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
                 nonlocal call_id
 
                 # Check that there's an active linker. Without one, it's possible to
@@ -121,7 +121,7 @@ def linked(
                         linker.link(v, k)
                     return output
 
-            return cast(F, wrapper)
+            return cast(F, sync_wrapper)
 
         else:  # nocov
             msg = f"Expected a function, got {type(func)}"

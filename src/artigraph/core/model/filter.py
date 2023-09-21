@@ -68,7 +68,7 @@ class ModelFilter(ArtifactFilter[OrmModelArtifact], Generic[M]):
 class ModelTypeFilter(Generic[M], Filter):
     """Filter models by their type and version"""
 
-    type: type[M]  # noqa: A003
+    type: type[M]
     """Models must be this type."""
     version: ValueFilter | int | None = None
     """Models must be this version."""

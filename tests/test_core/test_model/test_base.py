@@ -30,7 +30,7 @@ def test_try_convert_value_to_and_from_modeled_type(value):
     }
     model_type = MODELED_TYPES[type(value)]
     model_info = ModelInfo(
-        node_id=uuid1(),
+        graph_id=uuid1(),
         version=model_type.graph_model_version,
         metadata=ModelMetadata(artigraph_version=artigraph_version),
     )

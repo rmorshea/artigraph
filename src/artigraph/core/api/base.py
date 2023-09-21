@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import abc
 from typing import ClassVar, Generic, Mapping, Sequence, TypeVar
+from uuid import UUID
 
 from typing_extensions import Self
 
@@ -15,6 +16,9 @@ F = TypeVar("F", bound=Filter)
 
 class GraphBase(abc.ABC, Generic[S, R, F]):
     """Protocol for objects that can be converted to and from Artigraph ORM records."""
+
+    graph_id: UUID
+    """The ID of the object."""
 
     graph_orm_type: ClassVar[type[OrmBase]]
     """The ORM type that represents this object."""

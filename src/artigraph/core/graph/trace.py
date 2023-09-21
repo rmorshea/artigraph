@@ -19,7 +19,7 @@ from typing import (
 from artigraph.core.api.artifact import Artifact
 from artigraph.core.api.base import GraphBase
 from artigraph.core.api.funcs import write_many
-from artigraph.core.api.link import NodeLink
+from artigraph.core.api.link import Link
 from artigraph.core.api.node import Node
 from artigraph.core.model.base import GraphModel
 from artigraph.core.utils.anysync import AnySyncContextManager
@@ -163,9 +163,9 @@ class TraceNode(AnySyncContextManager[N]):
         to_write: list[GraphBase] = [self.node]
         if self.last_node is not None:
             to_write.append(
-                NodeLink(
-                    parent_id=self.last_node.node_id,
-                    child_id=self.node.node_id,
+                Link(
+                    source_id=self.last_node.graph_id,
+                    target_id=self.node.graph_id,
                     label=self.label,
                 )
             )
@@ -199,9 +199,9 @@ def _create_linked_values(
         if isinstance(v, GraphBase):
             graph_obj = v
             if isinstance(v, Node):
-                child_id = v.node_id
+                target_id = v.graph_id
             elif isinstance(v, GraphModel):
-                child_id = v.graph_node_id
+                target_id = v.graph_id
             else:  # nocov
                 msg = f"Unexpected graph object type: {type(v)}"
                 raise TypeError(msg)
@@ -213,10 +213,10 @@ def _create_linked_values(
             else:
                 serializer = None
             graph_obj = Artifact(value=v, serializer=serializer, storage=info.storage)
-            child_id = graph_obj.node_id
-        artlink = NodeLink(
-            parent_id=parent.node_id,
-            child_id=child_id,
+            target_id = graph_obj.graph_id
+        artlink = Link(
+            source_id=parent.graph_id,
+            target_id=target_id,
             label=k,
         )
         records.extend([graph_obj, artlink])

@@ -10,7 +10,7 @@ from artigraph.core.orm.node import OrmNode
 async def test_current_session_auto_rollback():
     with pytest.raises(RuntimeError):
         async with current_session() as session:
-            node = OrmNode(node_id=uuid1())
+            node = OrmNode(id=uuid1())
             session.add(node)
             await session.flush()
             result = await session.execute(select(OrmNode))

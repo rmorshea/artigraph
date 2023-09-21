@@ -13,7 +13,7 @@ from artigraph.core.utils.misc import FrozenDataclass
 
 
 def sorted_nodes(nodes: Sequence[Node]) -> Sequence[Node]:
-    return sorted(nodes, key=lambda node: node.node_id)
+    return sorted(nodes, key=lambda node: node.graph_id)
 
 
 class OrmFake(OrmBase):

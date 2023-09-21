@@ -5,8 +5,8 @@ from artigraph.core.api.base import GraphBase
 from artigraph.core.api.filter import (
     ArtifactFilter,
     Filter,
+    LinkFilter,
     NodeFilter,
-    NodeLinkFilter,
     NodeTypeFilter,
     ValueFilter,
 )
@@ -21,7 +21,7 @@ from artigraph.core.api.funcs import (
     write_many,
     write_one,
 )
-from artigraph.core.api.link import NodeLink
+from artigraph.core.api.link import Link
 from artigraph.core.api.node import Node
 from artigraph.core.db import current_engine, current_session, set_engine
 from artigraph.core.graph.trace import current_node, trace_function, trace_node
@@ -84,8 +84,8 @@ __all__ = (
     "ModelTypeFilter",
     "Node",
     "NodeFilter",
-    "NodeLink",
-    "NodeLinkFilter",
+    "Link",
+    "LinkFilter",
     "NodeTypeFilter",
     "OrmArtifact",
     "OrmBase",

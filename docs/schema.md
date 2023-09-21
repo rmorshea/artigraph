@@ -16,7 +16,7 @@ defined by the base `Node` class are:
 
 | Column            | Type       | Description                                                  |
 | ----------------- | ---------- | ------------------------------------------------------------ |
-| `node_id`         | `Integer`  | The primary key of the node.                                 |
+| `id`              | `Integer`  | The primary key of the node.                                 |
 | `node_type`       | `String`   | The type of the node (comes from its `polymorphic_identity`) |
 | `node_created_at` | `DateTime` | The time the node was created.                               |
 | `node_updated_at` | `DateTime` | The time the node was last updated.                          |
@@ -37,7 +37,7 @@ from sqlalchemy.declarative import Mapped, mapped_column
 
 class MyNode(Node, Mapped):
     __mapper_args__ = {"polymorphic_identity": "my_node"}
-    __table_args = (UniqueConstraint("node_parent_id", "my_node_label"),)
+    __table_args = (UniqueConstraint("node_source_id", "my_node_label"),)
     my_node_label: Mapped[str] = mapped_column(nullable=True)
 ```
 

@@ -18,5 +18,5 @@ from tests.common.check import check_can_read_write_delete_one
 async def test_write_read_delete_database_artifact(artifact: Artifact):
     await check_can_read_write_delete_one(
         artifact,
-        self_filter=ArtifactFilter(node_id=artifact.node_id),
+        self_filter=ArtifactFilter(id=artifact.graph_id),
     )

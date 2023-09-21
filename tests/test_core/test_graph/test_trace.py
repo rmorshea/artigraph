@@ -4,9 +4,9 @@ from typing import Annotated, Any
 import numpy as np
 import pandas as pd
 
-from artigraph.core.api.filter import NodeFilter, NodeLinkFilter
+from artigraph.core.api.filter import LinkFilter, NodeFilter
 from artigraph.core.api.funcs import exists, read, read_one
-from artigraph.core.api.link import NodeLink
+from artigraph.core.api.link import Link
 from artigraph.core.api.node import Node
 from artigraph.core.graph.trace import current_node, trace_function, trace_node
 from artigraph.core.serializer.json import json_sorted_serializer
@@ -42,7 +42,7 @@ async def test_trace_graph():
         await call_all()
         await call_all.labeled("second")
 
-    root_links = await read.a(NodeLink, NodeLinkFilter(parent=root.node_id))
+    root_links = await read.a(Link, LinkFilter(parent=root.graph_id))
     assert len(root_links) == 2
     root_links_by_label = {link.label: link for link in root_links}
     assert "call_all" in root_links_by_label
@@ -67,7 +67,7 @@ def test_trace_sync_graph():
     with trace_node(Node()) as root:
         do_math()
 
-    root_links = read.s(NodeLink, NodeLinkFilter(parent=root.node_id))
+    root_links = read.s(Link, LinkFilter(parent=root.graph_id))
     assert len(root_links) == 1
 
 
@@ -95,7 +95,7 @@ async def test_traced_function_with_node_as_arg():
         inner = Node()
         some_func(inner)
 
-    assert exists.s(Node, NodeFilter(ancestor_of=inner.node_id, node_id=root.node_id))
+    assert exists.s(Node, NodeFilter(ancestor_of=inner.graph_id, id=root.graph_id))
 
 
 async def test_traced_function_do_not_save():
@@ -109,7 +109,7 @@ async def test_traced_function_do_not_save():
         inner = Node()
         some_func(inner)
 
-    assert not exists.s(Node, NodeFilter(node_id=inner.node_id))
+    assert not exists.s(Node, NodeFilter(id=inner.graph_id))
 
 
 async def test_current_node():
@@ -127,5 +127,5 @@ async def test_current_node():
         inner = Node()
         some_func(inner)
 
-    actual_some_func_node = await read_one.a(Node, NodeFilter(parent_of=inner.node_id))
+    actual_some_func_node = await read_one.a(Node, NodeFilter(parent_of=inner.graph_id))
     assert some_func_current_node == actual_some_func_node

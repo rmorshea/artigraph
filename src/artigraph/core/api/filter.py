@@ -32,7 +32,7 @@ from sqlalchemy.sql.operators import OperatorType
 from typing_extensions import ParamSpec, Self
 
 from artigraph.core.orm.artifact import OrmArtifact
-from artigraph.core.orm.link import OrmNodeLink
+from artigraph.core.orm.link import OrmLink
 from artigraph.core.orm.node import OrmNode, get_polymorphic_identities
 from artigraph.core.utils.misc import FrozenDataclass
 
@@ -112,7 +112,7 @@ class MultiFilter(Filter):
 class NodeFilter(Filter, Generic[N]):
     """Filter nodes that meet the given conditions"""
 
-    node_id: ValueFilter[UUID] | Sequence[UUID] | UUID | None = None
+    id: ValueFilter[UUID] | Sequence[UUID] | UUID | None = None
     """Nodes must have this ID or meet this condition."""
     node_type: NodeTypeFilter[N] | type[N] | None = None
     """Nodes must be one of these types."""
@@ -132,12 +132,12 @@ class NodeFilter(Filter, Generic[N]):
     """Nodes must have a link with one of these labels."""
 
     def compose(self, expr: Expression) -> Expression:
-        node_id = to_value_filter(self.node_id)
+        node_id = to_value_filter(self.id)
         created_at = to_value_filter(self.created_at)
         updated_at = to_value_filter(self.updated_at)
 
         if node_id is not None:
-            expr &= node_id.against(OrmNode.node_id).create()
+            expr &= node_id.against(OrmNode.id).create()
 
         if self.node_type is not None:
             expr &= (
@@ -153,31 +153,31 @@ class NodeFilter(Filter, Generic[N]):
             expr &= updated_at.against(OrmNode.updated_at).create()
 
         if self.parent_of or self.ancestor_of:
-            expr &= OrmNode.node_id.in_(
-                select(OrmNodeLink.parent_id).where(
-                    NodeLinkFilter(child=self.parent_of, descendant=self.ancestor_of).create()
+            expr &= OrmNode.id.in_(
+                select(OrmLink.source_id).where(
+                    LinkFilter(child=self.parent_of, descendant=self.ancestor_of).create()
                 )
             )
 
         if self.child_of or self.descendant_of:
-            expr &= OrmNode.node_id.in_(
-                select(OrmNodeLink.child_id).where(
-                    NodeLinkFilter(parent=self.child_of, ancestor=self.descendant_of).create()
+            expr &= OrmNode.id.in_(
+                select(OrmLink.target_id).where(
+                    LinkFilter(parent=self.child_of, ancestor=self.descendant_of).create()
                 )
             )
 
         if self.label:
-            expr &= OrmNode.node_id.in_(
-                select(OrmNodeLink.child_id).where(NodeLinkFilter(label=self.label).create())
+            expr &= OrmNode.id.in_(
+                select(OrmLink.target_id).where(LinkFilter(label=self.label).create())
             )
 
         return expr
 
 
-class NodeLinkFilter(Filter):
+class LinkFilter(Filter):
     """Filter node links."""
 
-    link_id: ValueFilter[UUID] | UUID | None = None
+    id: ValueFilter[UUID] | UUID | None = None
     """Links must have this ID or meet this condition."""
     parent: NodeFilter | Sequence[UUID] | UUID | None = None
     """Links must have one of these nodes as their parent."""
@@ -190,40 +190,40 @@ class NodeLinkFilter(Filter):
     label: ValueFilter[str] | Sequence[str] | str | None = None
 
     def compose(self, expr: Expression) -> Expression:
-        link_id = to_value_filter(self.link_id)
-        parent_id = to_node_id_selector(self.parent)
-        child_id = to_node_id_selector(self.child)
+        link_id = to_value_filter(self.id)
+        source_id = to_node_id_selector(self.parent)
+        target_id = to_node_id_selector(self.child)
         descendant_id = to_node_id_selector(self.descendant)
         ancestor_id = to_node_id_selector(self.ancestor)
         label = to_value_filter(self.label)
 
         if link_id is not None:
-            expr &= link_id.against(OrmNodeLink.link_id).create()
+            expr &= link_id.against(OrmLink.id).create()
 
-        if parent_id is not None:
-            expr &= OrmNodeLink.parent_id.in_(parent_id)
+        if source_id is not None:
+            expr &= OrmLink.source_id.in_(source_id)
 
-        if child_id is not None:
-            expr &= OrmNodeLink.child_id.in_(child_id)
+        if target_id is not None:
+            expr &= OrmLink.target_id.in_(target_id)
 
         if ancestor_id is not None:
             # Create a CTE to get the descendants recursively
             descendant_node_cte = (
-                select(OrmNodeLink.parent_id.label("descendant_id"), OrmNodeLink.child_id)
-                .where(OrmNodeLink.parent_id.in_(ancestor_id))
+                select(OrmLink.source_id.label("descendant_id"), OrmLink.target_id)
+                .where(OrmLink.source_id.in_(ancestor_id))
                 .cte(name="descendants", recursive=True)
             )
 
             # Recursive case: select the children of the current nodes
-            child_node = aliased(OrmNodeLink)
+            child_node = aliased(OrmLink)
             descendant_node_cte = descendant_node_cte.union_all(
-                select(child_node.parent_id, child_node.child_id).where(
-                    child_node.parent_id == descendant_node_cte.c.child_id
+                select(child_node.source_id, child_node.target_id).where(
+                    child_node.source_id == descendant_node_cte.c.target_id
                 )
             )
 
             # Join the CTE with the actual Node table to get the descendants
-            expr &= OrmNodeLink.parent_id.in_(
+            expr &= OrmLink.source_id.in_(
                 select(descendant_node_cte.c.descendant_id).where(
                     descendant_node_cte.c.descendant_id.isnot(None)
                 )
@@ -232,28 +232,28 @@ class NodeLinkFilter(Filter):
         if descendant_id is not None:
             # Create a CTE to get the ancestors recursively
             ancestor_node_cte = (
-                select(OrmNodeLink.child_id.label("ancestor_id"), OrmNodeLink.parent_id)
-                .where(OrmNodeLink.child_id.in_(descendant_id))
+                select(OrmLink.target_id.label("ancestor_id"), OrmLink.source_id)
+                .where(OrmLink.target_id.in_(descendant_id))
                 .cte(name="ancestors", recursive=True)
             )
 
             # Recursive case: select the parents of the current nodes
-            parent_node = aliased(OrmNodeLink)
+            parent_node = aliased(OrmLink)
             ancestor_node_cte = ancestor_node_cte.union_all(
-                select(parent_node.child_id, parent_node.parent_id).where(
-                    parent_node.child_id == ancestor_node_cte.c.parent_id
+                select(parent_node.target_id, parent_node.source_id).where(
+                    parent_node.target_id == ancestor_node_cte.c.source_id
                 )
             )
 
             # Join the CTE with the actual Node table to get the ancestors
-            expr &= OrmNodeLink.child_id.in_(
+            expr &= OrmLink.target_id.in_(
                 select(ancestor_node_cte.c.ancestor_id).where(
                     ancestor_node_cte.c.ancestor_id.isnot(None)
                 )
             )
 
         if label is not None:
-            expr &= label.against(OrmNodeLink.label).create()
+            expr &= label.against(OrmLink.label).create()
 
         return expr
 
@@ -263,7 +263,7 @@ class NodeTypeFilter(Filter, Generic[N]):
 
     subclasses: bool = True
     """Consider subclasses of the given types when filtering."""
-    type: Sequence[type[N]] | type[N] | None = None  # noqa: A003
+    type: Sequence[type[N]] | type[N] | None = None
     """Nodes must be one of these types."""
     not_type: Sequence[type[N]] | type[N] | None = None
     """Nodes must not be one of these types."""
@@ -379,7 +379,7 @@ def to_node_id_selector(
         return value
 
     if isinstance(value, Filter):
-        return select(OrmNode.node_id).where(value.create())
+        return select(OrmNode.id).where(value.create())
 
     if isinstance(value, UUID):
         return [value]

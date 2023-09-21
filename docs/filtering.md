@@ -101,14 +101,14 @@ class MyFilter(ag.Filter):
 
    def compose(self, expr):
          if self.must_have_parent:
-              expr &= ag.OrmNode.node_id.in_(select(ag.OrmNodeLink.parent_id))
+              expr &= ag.OrmNode.id.in_(select(ag.OrmLink.source_id))
          return expr
 ```
 
 You can then compose multiple filters using the `&` and `|` operators:
 
 ```python
-await read_node(NodeFilter(node_id=2) & MyFilter(must_have_parent=True))
+await read_node(NodeFilter(id=2) & MyFilter(must_have_parent=True))
 ```
 
 ## Node Filter
@@ -347,8 +347,8 @@ The [ValueFilter][artigraph.ValueFilter] allows you to select individual values 
 comparing them to one or more given values. It does not allow you filter nodes directly
 but might be useful to do so indirectly by comparing values of a node's properties. Many
 other filters support using [ValueFilter][artigraph.ValueFilter]s. For example
-[NodeFilter.node_id][artigraph.NodeFilter.node_id] can be a
-[ValueFilter][artigraph.ValueFilter] instead of an integer:
+[NodeFilter.id][artigraph.NodeFilter.id] can be a [ValueFilter][artigraph.ValueFilter]
+instead of an integer:
 
 ```python
 import artigraph as ag

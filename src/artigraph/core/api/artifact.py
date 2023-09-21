@@ -61,14 +61,14 @@ class Artifact(Node[OrmArtifact], Generic[T]):
         if data is not None and self.storage is not None:
             location = await self.storage.create(data)
             artifact = OrmRemoteArtifact(
-                node_id=self.node_id,
+                id=self.graph_id,
                 artifact_serializer=serializer_name,
                 remote_artifact_storage=self.storage.name,
                 remote_artifact_location=location,
             )
         else:
             artifact = OrmDatabaseArtifact(
-                node_id=self.node_id,
+                id=self.graph_id,
                 artifact_serializer=serializer_name,
                 database_artifact_data=data,
             )

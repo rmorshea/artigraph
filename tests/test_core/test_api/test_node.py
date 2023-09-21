@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from artigraph.core.api.filter import NodeFilter, NodeLinkFilter
+from artigraph.core.api.filter import LinkFilter, NodeFilter
 from artigraph.core.api.funcs import delete_one, exists, read_one, write_many
-from artigraph.core.api.link import NodeLink
+from artigraph.core.api.link import Link
 from artigraph.core.api.node import Node
 
 
@@ -11,16 +11,16 @@ async def test_write_read_delete_node():
     info = await create_graph()
     parent1 = info["parent1"]
 
-    node_filter = NodeFilter(node_id=parent1.node_id)
-    node_link_filter = NodeLinkFilter(parent=parent1.node_id)
+    node_filter = NodeFilter(id=parent1.graph_id)
+    node_link_filter = LinkFilter(parent=parent1.graph_id)
 
     parent = await read_one.a(Node, node_filter)
-    assert parent.node_id == parent1.node_id
-    assert await exists.a(NodeLink, node_link_filter)
+    assert parent.graph_id == parent1.graph_id
+    assert await exists.a(Link, node_link_filter)
 
     await delete_one.a(parent)
     assert not await exists.a(Node, node_filter)
-    assert not await exists.a(NodeLink, node_link_filter)
+    assert not await exists.a(Link, node_link_filter)
 
 
 async def create_graph() -> dict[str, Node]:
@@ -61,44 +61,44 @@ async def create_graph() -> dict[str, Node]:
     node_info["child4"] = child4
     node_info["parent3"] = parent3
 
-    grandparent_to_parent = NodeLink(
-        parent_id=grandparent.node_id,
-        child_id=parent1.node_id,
+    grandparent_to_parent = Link(
+        source_id=grandparent.graph_id,
+        target_id=parent1.graph_id,
         label="grandparent_to_1parent",
     )
-    parent_to_child1 = NodeLink(
-        parent_id=parent1.node_id,
-        child_id=child1.node_id,
+    parent_to_child1 = Link(
+        source_id=parent1.graph_id,
+        target_id=child1.graph_id,
         label="parent1_to_child1",
     )
-    child1_to_grandchild1 = NodeLink(
-        parent_id=child1.node_id,
-        child_id=grandchild1.node_id,
+    child1_to_grandchild1 = Link(
+        source_id=child1.graph_id,
+        target_id=grandchild1.graph_id,
         label="child1_to_grandchild1",
     )
-    parent_to_child2 = NodeLink(
-        parent_id=parent1.node_id,
-        child_id=child2.node_id,
+    parent_to_child2 = Link(
+        source_id=parent1.graph_id,
+        target_id=child2.graph_id,
         label="parent1_to_child2",
     )
-    grandparent_to_parent2 = NodeLink(
-        parent_id=grandparent.node_id,
-        child_id=parent2.node_id,
+    grandparent_to_parent2 = Link(
+        source_id=grandparent.graph_id,
+        target_id=parent2.graph_id,
         label="grandparent_to_parent2",
     )
-    parent2_to_child3 = NodeLink(
-        parent_id=parent2.node_id,
-        child_id=child3.node_id,
+    parent2_to_child3 = Link(
+        source_id=parent2.graph_id,
+        target_id=child3.graph_id,
         label="parent2_to_child3",
     )
-    parent2_to_child4 = NodeLink(
-        parent_id=parent2.node_id,
-        child_id=child4.node_id,
+    parent2_to_child4 = Link(
+        source_id=parent2.graph_id,
+        target_id=child4.graph_id,
         label="parent2_to_child4",
     )
-    grandparent_to_parent3 = NodeLink(
-        parent_id=grandparent.node_id,
-        child_id=parent3.node_id,
+    grandparent_to_parent3 = Link(
+        source_id=grandparent.graph_id,
+        target_id=parent3.graph_id,
         label="grandparent_to_parent3",
     )
 

@@ -7,40 +7,40 @@ from uuid import UUID, uuid1
 from typing_extensions import Self
 
 from artigraph.core.api.base import GraphBase
-from artigraph.core.api.filter import NodeLinkFilter
-from artigraph.core.orm.link import OrmNodeLink
+from artigraph.core.api.filter import LinkFilter
+from artigraph.core.orm.link import OrmLink
 from artigraph.core.utils.misc import FrozenDataclass
 
-L = TypeVar("L", bound=OrmNodeLink)
+L = TypeVar("L", bound=OrmLink)
 
 
-class NodeLink(FrozenDataclass, GraphBase[L, OrmNodeLink, NodeLinkFilter]):
+class Link(FrozenDataclass, GraphBase[L, OrmLink, LinkFilter]):
     """A wrapper around an ORM node link record."""
 
-    graph_orm_type: ClassVar[type[OrmNodeLink]] = OrmNodeLink
+    graph_orm_type: ClassVar[type[OrmLink]] = OrmLink
     """The ORM type for this node."""
 
-    parent_id: UUID
+    source_id: UUID
     """The ID of the parent node."""
-    child_id: UUID
+    target_id: UUID
     """The ID of the child node."""
     label: str | None = None
     """A label for the link."""
-    link_id: UUID = field(default_factory=uuid1)
+    graph_id: UUID = field(default_factory=uuid1)
     """The unique ID of this link"""
 
-    def graph_filter_self(self) -> NodeLinkFilter:
-        return NodeLinkFilter(link_id=self.link_id)
+    def graph_filter_self(self) -> LinkFilter:
+        return LinkFilter(id=self.graph_id)
 
     @classmethod
-    def graph_filter_related(cls, _: NodeLinkFilter) -> dict:
+    def graph_filter_related(cls, _: LinkFilter) -> dict:
         return {}
 
-    async def graph_dump_self(self) -> OrmNodeLink:
-        return OrmNodeLink(
-            link_id=self.link_id,
-            child_id=self.child_id,
-            parent_id=self.parent_id,
+    async def graph_dump_self(self) -> OrmLink:
+        return OrmLink(
+            id=self.graph_id,
+            target_id=self.target_id,
+            source_id=self.source_id,
             label=self.label,
         )
 
@@ -48,12 +48,12 @@ class NodeLink(FrozenDataclass, GraphBase[L, OrmNodeLink, NodeLinkFilter]):
         return []
 
     @classmethod
-    async def graph_load(cls, self_records: Sequence[OrmNodeLink], _: dict) -> Sequence[Self]:
+    async def graph_load(cls, self_records: Sequence[OrmLink], _: dict) -> Sequence[Self]:
         return [
             cls(
-                link_id=r.link_id,
-                child_id=r.child_id,
-                parent_id=r.parent_id,
+                graph_id=r.id,
+                target_id=r.target_id,
+                source_id=r.source_id,
                 label=r.label,
             )
             for r in self_records

@@ -12,7 +12,7 @@ from artigraph.core.model.dataclasses import get_annotated_model_data
 class PydanticModel(GraphModel, _BaseModel, version=1):
     """A base for all artifacts modeled with Pydantic."""
 
-    graph_node_id: UUID = Field(default_factory=uuid1, exclude=True)
+    graph_id: UUID = Field(default_factory=uuid1, exclude=True)
     """The unique ID of this model."""
 
     def graph_model_data(self) -> ModelData:
@@ -23,4 +23,4 @@ class PydanticModel(GraphModel, _BaseModel, version=1):
 
     @classmethod
     def graph_model_init(cls, info: ModelInfo, kwargs: dict[str, Any]) -> Self:
-        return cls(graph_node_id=info.node_id, **kwargs)
+        return cls(graph_id=info.graph_id, **kwargs)

@@ -5,12 +5,12 @@ from uuid import UUID
 import networkx as nx
 
 from artigraph.core.api.artifact import Artifact
-from artigraph.core.api.filter import NodeFilter, NodeLinkFilter, NodeTypeFilter
+from artigraph.core.api.base import GraphBase
+from artigraph.core.api.filter import LinkFilter, NodeFilter, NodeTypeFilter
 from artigraph.core.api.funcs import read
-from artigraph.core.api.link import NodeLink
+from artigraph.core.api.link import Link
 from artigraph.core.api.node import Node
 from artigraph.core.model.base import GraphModel
-from artigraph.core.model.filter import ModelFilter
 from artigraph.core.orm.artifact import OrmArtifact, OrmModelArtifact
 from artigraph.core.utils.anysync import anysync
 
@@ -47,43 +47,52 @@ async def create_graph(root: Node) -> nx.DiGraph:
 async def _read_nodes_relationships_labels(
     root: Node,
 ) -> tuple[_NodesById, _NodeRelationships, _LabelsById]:
-    links = await read.a(NodeLink, NodeLinkFilter(ancestor=root.node_id))
+    links = await read.a(
+        Link,
+        LinkFilter(ancestor=root.graph_id),
+    )
     nodes = await read.a(
         Node,
         NodeFilter(
-            node_id=[l.child_id for l in links],
-            node_type=NodeTypeFilter(subclasses=True, not_type=OrmArtifact),
+            id=[l.target_id for l in links],
+            node_type=NodeTypeFilter(
+                subclasses=True,
+                not_type=OrmArtifact,
+            ),
         ),
     )
     artifacts = await read.a(
         Artifact,
         NodeFilter(
-            node_id=[l.child_id for l in links],
+            id=[l.target_id for l in links],
             node_type=NodeTypeFilter(
-                type=[OrmArtifact],
                 subclasses=True,
+                type=OrmArtifact,
                 not_type=OrmModelArtifact,
             ),
         ),
     )
     models = await read.a(
         GraphModel,
-        ModelFilter(node_id=[l.child_id for l in links]),
+        NodeFilter(
+            id=[l.target_id for l in links],
+            node_type=NodeTypeFilter(
+                subclasses=True,
+                type=OrmModelArtifact,
+            ),
+        ),
     )
 
     relationships: defaultdict[UUID, list[UUID]] = defaultdict(list)
     for l in links:
-        relationships[l.parent_id].append(l.child_id)
+        relationships[l.source_id].append(l.target_id)
 
-    labels = {l.child_id: l.label for l in links}
+    labels = {l.target_id: l.label for l in links}
 
     nodes_by_id: dict[UUID, Node | GraphModel] = {}
-    for n in nodes:
-        nodes_by_id[n.node_id] = n
-    for a in artifacts:
-        nodes_by_id[a.node_id] = a
-    for m in models:
-        nodes_by_id[m.graph_node_id] = m
+    node_likes: Sequence[GraphBase] = [*nodes, *artifacts, *models]
+    for n in node_likes:
+        nodes_by_id[n.graph_id] = n
 
     return nodes_by_id, relationships, labels
 
@@ -96,20 +105,17 @@ def _dfs_iter_nodes(
     """Yield nodes in depth-first order."""
     nodes_by_id: dict[UUID, Node | GraphModel] = {}
     for n in nodes:
-        if isinstance(n, GraphModel):
-            nodes_by_id[n.graph_node_id] = n
-        else:
-            nodes_by_id[n.node_id] = n
+        nodes_by_id[n.graph_id] = n
 
     seen = set()
-    stack: list[tuple[UUID, Any]] = [(root.node_id, root)]
+    stack: list[tuple[UUID, Any]] = [(root.graph_id, root)]
     while stack:
         node_id, node = stack.pop()
         seen.add(node_id)
         yield node_id, node
-        for child_id in relationships[node_id]:
-            if child_id not in seen:
-                stack.append((child_id, nodes_by_id[child_id]))
+        for target_id in relationships[node_id]:
+            if target_id not in seen:
+                stack.append((target_id, nodes_by_id[target_id]))
             else:  # nocov
                 # recursive query in create_graph prevents us from ever seeing circular graphs
                 pass

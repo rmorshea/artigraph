@@ -44,13 +44,13 @@ def dataclass(cls: type[T] | None = None, **kwargs: Any) -> type[T] | Callable[[
 
             @_dataclass(**kwargs)
             class _DataclassModel(cls, version=cls.graph_model_version):
-                graph_node_id: UUID = field(default_factory=uuid1, init=False, compare=False)
+                graph_id: UUID = field(default_factory=uuid1, init=False, compare=False)
                 graph_model_name = getattr(cls, "graph_model_name", cls.__name__)
 
                 @classmethod
                 def graph_model_init(cls, info: ModelInfo, data: dict[str, Any]) -> Self:
                     self = cls(**data)
-                    object.__setattr__(self, "graph_node_id", info.node_id)
+                    object.__setattr__(self, "graph_id", info.graph_id)
                     return self
 
                 def graph_model_data(self) -> ModelData:
@@ -61,7 +61,7 @@ def dataclass(cls: type[T] | None = None, **kwargs: Any) -> type[T] | Callable[[
                             for f in fields(self)
                             if f.init
                             # exclude this since it's on the DB record anyway
-                            and f.name != "graph_node_id"
+                            and f.name != "graph_id"
                         ],
                     )
 

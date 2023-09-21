@@ -1,8 +1,9 @@
 # Building Blocks
 
 At the core of Artigraph are [nodes](#nodes) and [links](#links). Nodes are the vertices
-of the graph and links are the edges that connect them. Edges in Artigraph are always
-directed and have a parent and a child.
+of the graph and links are the edges that connect them. Links, the graph edges in
+Artigraph, are directed (having a `source_id and a `target_id`) and may have an optional
+label that describes the relationship between the nodes they connect.
 
 Nodes which have data associated with them are called [artifacts](#artifacts). Artifacts
 are the primary way you'll store information in Artigraph. You can organize artifacts
@@ -38,9 +39,8 @@ ag.write([node1, node2])
 
 ## Links
 
-[NodeLink][artigraph.NodeLink] objects are the edges that connect nodes in a graph. To
-create one you'll need at least two node. You can then pass their IDs to the
-constructor:
+[Link][artigraph.Link] objects are the edges that connect nodes in a graph. To create
+one you'll need at least two node. You can then pass their IDs to the constructor:
 
 ```python
 import artigraph as ag
@@ -48,7 +48,7 @@ import artigraph as ag
 node1 = ag.Node()
 node2 = ag.Node()
 
-link = ag.NodeLink(parent_id=node1.node_id, child_id=node2.node_id)
+link = ag.Link(source_id=node1.graph_id, target_id=node2.graph_id)
 ```
 
 Which will form the following relationship:
@@ -63,9 +63,9 @@ graph LR
 Node links can also have a label that describes the relationship between the nodes:
 
 ```python
-link = ag.NodeLink(
-    parent_id=node1.node_id,
-    child_id=node2.node_id,
+link = ag.Link(
+    source_id=node1.graph_id,
+    target_id=node2.graph_id,
     label="your-label",
 )
 ```
@@ -116,7 +116,7 @@ As with nodes, you can relate them with each other or with other nodes using nod
 ```python
 node = ag.Node()
 artifact = ag.Artifact(value=b"Hello, world!")
-link = ag.NodeLink(parent_id=node.node_id, child_id=artifact.node_id)
+link = ag.Link(source_id=node.graph_id, target_id=artifact.graph_id)
 
 ag.write([node, artifact, link])
 ```

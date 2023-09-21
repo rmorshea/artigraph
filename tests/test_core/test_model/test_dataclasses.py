@@ -7,9 +7,9 @@ from typing import Annotated, Any, TypeVar
 
 import pytest
 
-from artigraph.core.api.filter import NodeFilter, NodeLinkFilter
+from artigraph.core.api.filter import LinkFilter, NodeFilter
 from artigraph.core.api.funcs import write_one
-from artigraph.core.api.link import NodeLink
+from artigraph.core.api.link import Link
 from artigraph.core.api.node import Node
 from artigraph.core.model.base import FieldConfig, GraphModel
 from artigraph.core.model.dataclasses import dataclass, get_annotated_model_data
@@ -62,10 +62,10 @@ async def test_dataclass_model_one_field_cannot_have_multiple_storages():
 async def test_write_read_delete_dataclass_model(model: GraphModel):
     await check_can_read_write_delete_one(
         model,
-        self_filter=ModelFilter(node_id=model.graph_node_id, model_type=SimpleDataclassModel),
+        self_filter=ModelFilter(id=model.graph_id, model_type=SimpleDataclassModel),
         related_filters=[
-            (Node, NodeFilter(descendant_of=model.graph_node_id)),
-            (NodeLink, NodeLinkFilter(ancestor=model.graph_node_id)),
+            (Node, NodeFilter(descendant_of=model.graph_id)),
+            (Link, LinkFilter(ancestor=model.graph_id)),
         ],
     )
 

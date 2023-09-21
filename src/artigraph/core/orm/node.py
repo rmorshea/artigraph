@@ -47,10 +47,10 @@ class OrmNode(OrmBase, **_node_dataclass_kwargs):
         "polymorphic_on": "node_type",
     }
 
-    node_id: Mapped[UUID] = mapped_column(primary_key=True)
+    id: Mapped[UUID] = mapped_column(primary_key=True)
     """The unique ID of this node"""
 
-    node_type: Mapped[str] = mapped_column(nullable=False, init=False)
+    node_type: Mapped[str] = mapped_column(nullable=False, init=False, index=True)
     """The type of the node link."""
 
     @classmethod

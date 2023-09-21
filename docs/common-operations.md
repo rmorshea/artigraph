@@ -38,8 +38,8 @@ import artigraph as ag
 node = ag.Node()
 ag.write_one(node)
 
-node = ag.read_one(ag.NodeFilter(node_id=node.node_id))
-ag.delete(ag.NodeFilter(node_id=node.node_id))
+node = ag.read_one(ag.NodeFilter(id=node.graph_id))
+ag.delete(ag.NodeFilter(id=node.graph_id))
 ```
 
 ## Sessions
@@ -55,7 +55,7 @@ import artigraph as ag
 with ag.current_session() as session:
     node = ag.Node()
     ag.write_one(node)
-    node = ag.read_one(ag.NodeFilter(node_id=node.node_id))
+    node = ag.read_one(ag.NodeFilter(id=node.graph_id))
     ag.delete_one(node)
 ```
 

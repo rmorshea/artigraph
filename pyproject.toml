@@ -141,6 +141,8 @@ ignore = [
   "PLR0915",
   # Ambiguous characters
   "E741",
+  # Shadow Python Builtins
+  "A003",
 ]
 unfixable = [
   # Don't touch unused expressions

@@ -1,6 +1,6 @@
 # Models
 
-A [GraphModel][artigraph.GraphModel] provides a way to store structure data in
+A [GraphModel][artigraph.GraphModel] provides a way to store structured data in
 Artigraph.
 
 You can use one of the [built-in models](#built-in-models) or you can
